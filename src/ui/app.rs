@@ -1404,6 +1404,22 @@ impl PetriApp {
                 do_copy_local = do_copy_local || (ctrl_like && i.key_pressed(egui::Key::C));
                 do_paste_local = do_paste_local || (ctrl_like && i.key_pressed(egui::Key::V));
                 do_undo_local = do_undo_local || (ctrl_like && i.key_pressed(egui::Key::Z));
+
+                // Strong fallback for environments where Ctrl sequence is unreliable:
+                // on focused/hovered canvas, C/V always act as copy/paste (except Alt/Shift combos).
+                if !i.modifiers.alt && !i.modifiers.shift && !i.modifiers.mac_cmd {
+                    do_copy_local = do_copy_local || i.key_pressed(egui::Key::C);
+                    do_paste_local = do_paste_local || i.key_pressed(egui::Key::V);
+                }
+                // Keep plain Z as undo fallback only when no modifiers are pressed.
+                let no_mods = !i.modifiers.ctrl
+                    && !i.modifiers.command
+                    && !i.modifiers.alt
+                    && !i.modifiers.shift
+                    && !i.modifiers.mac_cmd;
+                if no_mods {
+                    do_undo_local = do_undo_local || i.key_pressed(egui::Key::Z);
+                }
             });
         }
 
