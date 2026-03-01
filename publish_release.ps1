@@ -60,7 +60,7 @@ $headers = @{
     Accept = "application/json"
 }
 
-$baseApi = "$ServerUrl/api/v1/repos/$Owner/$Repo"
+$baseApi = "${ServerUrl}/api/v1/repos/${Owner}/${Repo}"
 
 function Remove-ReleaseByTag([string]$TagToDelete) {
     if ([string]::IsNullOrWhiteSpace($TagToDelete)) { return }
@@ -84,7 +84,7 @@ function Remove-ReleaseByTag([string]$TagToDelete) {
 foreach ($oldTag in $DeleteReleaseTags) {
     Remove-ReleaseByTag $oldTag
 }
-$releaseByTagUrl = "$baseApi/releases/tags/$Tag"
+$releaseByTagUrl = "${baseApi}/releases/tags/${Tag}"
 
 Write-Host "Finding/creating release..."
 $release = $null
@@ -105,7 +105,7 @@ if (-not $release) {
         prerelease = $false
     } | ConvertTo-Json
 
-    $release = Invoke-RestMethod -Method Post -Headers $headers -Uri "$baseApi/releases" -Body $createBody -ContentType "application/json"
+    $release = Invoke-RestMethod -Method Post -Headers $headers -Uri "${baseApi}/releases" -Body $createBody -ContentType "application/json"
 }
 
 $releaseId = $release.id
@@ -113,7 +113,7 @@ if (-not $releaseId) {
     throw "Failed to resolve release id for tag $Tag"
 }
 
-$assetsUrl = "$baseApi/releases/$releaseId/assets"
+$assetsUrl = "${baseApi}/releases/${releaseId}/assets"
 $assetName = Split-Path -Leaf $exePath
 
 Write-Host "Removing old asset with same name (if exists)..."
@@ -125,7 +125,8 @@ foreach ($asset in $assets) {
 }
 
 Write-Host "Uploading executable to release..."
-$uploadUrl = "$assetsUrl?name=$assetName"
+$encodedName = [uri]::EscapeDataString($assetName)
+$uploadUrl = "${assetsUrl}?name=${encodedName}"
 Invoke-RestMethod -Method Post -Headers @{ Authorization = "token $token"; Accept = "application/json"; "Content-Type" = "application/octet-stream" } -Uri $uploadUrl -InFile $exePath
 
 Write-Host "Done. Release asset uploaded:"
