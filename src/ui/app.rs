@@ -159,9 +159,6 @@ pub struct PetriApp {
     clipboard: Option<CopyBuffer>,
     paste_serial: u32,
     undo_stack: Vec<UndoSnapshot>,
-    copy_combo_down: bool,
-    paste_combo_down: bool,
-    undo_combo_down: bool,
     status_hint: Option<String>,
 }
 
@@ -249,9 +246,6 @@ impl PetriApp {
             clipboard: None,
             paste_serial: 0,
             undo_stack: Vec::new(),
-            copy_combo_down: false,
-            paste_combo_down: false,
-            undo_combo_down: false,
             status_hint: None,
         }
     }
@@ -301,9 +295,6 @@ impl PetriApp {
                 clipboard: None,
                 paste_serial: 0,
                 undo_stack: Vec::new(),
-                copy_combo_down: false,
-                paste_combo_down: false,
-                undo_combo_down: false,
                 status_hint: None,
             }
         }
@@ -1139,21 +1130,12 @@ impl PetriApp {
             do_save = i.modifiers.command && i.key_pressed(egui::Key::S);
             do_exit = i.modifiers.command && i.key_pressed(egui::Key::Q);
             do_delete = i.key_pressed(egui::Key::Delete);
-            let cmd_or_ctrl = i.modifiers.command || i.modifiers.ctrl;
-            // Order-independent combos: trigger when combo becomes active.
-            let copy_combo_now =
-                (cmd_or_ctrl && i.key_down(egui::Key::C)) || (i.modifiers.ctrl && i.key_down(egui::Key::Insert));
-            let paste_combo_now =
-                (cmd_or_ctrl && i.key_down(egui::Key::V)) || (i.modifiers.shift && i.key_down(egui::Key::Insert));
-            let undo_combo_now = cmd_or_ctrl && i.key_down(egui::Key::Z);
-            do_copy = do_copy || (copy_combo_now && !self.copy_combo_down);
-            do_paste = do_paste || (paste_combo_now && !self.paste_combo_down);
-            do_undo = do_undo || (undo_combo_now && !self.undo_combo_down);
-            self.copy_combo_down = copy_combo_now;
-            self.paste_combo_down = paste_combo_now;
-            self.undo_combo_down = undo_combo_now;
+            // Strict shortcuts: only Ctrl+key where Ctrl is already held.
+            do_copy = i.modifiers.ctrl && i.key_pressed(egui::Key::C);
+            do_paste = i.modifiers.ctrl && i.key_pressed(egui::Key::V);
+            do_undo = i.modifiers.ctrl && i.key_pressed(egui::Key::Z);
 
-            // Layout fallback (RU keyboard) with Ctrl/Cmd held.
+            // Layout fallback (RU keyboard), still requiring Ctrl held.
             for e in &i.events {
                 if let egui::Event::Key {
                     key,
@@ -1162,18 +1144,18 @@ impl PetriApp {
                     ..
                 } = e
                 {
-                    if (modifiers.command || modifiers.ctrl) && *key == egui::Key::C {
+                    if modifiers.ctrl && *key == egui::Key::C {
                         do_copy = true;
                     }
-                    if (modifiers.command || modifiers.ctrl) && *key == egui::Key::V {
+                    if modifiers.ctrl && *key == egui::Key::V {
                         do_paste = true;
                     }
-                    if (modifiers.command || modifiers.ctrl) && *key == egui::Key::Z {
+                    if modifiers.ctrl && *key == egui::Key::Z {
                         do_undo = true;
                     }
                 }
                 if let egui::Event::Text(text) = e {
-                    if cmd_or_ctrl {
+                    if i.modifiers.ctrl {
                         if text.eq_ignore_ascii_case("c") || text == "с" || text == "С" {
                             do_copy = true;
                         }
@@ -1189,15 +1171,6 @@ impl PetriApp {
             #[cfg(target_os = "windows")]
             {
                 do_exit = do_exit || (i.modifiers.command && i.key_pressed(egui::Key::X));
-            }
-        });
-
-        // Reset combo latches when modifiers are released.
-        ctx.input(|i| {
-            if !(i.modifiers.command || i.modifiers.ctrl) {
-                self.copy_combo_down = false;
-                self.paste_combo_down = false;
-                self.undo_combo_down = false;
             }
         });
 
