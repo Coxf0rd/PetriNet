@@ -963,26 +963,21 @@ impl PetriApp {
         let mut do_copy = false;
         let mut do_paste = false;
 
-        let wants_keyboard = ctx.wants_keyboard_input();
         ctx.input(|i| {
             do_new = i.modifiers.command && i.key_pressed(egui::Key::N);
             do_open = i.modifiers.command && i.key_pressed(egui::Key::O);
             do_save = i.modifiers.command && i.key_pressed(egui::Key::S);
             do_exit = i.modifiers.command && i.key_pressed(egui::Key::Q);
             do_delete = i.key_pressed(egui::Key::Delete);
-
-            // When user is typing in a text field, allow regular text copy/paste.
-            if !wants_keyboard {
-                do_copy = i.modifiers.command && i.key_pressed(egui::Key::C);
-                do_paste = i.modifiers.command && i.key_pressed(egui::Key::V);
-                // Some keyboard layouts may not map Key::C/Key::V reliably, but egui integrations
-                // also emit explicit copy/paste events for standard shortcuts.
-                for e in &i.events {
-                    match e {
-                        egui::Event::Copy => do_copy = true,
-                        egui::Event::Paste(_) => do_paste = true,
-                        _ => {}
-                    }
+            do_copy = i.modifiers.command && i.key_pressed(egui::Key::C);
+            do_paste = i.modifiers.command && i.key_pressed(egui::Key::V);
+            // Some keyboard layouts may not map Key::C/Key::V reliably, but integrations
+            // also emit explicit copy/paste events for standard shortcuts.
+            for e in &i.events {
+                match e {
+                    egui::Event::Copy => do_copy = true,
+                    egui::Event::Paste(_) => do_paste = true,
+                    _ => {}
                 }
             }
             #[cfg(target_os = "windows")]
