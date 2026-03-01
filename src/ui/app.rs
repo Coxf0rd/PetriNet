@@ -1381,14 +1381,14 @@ impl PetriApp {
         let (rect, response) = ui.allocate_exact_size(desired, Sense::click_and_drag());
         let painter = ui.painter_at(rect);
 
-        if response.clicked() || response.drag_started() {
+        if response.clicked() || response.drag_started() || response.hovered() {
             response.request_focus();
         }
 
         let mut do_copy_local = false;
         let mut do_paste_local = false;
         let mut do_undo_local = false;
-        if response.has_focus() {
+        if response.has_focus() || response.hovered() {
             ui.input_mut(|i| {
                 do_copy_local = i.consume_key(egui::Modifiers::CTRL, egui::Key::C)
                     || i.consume_key(egui::Modifiers::COMMAND, egui::Key::C)
@@ -1398,6 +1398,12 @@ impl PetriApp {
                     || i.consume_key(egui::Modifiers::SHIFT, egui::Key::Insert);
                 do_undo_local = i.consume_key(egui::Modifiers::CTRL, egui::Key::Z)
                     || i.consume_key(egui::Modifiers::COMMAND, egui::Key::Z);
+
+                // Additional fallback for integrations where consume_key may miss once.
+                let ctrl_like = i.modifiers.ctrl || i.modifiers.command;
+                do_copy_local = do_copy_local || (ctrl_like && i.key_pressed(egui::Key::C));
+                do_paste_local = do_paste_local || (ctrl_like && i.key_pressed(egui::Key::V));
+                do_undo_local = do_undo_local || (ctrl_like && i.key_pressed(egui::Key::Z));
             });
         }
 
