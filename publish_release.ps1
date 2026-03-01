@@ -3,6 +3,7 @@ param(
     [string]$ServerUrl = "http://100.64.0.7:3000",
     [string]$Owner = "Coxford",
     [string]$Repo = "TestProject",
+    [string[]]$DeleteReleaseTags = @(),
     [string]$Tag = "",
     [string]$ReleaseName = "",
     [switch]$KeepTarget
@@ -57,6 +58,29 @@ $headers = @{
 }
 
 $baseApi = "$ServerUrl/api/v1/repos/$Owner/$Repo"
+
+function Remove-ReleaseByTag([string]$TagToDelete) {
+    if ([string]::IsNullOrWhiteSpace($TagToDelete)) { return }
+    $url = "$baseApi/releases/tags/$TagToDelete"
+    try {
+        $rel = Invoke-RestMethod -Method Get -Headers $headers -Uri $url
+        if ($rel -and $rel.id) {
+            Write-Host "Deleting release for tag $TagToDelete (id=$($rel.id))..."
+            Invoke-RestMethod -Method Delete -Headers $headers -Uri "$baseApi/releases/$($rel.id)"
+        }
+    } catch {
+        $response = $_.Exception.Response
+        if ($response -and $response.StatusCode.value__ -eq 404) {
+            Write-Host "Release for tag $TagToDelete not found (skip)."
+            return
+        }
+        throw
+    }
+}
+
+foreach ($oldTag in $DeleteReleaseTags) {
+    Remove-ReleaseByTag $oldTag
+}
 $releaseByTagUrl = "$baseApi/releases/tags/$Tag"
 
 Write-Host "Finding/creating release..."
