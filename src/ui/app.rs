@@ -7,6 +7,7 @@ use std::time::{Duration, Instant};
 
 use eframe::egui;
 use egui::{Color32, Pos2, Rect, Sense, Stroke, Vec2};
+use serde::{Deserialize, Serialize};
 
 use crate::formats::atf::generate_atf;
 use crate::io::{load_gpn, save_gpn};
@@ -69,7 +70,7 @@ struct CanvasTextBlock {
     text: String,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 struct CopiedPlace {
     place: Place,
     m0: u32,
@@ -77,33 +78,33 @@ struct CopiedPlace {
     mz: f64,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 struct CopiedTransition {
     transition: Transition,
     mpr: i32,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 struct CopiedArc {
     from: NodeRef,
     to: NodeRef,
     weight: u32,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 struct CopiedInhibitorArc {
     place_id: u64,
     transition_id: u64,
     threshold: u32,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 struct CopiedTextBlock {
     pos: [f32; 2],
     text: String,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 struct CopyBuffer {
     origin: [f32; 2],
     places: Vec<CopiedPlace>,
@@ -111,6 +112,12 @@ struct CopyBuffer {
     arcs: Vec<CopiedArc>,
     inhibitors: Vec<CopiedInhibitorArc>,
     texts: Vec<CopiedTextBlock>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct ClipboardPayload {
+    version: u32,
+    buffer: CopyBuffer,
 }
 
 #[derive(Debug, Clone)]
@@ -161,6 +168,7 @@ pub struct PetriApp {
 impl PetriApp {
     const GRID_STEP_SNAP: f32 = 10.0;
     const GRID_STEP_FREE: f32 = 25.0;
+    const CLIPBOARD_PREFIX: &'static str = "PETRINET_COPY_V1:";
 
     fn grid_step_world(&self) -> f32 {
         if self.net.ui.snap_to_grid {
@@ -168,6 +176,28 @@ impl PetriApp {
         } else {
             Self::GRID_STEP_FREE
         }
+    }
+
+    fn write_copy_buffer_to_system_clipboard(&mut self, buf: &CopyBuffer) {
+        let payload = ClipboardPayload {
+            version: 1,
+            buffer: buf.clone(),
+        };
+        let Ok(json) = serde_json::to_string(&payload) else {
+            return;
+        };
+        let text = format!("{}{}", Self::CLIPBOARD_PREFIX, json);
+        if let Ok(mut clipboard) = arboard::Clipboard::new() {
+            let _ = clipboard.set_text(text);
+        }
+    }
+
+    fn read_copy_buffer_from_system_clipboard(&self) -> Option<CopyBuffer> {
+        let mut clipboard = arboard::Clipboard::new().ok()?;
+        let text = clipboard.get_text().ok()?;
+        let payload = text.strip_prefix(Self::CLIPBOARD_PREFIX)?;
+        let parsed: ClipboardPayload = serde_json::from_str(payload).ok()?;
+        Some(parsed.buffer)
     }
 
     fn snap_scalar_to_grid(&self, v: f32) -> f32 {
@@ -900,20 +930,25 @@ impl PetriApp {
 
         let copied_count =
             place_ids.len() + transition_ids.len() + text_ids.len() + copied_arcs.len() + copied_inhibitors.len();
-        self.clipboard = Some(CopyBuffer {
+        let clip = CopyBuffer {
             origin: [min_x, min_y],
             places: copied_places,
             transitions: copied_transitions,
             arcs: copied_arcs,
             inhibitors: copied_inhibitors,
             texts: copied_texts,
-        });
+        };
+        self.write_copy_buffer_to_system_clipboard(&clip);
+        self.clipboard = Some(clip);
         // Keep first paste visibly offset from original selection.
         self.paste_serial = 1;
         self.status_hint = Some(format!("Скопировано объектов: {copied_count}"));
     }
 
     fn paste_copied_objects(&mut self) {
+        if let Some(ext) = self.read_copy_buffer_from_system_clipboard() {
+            self.clipboard = Some(ext);
+        }
         let Some(buf) = self.clipboard.clone() else {
             self.status_hint = Some("Буфер пуст".to_string());
             return;
@@ -1108,37 +1143,7 @@ impl PetriApp {
             do_copy = cmd_or_ctrl && i.key_pressed(egui::Key::C);
             do_paste = cmd_or_ctrl && i.key_pressed(egui::Key::V);
             do_undo = cmd_or_ctrl && i.key_pressed(egui::Key::Z);
-            // Windows-compatible alternatives (layout independent in practice for many setups).
-            do_copy = do_copy || (i.modifiers.ctrl && i.key_pressed(egui::Key::Insert));
-            do_paste = do_paste || (i.modifiers.shift && i.key_pressed(egui::Key::Insert));
-            // Some keyboard layouts may not map Key::C/Key::V reliably, but integrations
-            // also emit explicit copy/paste events for standard shortcuts.
-            for e in &i.events {
-                match e {
-                    egui::Event::Copy => do_copy = true,
-                    egui::Event::Paste(_) => do_paste = true,
-                    egui::Event::Key {
-                        physical_key: Some(egui::Key::C),
-                        pressed: true,
-                        modifiers,
-                        ..
-                    } if modifiers.command || modifiers.ctrl => do_copy = true,
-                    egui::Event::Key {
-                        physical_key: Some(egui::Key::V),
-                        pressed: true,
-                        modifiers,
-                        ..
-                    } if modifiers.command || modifiers.ctrl => do_paste = true,
-                    egui::Event::Key {
-                        physical_key: Some(egui::Key::Z),
-                        pressed: true,
-                        modifiers,
-                        ..
-                    } if modifiers.command || modifiers.ctrl => do_undo = true,
-                    _ => {}
-                }
-            }
-            // Extra fallback: logical-key events for layouts where physical key may be unavailable.
+            // Layout fallback (RU keyboard): C=С, V=М, Z=Я.
             for e in &i.events {
                 if let egui::Event::Key {
                     key,
@@ -1160,7 +1165,6 @@ impl PetriApp {
                 }
                 if let egui::Event::Text(text) = e {
                     if cmd_or_ctrl {
-                        // Layout fallback (RU keyboard): C=С, V=М, Z=Я.
                         if text.eq_ignore_ascii_case("c") || text == "с" || text == "С" {
                             do_copy = true;
                         }
@@ -1177,45 +1181,6 @@ impl PetriApp {
             {
                 do_exit = do_exit || (i.modifiers.command && i.key_pressed(egui::Key::X));
             }
-        });
-
-        // Explicitly consume standard shortcuts before widgets can consume them in the same frame.
-        ctx.input_mut(|i| {
-            do_copy = do_copy
-                || i.consume_key(egui::Modifiers::CTRL, egui::Key::C)
-                || i.consume_key(egui::Modifiers::COMMAND, egui::Key::C)
-                || i.consume_key(egui::Modifiers::CTRL, egui::Key::Insert);
-            do_paste = do_paste
-                || i.consume_key(egui::Modifiers::CTRL, egui::Key::V)
-                || i.consume_key(egui::Modifiers::COMMAND, egui::Key::V)
-                || i.consume_key(egui::Modifiers::SHIFT, egui::Key::Insert);
-            do_undo = do_undo
-                || i.consume_key(egui::Modifiers::CTRL, egui::Key::Z)
-                || i.consume_key(egui::Modifiers::COMMAND, egui::Key::Z);
-        });
-
-        // Final fallback: detect key-combos by current key state (works even if events are swallowed).
-        ctx.input(|i| {
-            let cmd_or_ctrl = i.modifiers.command || i.modifiers.ctrl;
-            let copy_combo =
-                (cmd_or_ctrl && i.key_down(egui::Key::C)) || (i.modifiers.ctrl && i.key_down(egui::Key::Insert));
-            let paste_combo =
-                (cmd_or_ctrl && i.key_down(egui::Key::V)) || (i.modifiers.shift && i.key_down(egui::Key::Insert));
-            let undo_combo = cmd_or_ctrl && i.key_down(egui::Key::Z);
-
-            if copy_combo && !self.copy_combo_down {
-                do_copy = true;
-            }
-            if paste_combo && !self.paste_combo_down {
-                do_paste = true;
-            }
-            if undo_combo && !self.undo_combo_down {
-                do_undo = true;
-            }
-
-            self.copy_combo_down = copy_combo;
-            self.paste_combo_down = paste_combo;
-            self.undo_combo_down = undo_combo;
         });
 
         if do_new {
@@ -1409,7 +1374,14 @@ impl PetriApp {
                 do_copy_local = do_copy_local || (copy_combo_now && !self.copy_combo_down);
                 do_paste_local = do_paste_local || (paste_combo_now && !self.paste_combo_down);
                 do_undo_local = do_undo_local || (undo_combo_now && !self.undo_combo_down);
+                self.copy_combo_down = copy_combo_now;
+                self.paste_combo_down = paste_combo_now;
+                self.undo_combo_down = undo_combo_now;
             });
+        } else {
+            self.copy_combo_down = false;
+            self.paste_combo_down = false;
+            self.undo_combo_down = false;
         }
 
         let zoom_delta = ui.ctx().input(|i| i.zoom_delta());
