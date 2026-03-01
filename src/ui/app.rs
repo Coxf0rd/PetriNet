@@ -1336,10 +1336,6 @@ impl PetriApp {
                 self.reset_sim_stop_controls();
                 self.show_sim_params = true;
             }
-            ui.separator();
-            if ui.button("Вставить").clicked() {
-                self.paste_copied_objects();
-            }
         });
     }
 

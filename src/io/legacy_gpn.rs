@@ -250,11 +250,8 @@ pub fn export_legacy_gpn(path: &Path, model: &PetriNetModel) -> std::io::Result<
         write_i32(&mut record, 0, round_i32(place.pos[0]));
         write_i32(&mut record, 4, round_i32(place.pos[1]));
         write_i32(&mut record, 8, 10);
-        write_i32(
-            &mut record,
-            12,
-            normalized.tables.m0.get(idx).copied().unwrap_or(0) as i32,
-        );
+        let markers = normalized.tables.m0.get(idx).copied().unwrap_or(0).min(1_000_000);
+        write_i32(&mut record, 12, markers as i32);
         write_i32(
             &mut record,
             16,
@@ -263,19 +260,21 @@ pub fn export_legacy_gpn(path: &Path, model: &PetriNetModel) -> std::io::Result<
                 .mo
                 .get(idx)
                 .and_then(|value| *value)
-                .unwrap_or(0) as i32,
+                .unwrap_or(0)
+                .min(1_000_000) as i32,
         );
         write_i32(&mut record, 20, map_color_to_legacy(place.color));
+        let delay = normalized
+            .tables
+            .mz
+            .get(idx)
+            .copied()
+            .unwrap_or(0.0)
+            .clamp(0.0, 86_400.0);
         write_f64(
             &mut record,
             PLACE_DELAY_OFFSET,
-            normalized
-                .tables
-                .mz
-                .get(idx)
-                .copied()
-                .unwrap_or(0.0)
-                .max(0.0),
+            delay,
         );
 
         // NetStar displays the place label from this legacy field.
@@ -299,7 +298,13 @@ pub fn export_legacy_gpn(path: &Path, model: &PetriNetModel) -> std::io::Result<
         write_i32(
             &mut record,
             8,
-            normalized.tables.mpr.get(idx).copied().unwrap_or(1).max(0),
+            normalized
+                .tables
+                .mpr
+                .get(idx)
+                .copied()
+                .unwrap_or(1)
+                .clamp(0, 1_000_000),
         );
         write_i32(&mut record, 12, transition.angle_deg.clamp(-360, 360));
         write_i32(&mut record, 16, -131072);
@@ -333,7 +338,7 @@ pub fn export_legacy_gpn(path: &Path, model: &PetriNetModel) -> std::io::Result<
                 let Some(&transition_idx) = transition_legacy_idx.get(&transition_id) else {
                     continue;
                 };
-                for _ in 0..arc.weight.max(1) {
+                for _ in 0..arc.weight.clamp(1, 1024) {
                     arc_records.push((
                         false,
                         -1,
@@ -351,7 +356,7 @@ pub fn export_legacy_gpn(path: &Path, model: &PetriNetModel) -> std::io::Result<
                 let Some(&transition_idx) = transition_legacy_idx.get(&transition_id) else {
                     continue;
                 };
-                for _ in 0..arc.weight.max(1) {
+                for _ in 0..arc.weight.clamp(1, 1024) {
                     arc_records.push((
                         false,
                         1,
@@ -373,7 +378,7 @@ pub fn export_legacy_gpn(path: &Path, model: &PetriNetModel) -> std::io::Result<
         let Some(&transition_idx) = transition_legacy_idx.get(&inhibitor.transition_id) else {
             continue;
         };
-        for _ in 0..inhibitor.threshold.max(1) {
+        for _ in 0..inhibitor.threshold.clamp(1, 1024) {
             arc_records.push((
                 true,
                 -1,
@@ -396,7 +401,7 @@ pub fn export_legacy_gpn(path: &Path, model: &PetriNetModel) -> std::io::Result<
     let arc_max_index = encoded_arcs
         .len()
         .checked_sub(1)
-        .map(|value| value as i32)
+        .and_then(|value| i32::try_from(value).ok())
         .unwrap_or(-1);
     push_i32(&mut bytes, arc_max_index);
     bytes.extend_from_slice(&[0, 0]);
