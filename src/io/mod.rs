@@ -1,4 +1,4 @@
-use std::fs;
+﻿use std::fs;
 use std::path::Path;
 
 use anyhow::{Context, Result};
@@ -8,7 +8,7 @@ use crate::model::{PetriNetModel, GPN2_MAGIC};
 pub mod gpn2;
 pub mod legacy_gpn;
 
-pub use legacy_gpn::{LegacyDebugInfo, LegacyImportError, LegacyImportResult};
+pub use legacy_gpn::{LegacyDebugInfo, LegacyExportHints, LegacyImportError, LegacyImportResult};
 
 #[derive(Debug, Clone)]
 pub struct LoadGpnResult {
@@ -19,7 +19,7 @@ pub struct LoadGpnResult {
 
 pub fn load_gpn(path: &Path) -> Result<LoadGpnResult> {
     let bytes =
-        fs::read(path).with_context(|| format!("Не удалось прочитать файл {}", path.display()))?;
+        fs::read(path).with_context(|| format!("РќРµ СѓРґР°Р»РѕСЃСЊ РїСЂРѕС‡РёС‚Р°С‚СЊ С„Р°Р№Р» {}", path.display()))?;
 
     if bytes.starts_with(GPN2_MAGIC.as_bytes()) {
         let model = gpn2::load_gpn2_from_bytes(&bytes)?;
@@ -35,7 +35,7 @@ pub fn load_gpn(path: &Path) -> Result<LoadGpnResult> {
                     model.validate()?;
                     return Ok(LoadGpnResult {
                         model,
-                        warnings: vec!["Файл JSON открыт без заголовка GPN2".to_string()],
+                        warnings: vec!["Р¤Р°Р№Р» JSON РѕС‚РєСЂС‹С‚ Р±РµР· Р·Р°РіРѕР»РѕРІРєР° GPN2".to_string()],
                         legacy_debug: None,
                     });
                 }
@@ -52,6 +52,14 @@ pub fn load_gpn(path: &Path) -> Result<LoadGpnResult> {
 }
 
 pub fn save_gpn(path: &Path, model: &PetriNetModel) -> Result<()> {
+    save_gpn_with_hints(path, model, None)
+}
+
+pub fn save_gpn_with_hints(
+    path: &Path,
+    model: &PetriNetModel,
+    legacy_hints: Option<&LegacyExportHints>,
+) -> Result<()> {
     if path
         .extension()
         .and_then(|ext| ext.to_str())
@@ -60,7 +68,7 @@ pub fn save_gpn(path: &Path, model: &PetriNetModel) -> Result<()> {
     {
         gpn2::save_gpn2(path, model)
     } else {
-        legacy_gpn::export_legacy_gpn(path, model)
+        legacy_gpn::export_legacy_gpn_with_hints(path, model, legacy_hints)
             .with_context(|| format!("Не удалось сохранить legacy GPN в {}", path.display()))
     }
 }

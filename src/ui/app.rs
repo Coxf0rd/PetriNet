@@ -10,7 +10,7 @@ use egui::{Color32, Pos2, Rect, Sense, Stroke, Vec2};
 use serde::{Deserialize, Serialize};
 
 use crate::formats::atf::generate_atf;
-use crate::io::{load_gpn, save_gpn};
+use crate::io::{LegacyExportHints, load_gpn, save_gpn_with_hints};
 use crate::model::{LabelPosition, Language, NodeColor, NodeRef, PetriNet, Place, StochasticDistribution, Tool, Transition, VisualSize};
 use crate::sim::engine::{run_simulation, SimulationParams, SimulationResult};
 
@@ -159,6 +159,7 @@ pub struct PetriApp {
     clipboard: Option<CopyBuffer>,
     paste_serial: u32,
     undo_stack: Vec<UndoSnapshot>,
+    legacy_export_hints: Option<LegacyExportHints>,
     status_hint: Option<String>,
 }
 
@@ -250,6 +251,7 @@ impl PetriApp {
             clipboard: None,
             paste_serial: 0,
             undo_stack: Vec::new(),
+            legacy_export_hints: None,
             status_hint: None,
         }
     }
@@ -299,6 +301,7 @@ impl PetriApp {
                 clipboard: None,
                 paste_serial: 0,
                 undo_stack: Vec::new(),
+                legacy_export_hints: None,
                 status_hint: None,
             }
         }
@@ -311,6 +314,7 @@ impl PetriApp {
         self.text_blocks.clear();
         self.next_text_id = 1;
         self.undo_stack.clear();
+        self.legacy_export_hints = None;
         self.status_hint = None;
         self.canvas.cursor_valid = false;
     }
@@ -322,6 +326,57 @@ impl PetriApp {
         self.sim_params.stop.sim_time = None;
     }
 
+    fn extract_legacy_export_hints(path: &std::path::Path) -> Option<LegacyExportHints> {
+        const PLACE_RECORD_SIZE: usize = 231;
+        const TRANSITION_RECORD_SIZE: usize = 105;
+        const ARC_RECORD_SIZE: usize = 46;
+        let bytes = fs::read(path).ok()?;
+        if bytes.starts_with(crate::model::GPN2_MAGIC.as_bytes()) || bytes.len() < 16 {
+            return None;
+        }
+        let read_i32 = |off: usize| -> Option<i32> {
+            if off + 4 > bytes.len() {
+                return None;
+            }
+            Some(i32::from_le_bytes([
+                bytes[off],
+                bytes[off + 1],
+                bytes[off + 2],
+                bytes[off + 3],
+            ]))
+        };
+        let p = read_i32(0)?.max(0) as usize;
+        let t = read_i32(4)?.max(0) as usize;
+        let arcs_off = 16usize
+            .saturating_add(p.saturating_mul(PLACE_RECORD_SIZE))
+            .saturating_add(t.saturating_mul(TRANSITION_RECORD_SIZE));
+        if arcs_off + 6 > bytes.len() {
+            return None;
+        }
+        let arc_counter = read_i32(arcs_off).unwrap_or(-1);
+        let max_records = (bytes.len().saturating_sub(arcs_off + 6)) / ARC_RECORD_SIZE;
+        let arc_count = (arc_counter + 1).max(0) as usize;
+        let arc_count = arc_count.min(max_records);
+        let tail_off = arcs_off
+            .saturating_add(6)
+            .saturating_add(arc_count.saturating_mul(ARC_RECORD_SIZE));
+        let footer_bytes = if tail_off <= bytes.len() {
+            let tail = bytes[tail_off..].to_vec();
+            if !tail.is_empty() && tail.len() <= 512 {
+                Some(tail)
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+        let arc_header_extra = Some(u16::from_le_bytes([bytes[arcs_off + 4], bytes[arcs_off + 5]]));
+        Some(LegacyExportHints {
+            arc_header_extra,
+            footer_bytes,
+        })
+    }
+
     fn open_file(&mut self) {
         if let Some(path) = rfd::FileDialog::new()
             .add_filter("Файлы GPN", &["gpn"])
@@ -329,12 +384,18 @@ impl PetriApp {
         {
             match load_gpn(&path) {
                 Ok(result) => {
+                    let legacy_hints = if result.legacy_debug.is_some() {
+                        Self::extract_legacy_export_hints(&path)
+                    } else {
+                        None
+                    };
                     self.net = result.model;
                     self.net.set_counts(self.net.places.len(), self.net.transitions.len());
                     self.file_path = Some(path);
                     self.text_blocks.clear();
                     self.next_text_id = 1;
                     self.undo_stack.clear();
+                    self.legacy_export_hints = legacy_hints;
                     self.status_hint = None;
                     self.canvas.cursor_valid = false;
                     let filtered: Vec<String> = result
@@ -363,7 +424,8 @@ impl PetriApp {
 
     fn save_file(&mut self) {
         if let Some(path) = self.file_path.clone() {
-            if let Err(e) = save_gpn(&path, &self.net) {
+            if let Err(e) = save_gpn_with_hints(&path, &self.net, self.legacy_export_hints.as_ref())
+            {
                 self.last_error = Some(e.to_string());
             }
         } else {
@@ -378,7 +440,8 @@ impl PetriApp {
             .save_file()
         {
             self.file_path = Some(path.clone());
-            if let Err(e) = save_gpn(&path, &self.net) {
+            if let Err(e) = save_gpn_with_hints(&path, &self.net, self.legacy_export_hints.as_ref())
+            {
                 self.last_error = Some(e.to_string());
             }
         }

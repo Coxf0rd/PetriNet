@@ -30,6 +30,12 @@ pub struct LegacyImportResult {
     pub debug: LegacyDebugInfo,
 }
 
+#[derive(Debug, Clone, Default)]
+pub struct LegacyExportHints {
+    pub arc_header_extra: Option<u16>,
+    pub footer_bytes: Option<Vec<u8>>,
+}
+
 #[derive(Debug)]
 pub enum LegacyImportError {
     Io(std::io::Error),
@@ -207,6 +213,14 @@ pub fn import_legacy_gpn(path: &Path) -> Result<LegacyImportResult, LegacyImport
 }
 
 pub fn export_legacy_gpn(path: &Path, model: &PetriNetModel) -> std::io::Result<()> {
+    export_legacy_gpn_with_hints(path, model, None)
+}
+
+pub fn export_legacy_gpn_with_hints(
+    path: &Path,
+    model: &PetriNetModel,
+    hints: Option<&LegacyExportHints>,
+) -> std::io::Result<()> {
     let mut normalized = model.clone();
     normalized.rebuild_matrices_from_arcs();
 
@@ -247,22 +261,28 @@ pub fn export_legacy_gpn(path: &Path, model: &PetriNetModel) -> std::io::Result<
     for idx in 0..places_count {
         let mut record = [0u8; PLACE_RECORD_SIZE];
         let place = &normalized.places[idx];
+        let mo_raw = normalized
+            .tables
+            .mo
+            .get(idx)
+            .and_then(|value| *value)
+            .unwrap_or(1)
+            .clamp(1, 1_000_000);
+        let markers = normalized
+            .tables
+            .m0
+            .get(idx)
+            .copied()
+            .unwrap_or(0)
+            .min(mo_raw)
+            .min(1_000_000);
         write_i32(&mut record, 0, round_i32(place.pos[0]));
         write_i32(&mut record, 4, round_i32(place.pos[1]));
         write_i32(&mut record, 8, 10);
-        let markers = normalized.tables.m0.get(idx).copied().unwrap_or(0).min(1_000_000);
         write_i32(&mut record, 12, markers as i32);
-        write_i32(
-            &mut record,
-            16,
-            normalized
-                .tables
-                .mo
-                .get(idx)
-                .and_then(|value| *value)
-                .unwrap_or(0)
-                .min(1_000_000) as i32,
-        );
+        // Legacy variants disagree on the Mo field offset; write both to maximize NetStar compatibility.
+        write_i32(&mut record, 16, mo_raw as i32);
+        write_i32(&mut record, 112, mo_raw as i32);
         write_i32(&mut record, 20, map_color_to_legacy(place.color));
         let delay = normalized
             .tables
@@ -304,7 +324,7 @@ pub fn export_legacy_gpn(path: &Path, model: &PetriNetModel) -> std::io::Result<
                 .get(idx)
                 .copied()
                 .unwrap_or(1)
-                .clamp(0, 1_000_000),
+                .clamp(1, 1_000_000),
         );
         write_i32(&mut record, 12, transition.angle_deg.clamp(-360, 360));
         write_i32(&mut record, 16, -131072);
@@ -404,7 +424,8 @@ pub fn export_legacy_gpn(path: &Path, model: &PetriNetModel) -> std::io::Result<
         .and_then(|value| i32::try_from(value).ok())
         .unwrap_or(-1);
     push_i32(&mut bytes, arc_max_index);
-    bytes.extend_from_slice(&[0, 0]);
+    let arc_extra = hints.and_then(|h| h.arc_header_extra).unwrap_or(0);
+    bytes.extend_from_slice(&arc_extra.to_le_bytes());
     for (inhibitor, direction, source_idx, target_idx, (p1, p2, p3)) in encoded_arcs {
         let mut record = [0u8; ARC_RECORD_SIZE];
         let p1x = clamp_u16(p1[0]);
@@ -425,7 +446,14 @@ pub fn export_legacy_gpn(path: &Path, model: &PetriNetModel) -> std::io::Result<
         write_u16(&mut record, 44, p2x);
         bytes.extend_from_slice(&record);
     }
-    bytes.extend_from_slice(legacy_footer_template());
+    if let Some(footer) = hints
+        .and_then(|h| h.footer_bytes.as_ref())
+        .filter(|v| !v.is_empty() && v.len() <= 512)
+    {
+        bytes.extend_from_slice(footer);
+    } else {
+        bytes.extend_from_slice(legacy_footer_template());
+    }
 
     fs::write(path, bytes)
 }
