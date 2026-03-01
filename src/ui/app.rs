@@ -975,6 +975,15 @@ impl PetriApp {
             if !wants_keyboard {
                 do_copy = i.modifiers.command && i.key_pressed(egui::Key::C);
                 do_paste = i.modifiers.command && i.key_pressed(egui::Key::V);
+                // Some keyboard layouts may not map Key::C/Key::V reliably, but egui integrations
+                // also emit explicit copy/paste events for standard shortcuts.
+                for e in &i.events {
+                    match e {
+                        egui::Event::Copy => do_copy = true,
+                        egui::Event::Paste(_) => do_paste = true,
+                        _ => {}
+                    }
+                }
             }
             #[cfg(target_os = "windows")]
             {
