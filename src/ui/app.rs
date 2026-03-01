@@ -675,43 +675,14 @@ impl PetriApp {
                     self.reset_sim_stop_controls();
                     self.show_sim_params = true;
                 }
-                if ui
-                    .button(if self.show_table_view {
-                        "Скрыть структуру"
-                    } else {
-                        "Показать структуру"
-                    })
-                    .clicked()
-                {
-                    self.show_table_view = !self.show_table_view;
-                    if !self.show_table_view {
-                        self.table_fullscreen = false;
-                    }
-                }
-                if self.show_table_view
-                    && ui
-                        .button(if self.table_fullscreen {
-                            "Структура: обычный режим"
-                        } else {
-                            "Структура: полный экран"
-                        })
-                        .clicked()
-                {
-                    self.table_fullscreen = !self.table_fullscreen;
+                if ui.button("Структура сети").clicked() {
+                    self.show_table_view = true;
                 }
                 if ui
                     .button(self.tr("Результаты имитации", "Simulation Results"))
                     .clicked()
                 {
                     self.show_results = self.sim_result.is_some();
-                }
-                if ui
-                    .button(self.tr("Анимация результатов", "Animate Results"))
-                    .clicked()
-                {
-                    if self.sim_result.is_some() {
-                        self.show_debug = true;
-                    }
                 }
                 if ui.button("Proof").clicked() {
                     if self.sim_result.is_some() {
@@ -1387,6 +1358,26 @@ impl PetriApp {
 
     fn draw_table_view(&mut self, ui: &mut egui::Ui) {
         ui.heading("Структура сети");
+        ui.horizontal(|ui| {
+            if ui.button("Скрыть структуру").clicked() {
+                self.show_table_view = false;
+                self.table_fullscreen = false;
+            }
+            if ui
+                .button(if self.table_fullscreen {
+                    "Обычный режим"
+                } else {
+                    "Полный экран"
+                })
+                .clicked()
+            {
+                self.table_fullscreen = !self.table_fullscreen;
+            }
+        });
+        ui.separator();
+        if !self.show_table_view {
+            return;
+        }
 
         let mut p_count = self.net.places.len() as i32;
         let mut t_count = self.net.transitions.len() as i32;
@@ -1536,6 +1527,7 @@ impl PetriApp {
 
     fn draw_sim_dialog(&mut self, ctx: &egui::Context) {
         let mut open = self.show_sim_params;
+        let mut close_now = false;
         egui::Window::new("Параметры симуляции")
             .open(&mut open)
             .show(ctx, |ui| {
@@ -1602,8 +1594,12 @@ impl PetriApp {
                     self.last_debug_tick = None;
                     self.show_results = true;
                     self.show_sim_params = false;
+                    close_now = true;
                 }
             });
+        if close_now {
+            open = false;
+        }
         self.show_sim_params = open;
     }
 

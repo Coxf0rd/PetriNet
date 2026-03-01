@@ -53,6 +53,14 @@ if (Test-Path $outputExePath) {
 Copy-Item $releaseExe $outputExePath -Force
 Write-Host "Executable ready: $outputExePath"
 
+# Keep only the newest versioned executable in the project dir.
+# This avoids accumulating multiple PetriNet-<version>.exe files over time.
+Get-ChildItem -Path $ProjectDir -Filter "PetriNet-*.exe" -File -ErrorAction SilentlyContinue | ForEach-Object {
+    if ($_.FullName -ne $outputExePath) {
+        Remove-Item -LiteralPath $_.FullName -Force -ErrorAction SilentlyContinue
+    }
+}
+
 if (-not $KeepTarget) {
     $targetDir = Join-Path $ProjectDir "target"
     if (Test-Path $targetDir) {
