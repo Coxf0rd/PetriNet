@@ -1137,20 +1137,26 @@ impl PetriApp {
 
             // Layout fallback (RU keyboard), still requiring Ctrl held.
             for e in &i.events {
+                match e {
+                    egui::Event::Copy => do_copy = true,
+                    egui::Event::Paste(_) => do_paste = true,
+                    _ => {}
+                }
                 if let egui::Event::Key {
                     key,
+                    physical_key,
                     pressed: true,
                     modifiers,
                     ..
                 } = e
                 {
-                    if modifiers.ctrl && *key == egui::Key::C {
+                    if modifiers.ctrl && (*key == egui::Key::C || *physical_key == Some(egui::Key::C)) {
                         do_copy = true;
                     }
-                    if modifiers.ctrl && *key == egui::Key::V {
+                    if modifiers.ctrl && (*key == egui::Key::V || *physical_key == Some(egui::Key::V)) {
                         do_paste = true;
                     }
-                    if modifiers.ctrl && *key == egui::Key::Z {
+                    if modifiers.ctrl && (*key == egui::Key::Z || *physical_key == Some(egui::Key::Z)) {
                         do_undo = true;
                     }
                 }
@@ -1172,6 +1178,13 @@ impl PetriApp {
             {
                 do_exit = do_exit || (i.modifiers.command && i.key_pressed(egui::Key::X));
             }
+        });
+
+        // Additional low-level key consumption to survive integrations where key_pressed/modifiers are flaky.
+        ctx.input_mut(|i| {
+            do_copy = do_copy || i.consume_key(egui::Modifiers::CTRL, egui::Key::C);
+            do_paste = do_paste || i.consume_key(egui::Modifiers::CTRL, egui::Key::V);
+            do_undo = do_undo || i.consume_key(egui::Modifiers::CTRL, egui::Key::Z);
         });
 
         if do_new {
