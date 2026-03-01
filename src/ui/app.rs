@@ -1402,21 +1402,13 @@ impl PetriApp {
                 do_paste_local = do_paste_local || (ctrl_like && i.key_pressed(egui::Key::V));
                 do_undo_local = do_undo_local || (ctrl_like && i.key_pressed(egui::Key::Z));
 
-                // Strong fallback for environments where Ctrl sequence is unreliable:
-                // on focused/hovered canvas, C/V always act as copy/paste (except Alt/Shift combos).
-                if !i.modifiers.alt && !i.modifiers.shift && !i.modifiers.mac_cmd {
-                    do_copy_local = do_copy_local || i.key_pressed(egui::Key::C);
-                    do_paste_local = do_paste_local || i.key_pressed(egui::Key::V);
-                }
-                // Keep plain Z as undo fallback only when no modifiers are pressed.
-                let no_mods = !i.modifiers.ctrl
-                    && !i.modifiers.command
-                    && !i.modifiers.alt
-                    && !i.modifiers.shift
-                    && !i.modifiers.mac_cmd;
-                if no_mods {
-                    do_undo_local = do_undo_local || i.key_pressed(egui::Key::Z);
-                }
+                // Order-independent combo detection: require Ctrl/Command, but allow either key pressed first.
+                let copy_combo_now = ctrl_like && i.key_down(egui::Key::C);
+                let paste_combo_now = ctrl_like && i.key_down(egui::Key::V);
+                let undo_combo_now = ctrl_like && i.key_down(egui::Key::Z);
+                do_copy_local = do_copy_local || (copy_combo_now && !self.copy_combo_down);
+                do_paste_local = do_paste_local || (paste_combo_now && !self.paste_combo_down);
+                do_undo_local = do_undo_local || (undo_combo_now && !self.undo_combo_down);
             });
         }
 
