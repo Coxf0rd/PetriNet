@@ -1,9 +1,14 @@
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use petri_net_legacy_editor::io::legacy_gpn::{export_legacy_gpn, import_legacy_gpn};
+use std::collections::HashMap;
+use std::hash::{Hash, Hasher};
+
+use petri_net_legacy_editor::io::legacy_gpn::{
+    export_legacy_gpn, export_legacy_gpn_with_hints, import_legacy_gpn, LegacyExportHints,
+};
 use petri_net_legacy_editor::io::save_gpn;
-use petri_net_legacy_editor::model::NodeRef;
+use petri_net_legacy_editor::model::{NodeRef, PetriNetModel};
 use petri_net_legacy_editor::sim::engine::{run_simulation, SimulationParams};
 
 fn legacy_fixture_path() -> PathBuf {
@@ -381,4 +386,96 @@ fn legacy_export_has_stable_arc_polyline_points() {
     assert_eq!(footer[0], 0x58);
     assert_eq!(footer[1], 0x81);
     assert_eq!(footer[2], 0x40);
+}
+
+fn arc_topology_fingerprint(model: &PetriNetModel) -> u64 {
+    let place_idx: HashMap<u64, usize> = model
+        .places
+        .iter()
+        .enumerate()
+        .map(|(idx, place)| (place.id, idx + 1))
+        .collect();
+    let transition_idx: HashMap<u64, usize> = model
+        .transitions
+        .iter()
+        .enumerate()
+        .map(|(idx, transition)| (transition.id, idx + 1))
+        .collect();
+
+    let mut edges = Vec::<(u8, i8, usize, usize, u32)>::new();
+    for arc in &model.arcs {
+        match (arc.from, arc.to) {
+            (NodeRef::Place(place_id), NodeRef::Transition(transition_id)) => {
+                if let (Some(&p), Some(&t)) =
+                    (place_idx.get(&place_id), transition_idx.get(&transition_id))
+                {
+                    edges.push((0, -1, p, t, arc.weight.max(1)));
+                }
+            }
+            (NodeRef::Transition(transition_id), NodeRef::Place(place_id)) => {
+                if let (Some(&t), Some(&p)) =
+                    (transition_idx.get(&transition_id), place_idx.get(&place_id))
+                {
+                    edges.push((0, 1, t, p, arc.weight.max(1)));
+                }
+            }
+            _ => {}
+        }
+    }
+    for inh in &model.inhibitor_arcs {
+        if let (Some(&p), Some(&t)) = (
+            place_idx.get(&inh.place_id),
+            transition_idx.get(&inh.transition_id),
+        ) {
+            edges.push((1, -1, p, t, inh.threshold.max(1)));
+        }
+    }
+    edges.sort_unstable();
+
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    (model.places.len() as u64).hash(&mut hasher);
+    (model.transitions.len() as u64).hash(&mut hasher);
+    edges.hash(&mut hasher);
+    hasher.finish()
+}
+
+#[test]
+fn legacy_export_with_hints_preserves_original_arc_blob_for_set3() {
+    let path = Path::new("РЎРµС‚СЊ 3.gpn");
+    if !path.exists() {
+        return;
+    }
+
+    let src_bytes = std::fs::read(path).expect("read source set3");
+    assert!(src_bytes.len() > 16, "set3 must not be empty");
+
+    let imported = import_legacy_gpn(path).expect("legacy import must succeed");
+    let places = imported.model.places.len();
+    let transitions = imported.model.transitions.len();
+    let arcs_off = 16usize + places * 231 + transitions * 105;
+    assert!(arcs_off < src_bytes.len(), "arcs section must exist");
+    let raw_arc_and_tail = src_bytes[arcs_off..].to_vec();
+
+    let hints = LegacyExportHints {
+        places_count: Some(places),
+        transitions_count: Some(transitions),
+        arc_topology_fingerprint: Some(arc_topology_fingerprint(&imported.model)),
+        arc_header_extra: None,
+        footer_bytes: None,
+        raw_arc_and_tail: Some(raw_arc_and_tail.clone()),
+    };
+
+    let dir = tempfile::tempdir().expect("tempdir");
+    let out = dir.path().join("set3_hinted.gpn");
+    export_legacy_gpn_with_hints(&out, &imported.model, Some(&hints))
+        .expect("legacy export with hints must succeed");
+    let out_bytes = std::fs::read(&out).expect("read saved file");
+
+    let out_arcs_off = 16usize + places * 231 + transitions * 105;
+    assert!(out_arcs_off < out_bytes.len(), "output arcs section must exist");
+    assert_eq!(
+        &out_bytes[out_arcs_off..],
+        raw_arc_and_tail.as_slice(),
+        "arc+tail blob must be preserved verbatim"
+    );
 }

@@ -32,8 +32,12 @@ pub struct LegacyImportResult {
 
 #[derive(Debug, Clone, Default)]
 pub struct LegacyExportHints {
+    pub places_count: Option<usize>,
+    pub transitions_count: Option<usize>,
+    pub arc_topology_fingerprint: Option<u64>,
     pub arc_header_extra: Option<u16>,
     pub footer_bytes: Option<Vec<u8>>,
+    pub raw_arc_and_tail: Option<Vec<u8>>,
 }
 
 #[derive(Debug)]
@@ -345,6 +349,20 @@ pub fn export_legacy_gpn_with_hints(
         };
         write_legacy_name(&mut record, TRANSITION_NAME_OFFSET, tr_label);
         bytes.extend_from_slice(&record);
+    }
+
+    let arc_fingerprint = arc_topology_fingerprint(&normalized);
+    if let Some(raw_arc_and_tail) = hints
+        .filter(|h| {
+            h.places_count == Some(places_count)
+                && h.transitions_count == Some(transitions_count)
+                && h.arc_topology_fingerprint == Some(arc_fingerprint)
+        })
+        .and_then(|h| h.raw_arc_and_tail.as_ref())
+        .filter(|blob| !blob.is_empty())
+    {
+        bytes.extend_from_slice(raw_arc_and_tail);
+        return fs::write(path, bytes);
     }
 
     let mut arc_records = Vec::<(bool, i32, usize, usize, NodeRef, NodeRef)>::new();
@@ -1356,6 +1374,57 @@ fn decode_legacy_cp1251(raw: &[u8]) -> String {
             _ => '\u{FFFD}',
         })
         .collect()
+}
+
+fn arc_topology_fingerprint(model: &PetriNetModel) -> u64 {
+    use std::collections::hash_map::DefaultHasher;
+    use std::hash::{Hash, Hasher};
+
+    let place_idx: HashMap<u64, usize> = model
+        .places
+        .iter()
+        .enumerate()
+        .map(|(idx, place)| (place.id, idx + 1))
+        .collect();
+    let transition_idx: HashMap<u64, usize> = model
+        .transitions
+        .iter()
+        .enumerate()
+        .map(|(idx, transition)| (transition.id, idx + 1))
+        .collect();
+
+    let mut edges = Vec::<(u8, i8, usize, usize, u32)>::new();
+    for arc in &model.arcs {
+        match (arc.from, arc.to) {
+            (NodeRef::Place(place_id), NodeRef::Transition(transition_id)) => {
+                if let (Some(&p), Some(&t)) = (place_idx.get(&place_id), transition_idx.get(&transition_id)) {
+                    edges.push((0, -1, p, t, arc.weight.max(1)));
+                }
+            }
+            (NodeRef::Transition(transition_id), NodeRef::Place(place_id)) => {
+                if let (Some(&t), Some(&p)) = (transition_idx.get(&transition_id), place_idx.get(&place_id)) {
+                    edges.push((0, 1, t, p, arc.weight.max(1)));
+                }
+            }
+            _ => {}
+        }
+    }
+    for inh in &model.inhibitor_arcs {
+        if let (Some(&p), Some(&t)) = (place_idx.get(&inh.place_id), transition_idx.get(&inh.transition_id)) {
+            edges.push((1, -1, p, t, inh.threshold.max(1)));
+        }
+    }
+    edges.sort_unstable();
+
+    let mut hasher = DefaultHasher::new();
+    places_count_hash(model, &mut hasher);
+    edges.hash(&mut hasher);
+    hasher.finish()
+}
+
+fn places_count_hash(model: &PetriNetModel, hasher: &mut impl std::hash::Hasher) {
+    hasher.write_u64(model.places.len() as u64);
+    hasher.write_u64(model.transitions.len() as u64);
 }
 
 fn encode_legacy_cp1251(s: &str) -> Vec<u8> {

@@ -1,6 +1,7 @@
 ﻿use std::fs;
 
 use std::collections::{HashMap, HashSet};
+use std::hash::{Hash, Hasher};
 
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
@@ -329,7 +330,6 @@ impl PetriApp {
     fn extract_legacy_export_hints(path: &std::path::Path) -> Option<LegacyExportHints> {
         const PLACE_RECORD_SIZE: usize = 231;
         const TRANSITION_RECORD_SIZE: usize = 105;
-        const ARC_RECORD_SIZE: usize = 46;
         let bytes = fs::read(path).ok()?;
         if bytes.starts_with(crate::model::GPN2_MAGIC.as_bytes()) || bytes.len() < 16 {
             return None;
@@ -353,28 +353,64 @@ impl PetriApp {
         if arcs_off + 6 > bytes.len() {
             return None;
         }
-        let arc_counter = read_i32(arcs_off).unwrap_or(-1);
-        let max_records = (bytes.len().saturating_sub(arcs_off + 6)) / ARC_RECORD_SIZE;
-        let arc_count = (arc_counter + 1).max(0) as usize;
-        let arc_count = arc_count.min(max_records);
-        let tail_off = arcs_off
-            .saturating_add(6)
-            .saturating_add(arc_count.saturating_mul(ARC_RECORD_SIZE));
-        let footer_bytes = if tail_off <= bytes.len() {
-            let tail = bytes[tail_off..].to_vec();
-            if !tail.is_empty() && tail.len() <= 512 {
-                Some(tail)
-            } else {
-                None
-            }
-        } else {
-            None
-        };
+        let footer_bytes = None;
+        let raw_arc_and_tail = Some(bytes[arcs_off..].to_vec());
         let arc_header_extra = Some(u16::from_le_bytes([bytes[arcs_off + 4], bytes[arcs_off + 5]]));
         Some(LegacyExportHints {
+            places_count: Some(p),
+            transitions_count: Some(t),
+            arc_topology_fingerprint: None,
             arc_header_extra,
             footer_bytes,
+            raw_arc_and_tail,
         })
+    }
+
+    fn arc_topology_fingerprint(net: &PetriNet) -> u64 {
+        let mut place_idx = HashMap::<u64, usize>::new();
+        for (idx, place) in net.places.iter().enumerate() {
+            place_idx.insert(place.id, idx + 1);
+        }
+        let mut transition_idx = HashMap::<u64, usize>::new();
+        for (idx, transition) in net.transitions.iter().enumerate() {
+            transition_idx.insert(transition.id, idx + 1);
+        }
+
+        let mut edges = Vec::<(u8, i8, usize, usize, u32)>::new();
+        for arc in &net.arcs {
+            match (arc.from, arc.to) {
+                (NodeRef::Place(place_id), NodeRef::Transition(transition_id)) => {
+                    if let (Some(&p), Some(&t)) =
+                        (place_idx.get(&place_id), transition_idx.get(&transition_id))
+                    {
+                        edges.push((0, -1, p, t, arc.weight.max(1)));
+                    }
+                }
+                (NodeRef::Transition(transition_id), NodeRef::Place(place_id)) => {
+                    if let (Some(&t), Some(&p)) =
+                        (transition_idx.get(&transition_id), place_idx.get(&place_id))
+                    {
+                        edges.push((0, 1, t, p, arc.weight.max(1)));
+                    }
+                }
+                _ => {}
+            }
+        }
+        for inh in &net.inhibitor_arcs {
+            if let (Some(&p), Some(&t)) = (
+                place_idx.get(&inh.place_id),
+                transition_idx.get(&inh.transition_id),
+            ) {
+                edges.push((1, -1, p, t, inh.threshold.max(1)));
+            }
+        }
+        edges.sort_unstable();
+
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        net.places.len().hash(&mut hasher);
+        net.transitions.len().hash(&mut hasher);
+        edges.hash(&mut hasher);
+        hasher.finish()
     }
 
     fn open_file(&mut self) {
@@ -385,7 +421,12 @@ impl PetriApp {
             match load_gpn(&path) {
                 Ok(result) => {
                     let legacy_hints = if result.legacy_debug.is_some() {
-                        Self::extract_legacy_export_hints(&path)
+                        let mut hints = Self::extract_legacy_export_hints(&path);
+                        if let Some(h) = hints.as_mut() {
+                            h.arc_topology_fingerprint =
+                                Some(Self::arc_topology_fingerprint(&result.model));
+                        }
+                        hints
                     } else {
                         None
                     };
