@@ -111,6 +111,13 @@ struct CopyBuffer {
     texts: Vec<CopiedTextBlock>,
 }
 
+#[derive(Debug, Clone)]
+struct UndoSnapshot {
+    net: PetriNet,
+    text_blocks: Vec<CanvasTextBlock>,
+    next_text_id: u64,
+}
+
 pub struct PetriApp {
     net: PetriNet,
     tool: Tool,
@@ -142,6 +149,7 @@ pub struct PetriApp {
     next_text_id: u64,
     clipboard: Option<CopyBuffer>,
     paste_serial: u32,
+    undo_stack: Vec<UndoSnapshot>,
 }
 
 impl PetriApp {
@@ -203,6 +211,7 @@ impl PetriApp {
             next_text_id: 1,
             clipboard: None,
             paste_serial: 0,
+            undo_stack: Vec::new(),
         }
     }
 
@@ -212,6 +221,7 @@ impl PetriApp {
         self.file_path = None;
         self.text_blocks.clear();
         self.next_text_id = 1;
+        self.undo_stack.clear();
     }
 
     fn reset_sim_stop_controls(&mut self) {
@@ -233,6 +243,7 @@ impl PetriApp {
                     self.file_path = Some(path);
                     self.text_blocks.clear();
                     self.next_text_id = 1;
+                    self.undo_stack.clear();
                     let filtered: Vec<String> = result
                         .warnings
                         .iter()
@@ -596,12 +607,36 @@ impl PetriApp {
         self.canvas.selected_text = None;
     }
 
+    fn push_undo_snapshot(&mut self) {
+        self.undo_stack.push(UndoSnapshot {
+            net: self.net.clone(),
+            text_blocks: self.text_blocks.clone(),
+            next_text_id: self.next_text_id,
+        });
+        // Keep memory bounded.
+        if self.undo_stack.len() > 64 {
+            self.undo_stack.remove(0);
+        }
+    }
+
+    fn undo_last_delete(&mut self) {
+        let Some(state) = self.undo_stack.pop() else {
+            return;
+        };
+        self.net = state.net;
+        self.text_blocks = state.text_blocks;
+        self.next_text_id = state.next_text_id;
+        self.clear_selection();
+    }
+
     fn delete_selected(&mut self) {
         if let Some(text_id) = self.canvas.selected_text.take() {
+            self.push_undo_snapshot();
             self.text_blocks.retain(|item| item.id != text_id);
             return;
         }
         if let Some(arc_id) = self.canvas.selected_arc.take() {
+            self.push_undo_snapshot();
             self.net.arcs.retain(|a| a.id != arc_id);
             self.net.inhibitor_arcs.retain(|a| a.id != arc_id);
             self.net.rebuild_matrices_from_arcs();
@@ -622,6 +657,7 @@ impl PetriApp {
         transition_ids.dedup();
 
         if !place_ids.is_empty() || !transition_ids.is_empty() {
+            self.push_undo_snapshot();
             self.net.places.retain(|p| !place_ids.contains(&p.id));
             self.net.transitions.retain(|t| !transition_ids.contains(&t.id));
             self.net.set_counts(self.net.places.len(), self.net.transitions.len());
@@ -962,6 +998,7 @@ impl PetriApp {
         let mut do_delete = false;
         let mut do_copy = false;
         let mut do_paste = false;
+        let mut do_undo = false;
 
         ctx.input(|i| {
             do_new = i.modifiers.command && i.key_pressed(egui::Key::N);
@@ -969,14 +1006,34 @@ impl PetriApp {
             do_save = i.modifiers.command && i.key_pressed(egui::Key::S);
             do_exit = i.modifiers.command && i.key_pressed(egui::Key::Q);
             do_delete = i.key_pressed(egui::Key::Delete);
-            do_copy = i.modifiers.command && i.key_pressed(egui::Key::C);
-            do_paste = i.modifiers.command && i.key_pressed(egui::Key::V);
+            let cmd_or_ctrl = i.modifiers.command || i.modifiers.ctrl;
+            do_copy = cmd_or_ctrl && i.key_pressed(egui::Key::C);
+            do_paste = cmd_or_ctrl && i.key_pressed(egui::Key::V);
+            do_undo = cmd_or_ctrl && i.key_pressed(egui::Key::Z);
             // Some keyboard layouts may not map Key::C/Key::V reliably, but integrations
             // also emit explicit copy/paste events for standard shortcuts.
             for e in &i.events {
                 match e {
                     egui::Event::Copy => do_copy = true,
                     egui::Event::Paste(_) => do_paste = true,
+                    egui::Event::Key {
+                        physical_key: Some(egui::Key::C),
+                        pressed: true,
+                        modifiers,
+                        ..
+                    } if modifiers.command || modifiers.ctrl => do_copy = true,
+                    egui::Event::Key {
+                        physical_key: Some(egui::Key::V),
+                        pressed: true,
+                        modifiers,
+                        ..
+                    } if modifiers.command || modifiers.ctrl => do_paste = true,
+                    egui::Event::Key {
+                        physical_key: Some(egui::Key::Z),
+                        pressed: true,
+                        modifiers,
+                        ..
+                    } if modifiers.command || modifiers.ctrl => do_undo = true,
                     _ => {}
                 }
             }
@@ -1006,6 +1063,9 @@ impl PetriApp {
         }
         if do_paste {
             self.paste_copied_objects();
+        }
+        if do_undo {
+            self.undo_last_delete();
         }
     }
 
@@ -1230,6 +1290,7 @@ impl PetriApp {
                     }
                     Tool::Delete => {
                         if let Some(node) = self.node_at(rect, click) {
+                            self.push_undo_snapshot();
                             match node {
                                 NodeRef::Place(p) => {
                                     if let Some(idx) = self.place_idx_by_id(p) {
@@ -1245,10 +1306,12 @@ impl PetriApp {
                                 }
                             }
                         } else if let Some(arc_id) = self.arc_at(rect, click) {
+                            self.push_undo_snapshot();
                             self.net.arcs.retain(|a| a.id != arc_id);
                             self.net.inhibitor_arcs.retain(|a| a.id != arc_id);
                             self.net.rebuild_matrices_from_arcs();
                         } else if let Some(text_id) = self.text_at(rect, click) {
+                            self.push_undo_snapshot();
                             self.text_blocks.retain(|item| item.id != text_id);
                         }
                     }
