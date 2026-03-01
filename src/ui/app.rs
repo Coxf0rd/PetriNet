@@ -150,6 +150,9 @@ pub struct PetriApp {
     clipboard: Option<CopyBuffer>,
     paste_serial: u32,
     undo_stack: Vec<UndoSnapshot>,
+    copy_combo_down: bool,
+    paste_combo_down: bool,
+    undo_combo_down: bool,
 }
 
 impl PetriApp {
@@ -213,6 +216,9 @@ impl PetriApp {
             clipboard: None,
             paste_serial: 0,
             undo_stack: Vec::new(),
+            copy_combo_down: false,
+            paste_combo_down: false,
+            undo_combo_down: false,
         }
     }
 
@@ -261,6 +267,9 @@ impl PetriApp {
                 clipboard: None,
                 paste_serial: 0,
                 undo_stack: Vec::new(),
+                copy_combo_down: false,
+                paste_combo_down: false,
+                undo_combo_down: false,
             }
         }
     }
@@ -887,7 +896,8 @@ impl PetriApp {
             inhibitors: copied_inhibitors,
             texts: copied_texts,
         });
-        self.paste_serial = 0;
+        // Keep first paste visibly offset from original selection.
+        self.paste_serial = 1;
     }
 
     fn paste_copied_objects(&mut self) {
@@ -1161,6 +1171,30 @@ impl PetriApp {
             do_undo = do_undo
                 || i.consume_key(egui::Modifiers::CTRL, egui::Key::Z)
                 || i.consume_key(egui::Modifiers::COMMAND, egui::Key::Z);
+        });
+
+        // Final fallback: detect key-combos by current key state (works even if events are swallowed).
+        ctx.input(|i| {
+            let cmd_or_ctrl = i.modifiers.command || i.modifiers.ctrl;
+            let copy_combo =
+                (cmd_or_ctrl && i.key_down(egui::Key::C)) || (i.modifiers.ctrl && i.key_down(egui::Key::Insert));
+            let paste_combo =
+                (cmd_or_ctrl && i.key_down(egui::Key::V)) || (i.modifiers.shift && i.key_down(egui::Key::Insert));
+            let undo_combo = cmd_or_ctrl && i.key_down(egui::Key::Z);
+
+            if copy_combo && !self.copy_combo_down {
+                do_copy = true;
+            }
+            if paste_combo && !self.paste_combo_down {
+                do_paste = true;
+            }
+            if undo_combo && !self.undo_combo_down {
+                do_undo = true;
+            }
+
+            self.copy_combo_down = copy_combo;
+            self.paste_combo_down = paste_combo;
+            self.undo_combo_down = undo_combo;
         });
 
         if do_new {
