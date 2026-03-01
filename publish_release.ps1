@@ -2,7 +2,7 @@ param(
     [string]$ProjectDir = $PSScriptRoot,
     [string]$ServerUrl = "http://100.64.0.7:3000",
     [string]$Owner = "Coxford",
-    [string]$Repo = "TestProject",
+    [string]$Repo = "PetriNet",
     [string[]]$DeleteReleaseTags = @(),
     [string]$Tag = "",
     [string]$ReleaseName = "",
@@ -26,19 +26,21 @@ if ([string]::IsNullOrWhiteSpace($ReleaseName)) {
     $ReleaseName = "Release $Tag"
 }
 
-$buildScript = Join-Path $ProjectDir "build_exe.ps1"
-if (-not (Test-Path $buildScript)) {
-    throw "build_exe.ps1 not found: $buildScript"
-}
-
 Write-Host "Building executable..."
 if ($KeepTarget) {
-    & $buildScript -ProjectDir $ProjectDir -KeepTarget
+    & (Join-Path $ProjectDir "build_portable_exe.ps1") -ProjectDir $ProjectDir -KeepTarget
 } else {
-    & $buildScript -ProjectDir $ProjectDir
+    & (Join-Path $ProjectDir "build_portable_exe.ps1") -ProjectDir $ProjectDir
 }
 
-$exePath = Join-Path $ProjectDir "PetriNet.exe"
+$cargoTomlText = Get-Content -Path (Join-Path $ProjectDir "Cargo.toml") -Raw
+$match = [regex]::Match($cargoTomlText, '(?m)^\s*version\s*=\s*"([^"]+)"')
+if (-not $match.Success) {
+    throw "Failed to read package version from Cargo.toml"
+}
+$version = $match.Groups[1].Value
+
+$exePath = Join-Path $ProjectDir ("PetriNet-{0}.exe" -f $version)
 if (-not (Test-Path $exePath)) {
     throw "Executable not found: $exePath"
 }
@@ -50,7 +52,8 @@ if ([string]::IsNullOrWhiteSpace($tagExistsLocal)) {
 }
 
 Write-Host "Pushing tag to origin..."
-git push origin $Tag
+$remoteUrl = "$ServerUrl/$Owner/$Repo.git"
+git -c "http.extraHeader=Authorization: token $token" push $remoteUrl $Tag
 
 $headers = @{
     Authorization = "token $token"
@@ -111,7 +114,7 @@ if (-not $releaseId) {
 }
 
 $assetsUrl = "$baseApi/releases/$releaseId/assets"
-$assetName = "PetriNet.exe"
+$assetName = Split-Path -Leaf $exePath
 
 Write-Host "Removing old asset with same name (if exists)..."
 $assets = Invoke-RestMethod -Method Get -Headers $headers -Uri $assetsUrl

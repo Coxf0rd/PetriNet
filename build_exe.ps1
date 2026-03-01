@@ -11,7 +11,8 @@ if (-not (Test-Path $buildPortable)) {
     throw "build_portable_exe.ps1 not found: $buildPortable"
 }
 
-# Build versioned exe and also produce a stable name for release upload scripts.
+# Build only the versioned exe (PetriNet-<version>.exe). Do not create a stable PetriNet.exe,
+# since we want to keep only versioned artifacts.
 if ($KeepTarget) {
     & $buildPortable -ProjectDir $ProjectDir -KeepTarget
 } else {
@@ -26,10 +27,7 @@ if (-not $match.Success) {
 $version = $match.Groups[1].Value
 
 $versionedExe = Join-Path $ProjectDir ("PetriNet-{0}.exe" -f $version)
-$stableExe = Join-Path $ProjectDir "PetriNet.exe"
 if (-not (Test-Path $versionedExe)) {
     throw "Versioned executable not found: $versionedExe"
 }
-Copy-Item $versionedExe $stableExe -Force
-Write-Host "Executable ready: $stableExe"
-
+Write-Host "Executable ready: $versionedExe"
