@@ -63,7 +63,11 @@ try {
 }
 Get-ChildItem -Path $ProjectDir -Filter "PetriNet-*.exe" -File -ErrorAction SilentlyContinue | ForEach-Object {
     if ($_.FullName -ne $outputExeFull) {
-        Remove-Item -LiteralPath $_.FullName -Force -ErrorAction SilentlyContinue
+        try {
+            Remove-Item -LiteralPath $_.FullName -Force -ErrorAction Stop
+        } catch {
+            Write-Warning "Failed to remove old exe: $($_.FullName). Close any running old version and rebuild."
+        }
     }
 }
 
