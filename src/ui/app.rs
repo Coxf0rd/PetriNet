@@ -37,6 +37,7 @@ struct CanvasState {
     selection_rect: Option<Rect>,
     drag_prev_world: Option<[f32; 2]>,
     move_drag_active: bool,
+    cursor_valid: bool,
 }
 
 impl Default for CanvasState {
@@ -56,6 +57,7 @@ impl Default for CanvasState {
             selection_rect: None,
             drag_prev_world: None,
             move_drag_active: false,
+            cursor_valid: false,
         }
     }
 }
@@ -153,6 +155,7 @@ pub struct PetriApp {
     copy_combo_down: bool,
     paste_combo_down: bool,
     undo_combo_down: bool,
+    status_hint: Option<String>,
 }
 
 impl PetriApp {
@@ -219,6 +222,7 @@ impl PetriApp {
             copy_combo_down: false,
             paste_combo_down: false,
             undo_combo_down: false,
+            status_hint: None,
         }
     }
 
@@ -270,6 +274,7 @@ impl PetriApp {
                 copy_combo_down: false,
                 paste_combo_down: false,
                 undo_combo_down: false,
+                status_hint: None,
             }
         }
     }
@@ -281,6 +286,8 @@ impl PetriApp {
         self.text_blocks.clear();
         self.next_text_id = 1;
         self.undo_stack.clear();
+        self.status_hint = None;
+        self.canvas.cursor_valid = false;
     }
 
     fn reset_sim_stop_controls(&mut self) {
@@ -303,6 +310,8 @@ impl PetriApp {
                     self.text_blocks.clear();
                     self.next_text_id = 1;
                     self.undo_stack.clear();
+                    self.status_hint = None;
+                    self.canvas.cursor_valid = false;
                     let filtered: Vec<String> = result
                         .warnings
                         .iter()
@@ -801,6 +810,7 @@ impl PetriApp {
         }
 
         if place_ids.is_empty() && transition_ids.is_empty() && text_ids.is_empty() {
+            self.status_hint = Some("Нечего копировать: нет выделения".to_string());
             return;
         }
 
@@ -888,6 +898,8 @@ impl PetriApp {
             min_y = self.canvas.cursor_world[1];
         }
 
+        let copied_count =
+            place_ids.len() + transition_ids.len() + text_ids.len() + copied_arcs.len() + copied_inhibitors.len();
         self.clipboard = Some(CopyBuffer {
             origin: [min_x, min_y],
             places: copied_places,
@@ -898,18 +910,25 @@ impl PetriApp {
         });
         // Keep first paste visibly offset from original selection.
         self.paste_serial = 1;
+        self.status_hint = Some(format!("Скопировано объектов: {copied_count}"));
     }
 
     fn paste_copied_objects(&mut self) {
         let Some(buf) = self.clipboard.clone() else {
+            self.status_hint = Some("Буфер пуст".to_string());
             return;
         };
         if buf.places.is_empty() && buf.transitions.is_empty() && buf.texts.is_empty() {
+            self.status_hint = Some("Буфер пуст".to_string());
             return;
         }
         self.push_undo_snapshot();
 
-        let base = self.snapped_world(self.canvas.cursor_world);
+        let base = if self.canvas.cursor_valid {
+            self.snapped_world(self.canvas.cursor_world)
+        } else {
+            self.snapped_world(buf.origin)
+        };
         let step = self.grid_step_world();
         let delta = self.paste_serial as f32 * step;
         let offset = [delta, delta];
@@ -1021,6 +1040,8 @@ impl PetriApp {
         self.canvas.selected_text = new_text_ids.last().copied();
 
         self.paste_serial = self.paste_serial.saturating_add(1);
+        let pasted_count = place_map.len() + transition_map.len() + new_text_ids.len();
+        self.status_hint = Some(format!("Вставлено объектов: {pasted_count}"));
     }
 
     fn arc_at(&self, rect: Rect, pos: Pos2) -> Option<u64> {
@@ -1344,6 +1365,13 @@ impl PetriApp {
                 self.reset_sim_stop_controls();
                 self.show_sim_params = true;
             }
+            ui.separator();
+            if ui.button("Копировать выделенное").clicked() {
+                self.copy_selected_objects();
+            }
+            if ui.button("Вставить").clicked() {
+                self.paste_copied_objects();
+            }
         });
     }
 
@@ -1399,6 +1427,7 @@ impl PetriApp {
 
         if let Some(pos) = response.hover_pos() {
             self.canvas.cursor_world = self.screen_to_world(rect, pos);
+            self.canvas.cursor_valid = true;
         }
         if response.hovered() {
             ui.output_mut(|o| {
@@ -2810,6 +2839,10 @@ impl PetriApp {
                 if let Some(err) = &self.last_error {
                     ui.separator();
                     ui.colored_label(Color32::RED, format!("Error: {err}"));
+                }
+                if let Some(hint) = &self.status_hint {
+                    ui.separator();
+                    ui.colored_label(Color32::from_rgb(0, 90, 170), hint);
                 }
             });
         });
