@@ -55,8 +55,14 @@ Write-Host "Executable ready: $outputExePath"
 
 # Keep only the newest versioned executable in the project dir.
 # This avoids accumulating multiple PetriNet-<version>.exe files over time.
+$outputExeFull = $null
+try {
+    $outputExeFull = (Resolve-Path -LiteralPath $outputExePath).Path
+} catch {
+    $outputExeFull = $outputExePath
+}
 Get-ChildItem -Path $ProjectDir -Filter "PetriNet-*.exe" -File -ErrorAction SilentlyContinue | ForEach-Object {
-    if ($_.FullName -ne $outputExePath) {
+    if ($_.FullName -ne $outputExeFull) {
         Remove-Item -LiteralPath $_.FullName -Force -ErrorAction SilentlyContinue
     }
 }
