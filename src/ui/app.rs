@@ -1,5 +1,7 @@
 ﻿use std::fs;
 
+use std::collections::{HashMap, HashSet};
+
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
@@ -8,7 +10,7 @@ use egui::{Color32, Pos2, Rect, Sense, Stroke, Vec2};
 
 use crate::formats::atf::generate_atf;
 use crate::io::{load_gpn, save_gpn};
-use crate::model::{LabelPosition, Language, NodeColor, NodeRef, PetriNet, StochasticDistribution, Tool, VisualSize};
+use crate::model::{LabelPosition, Language, NodeColor, NodeRef, PetriNet, Place, StochasticDistribution, Tool, Transition, VisualSize};
 use crate::sim::engine::{run_simulation, SimulationParams, SimulationResult};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -65,6 +67,50 @@ struct CanvasTextBlock {
     text: String,
 }
 
+#[derive(Debug, Clone)]
+struct CopiedPlace {
+    place: Place,
+    m0: u32,
+    mo: Option<u32>,
+    mz: f64,
+}
+
+#[derive(Debug, Clone)]
+struct CopiedTransition {
+    transition: Transition,
+    mpr: i32,
+}
+
+#[derive(Debug, Clone)]
+struct CopiedArc {
+    from: NodeRef,
+    to: NodeRef,
+    weight: u32,
+}
+
+#[derive(Debug, Clone)]
+struct CopiedInhibitorArc {
+    place_id: u64,
+    transition_id: u64,
+    threshold: u32,
+}
+
+#[derive(Debug, Clone)]
+struct CopiedTextBlock {
+    pos: [f32; 2],
+    text: String,
+}
+
+#[derive(Debug, Clone)]
+struct CopyBuffer {
+    origin: [f32; 2],
+    places: Vec<CopiedPlace>,
+    transitions: Vec<CopiedTransition>,
+    arcs: Vec<CopiedArc>,
+    inhibitors: Vec<CopiedInhibitorArc>,
+    texts: Vec<CopiedTextBlock>,
+}
+
 pub struct PetriApp {
     net: PetriNet,
     tool: Tool,
@@ -94,6 +140,8 @@ pub struct PetriApp {
     show_proof: bool,
     text_blocks: Vec<CanvasTextBlock>,
     next_text_id: u64,
+    clipboard: Option<CopyBuffer>,
+    paste_serial: u32,
 }
 
 impl PetriApp {
@@ -153,6 +201,8 @@ impl PetriApp {
             show_proof: false,
             text_blocks: Vec::new(),
             next_text_id: 1,
+            clipboard: None,
+            paste_serial: 0,
         }
     }
 
@@ -252,6 +302,20 @@ impl PetriApp {
         rest.parse::<usize>().ok()
     }
 
+    fn parse_transition_auto_index(name: &str) -> Option<usize> {
+        let trimmed = name.trim();
+        let mut chars = trimmed.chars();
+        let first = chars.next()?;
+        if !['T', 't', 'Т', 'т'].contains(&first) {
+            return None;
+        }
+        let rest: String = chars.collect();
+        if rest.is_empty() || !rest.chars().all(|c| c.is_ascii_digit()) {
+            return None;
+        }
+        rest.parse::<usize>().ok()
+    }
+
     fn next_place_auto_name(&self) -> String {
         // Use monotonically increasing numbering (max + 1) so places are named in creation order.
         // (The previous "smallest unused" behavior reused gaps after deletes, which felt random.)
@@ -264,10 +328,27 @@ impl PetriApp {
         format!("P{}", max_idx.saturating_add(1))
     }
 
+    fn next_transition_auto_name(&self) -> String {
+        let mut max_idx = 0usize;
+        for tr in &self.net.transitions {
+            if let Some(idx) = Self::parse_transition_auto_index(&tr.name) {
+                max_idx = max_idx.max(idx);
+            }
+        }
+        format!("T{}", max_idx.saturating_add(1))
+    }
+
     fn assign_auto_name_for_place(&mut self, place_id: u64) {
         let new_name = self.next_place_auto_name();
         if let Some(index) = self.place_idx_by_id(place_id) {
             self.net.places[index].name = new_name;
+        }
+    }
+
+    fn assign_auto_name_for_transition(&mut self, transition_id: u64) {
+        let new_name = self.next_transition_auto_name();
+        if let Some(index) = self.transition_idx_by_id(transition_id) {
+            self.net.transitions[index].name = new_name;
         }
     }
 
@@ -548,6 +629,287 @@ impl PetriApp {
         }
     }
 
+    fn collect_selected_place_ids(&self) -> Vec<u64> {
+        let mut place_ids = self.canvas.selected_places.clone();
+        if let Some(id) = self.canvas.selected_place {
+            place_ids.push(id);
+        }
+        place_ids.sort_unstable();
+        place_ids.dedup();
+        place_ids
+    }
+
+    fn collect_selected_transition_ids(&self) -> Vec<u64> {
+        let mut transition_ids = self.canvas.selected_transitions.clone();
+        if let Some(id) = self.canvas.selected_transition {
+            transition_ids.push(id);
+        }
+        transition_ids.sort_unstable();
+        transition_ids.dedup();
+        transition_ids
+    }
+
+    fn ensure_unique_place_name(&self, desired: &str, exclude_id: u64) -> String {
+        let base = desired.trim();
+        if base.is_empty() {
+            return String::new();
+        }
+        let mut candidate = base.to_string();
+        let mut n = 2u32;
+        while self
+            .net
+            .places
+            .iter()
+            .any(|p| p.id != exclude_id && p.name.trim() == candidate.as_str())
+        {
+            candidate = format!("{base} ({n})");
+            n = n.saturating_add(1);
+        }
+        candidate
+    }
+
+    fn ensure_unique_transition_name(&self, desired: &str, exclude_id: u64) -> String {
+        let base = desired.trim();
+        if base.is_empty() {
+            return String::new();
+        }
+        let mut candidate = base.to_string();
+        let mut n = 2u32;
+        while self
+            .net
+            .transitions
+            .iter()
+            .any(|t| t.id != exclude_id && t.name.trim() == candidate.as_str())
+        {
+            candidate = format!("{base} ({n})");
+            n = n.saturating_add(1);
+        }
+        candidate
+    }
+
+    fn copy_selected_objects(&mut self) {
+        let place_ids = self.collect_selected_place_ids();
+        let transition_ids = self.collect_selected_transition_ids();
+        let text_ids: Vec<u64> = self.canvas.selected_text.into_iter().collect();
+
+        if place_ids.is_empty() && transition_ids.is_empty() && text_ids.is_empty() {
+            return;
+        }
+
+        let place_set: HashSet<u64> = place_ids.iter().copied().collect();
+        let transition_set: HashSet<u64> = transition_ids.iter().copied().collect();
+        let pmap = self.net.place_index_map();
+        let tmap = self.net.transition_index_map();
+
+        let mut copied_places = Vec::new();
+        for pid in &place_ids {
+            let Some(&idx) = pmap.get(pid) else {
+                continue;
+            };
+            copied_places.push(CopiedPlace {
+                place: self.net.places[idx].clone(),
+                m0: self.net.tables.m0.get(idx).copied().unwrap_or(0),
+                mo: self.net.tables.mo.get(idx).copied().unwrap_or(None),
+                mz: self.net.tables.mz.get(idx).copied().unwrap_or(0.0),
+            });
+        }
+
+        let mut copied_transitions = Vec::new();
+        for tid in &transition_ids {
+            let Some(&idx) = tmap.get(tid) else {
+                continue;
+            };
+            copied_transitions.push(CopiedTransition {
+                transition: self.net.transitions[idx].clone(),
+                mpr: self.net.tables.mpr.get(idx).copied().unwrap_or(0),
+            });
+        }
+
+        let mut copied_texts = Vec::new();
+        for text_id in &text_ids {
+            if let Some(idx) = self.text_idx_by_id(*text_id) {
+                copied_texts.push(CopiedTextBlock {
+                    pos: self.text_blocks[idx].pos,
+                    text: self.text_blocks[idx].text.clone(),
+                });
+            }
+        }
+
+        let mut copied_arcs = Vec::new();
+        let in_sel = |n: NodeRef| match n {
+            NodeRef::Place(id) => place_set.contains(&id),
+            NodeRef::Transition(id) => transition_set.contains(&id),
+        };
+        for arc in &self.net.arcs {
+            if in_sel(arc.from) && in_sel(arc.to) {
+                copied_arcs.push(CopiedArc {
+                    from: arc.from,
+                    to: arc.to,
+                    weight: arc.weight,
+                });
+            }
+        }
+
+        let mut copied_inhibitors = Vec::new();
+        for inh in &self.net.inhibitor_arcs {
+            if place_set.contains(&inh.place_id) && transition_set.contains(&inh.transition_id) {
+                copied_inhibitors.push(CopiedInhibitorArc {
+                    place_id: inh.place_id,
+                    transition_id: inh.transition_id,
+                    threshold: inh.threshold,
+                });
+            }
+        }
+
+        let mut min_x = f32::INFINITY;
+        let mut min_y = f32::INFINITY;
+        for p in &copied_places {
+            min_x = min_x.min(p.place.pos[0]);
+            min_y = min_y.min(p.place.pos[1]);
+        }
+        for t in &copied_transitions {
+            min_x = min_x.min(t.transition.pos[0]);
+            min_y = min_y.min(t.transition.pos[1]);
+        }
+        for t in &copied_texts {
+            min_x = min_x.min(t.pos[0]);
+            min_y = min_y.min(t.pos[1]);
+        }
+        if !min_x.is_finite() || !min_y.is_finite() {
+            min_x = self.canvas.cursor_world[0];
+            min_y = self.canvas.cursor_world[1];
+        }
+
+        self.clipboard = Some(CopyBuffer {
+            origin: [min_x, min_y],
+            places: copied_places,
+            transitions: copied_transitions,
+            arcs: copied_arcs,
+            inhibitors: copied_inhibitors,
+            texts: copied_texts,
+        });
+        self.paste_serial = 0;
+    }
+
+    fn paste_copied_objects(&mut self) {
+        let Some(buf) = self.clipboard.clone() else {
+            return;
+        };
+
+        let base = self.snapped_world(self.canvas.cursor_world);
+        let step = self.grid_step_world();
+        let delta = self.paste_serial as f32 * step;
+        let offset = [delta, delta];
+
+        let mut place_map = HashMap::<u64, u64>::new();
+        let mut transition_map = HashMap::<u64, u64>::new();
+
+        for cp in &buf.places {
+            let rel = [cp.place.pos[0] - buf.origin[0], cp.place.pos[1] - buf.origin[1]];
+            let pos = self.snapped_world([base[0] + rel[0] + offset[0], base[1] + rel[1] + offset[1]]);
+
+            let before_max = self.net.places.iter().map(|p| p.id).max().unwrap_or(0);
+            self.net.add_place(pos);
+            let new_id = self.net.places.iter().map(|p| p.id).max().unwrap_or(0);
+            if new_id <= before_max {
+                continue;
+            }
+            place_map.insert(cp.place.id, new_id);
+
+            if let Some(idx) = self.place_idx_by_id(new_id) {
+                let mut place = cp.place.clone();
+                place.id = new_id;
+                place.pos = pos;
+                self.net.places[idx] = place;
+
+                self.net.tables.m0[idx] = cp.m0;
+                self.net.tables.mo[idx] = cp.mo;
+                self.net.tables.mz[idx] = cp.mz;
+
+                if Self::parse_place_auto_index(&cp.place.name).is_some() || cp.place.name.trim().is_empty() {
+                    self.net.places[idx].name.clear();
+                    self.assign_auto_name_for_place(new_id);
+                } else {
+                    let desired = self.net.places[idx].name.clone();
+                    self.net.places[idx].name = self.ensure_unique_place_name(&desired, new_id);
+                }
+            }
+        }
+
+        for ct in &buf.transitions {
+            let rel = [
+                ct.transition.pos[0] - buf.origin[0],
+                ct.transition.pos[1] - buf.origin[1],
+            ];
+            let pos = self.snapped_world([base[0] + rel[0] + offset[0], base[1] + rel[1] + offset[1]]);
+
+            let before_max = self.net.transitions.iter().map(|t| t.id).max().unwrap_or(0);
+            self.net.add_transition(pos);
+            let new_id = self.net.transitions.iter().map(|t| t.id).max().unwrap_or(0);
+            if new_id <= before_max {
+                continue;
+            }
+            transition_map.insert(ct.transition.id, new_id);
+
+            if let Some(idx) = self.transition_idx_by_id(new_id) {
+                let mut tr = ct.transition.clone();
+                tr.id = new_id;
+                tr.pos = pos;
+                self.net.transitions[idx] = tr;
+                self.net.tables.mpr[idx] = ct.mpr;
+
+                if Self::parse_transition_auto_index(&ct.transition.name).is_some() || ct.transition.name.trim().is_empty() {
+                    self.net.transitions[idx].name.clear();
+                    self.assign_auto_name_for_transition(new_id);
+                } else {
+                    let desired = self.net.transitions[idx].name.clone();
+                    self.net.transitions[idx].name = self.ensure_unique_transition_name(&desired, new_id);
+                }
+            }
+        }
+
+        let mut new_text_ids = Vec::new();
+        for tt in &buf.texts {
+            let rel = [tt.pos[0] - buf.origin[0], tt.pos[1] - buf.origin[1]];
+            let pos = self.snapped_world([base[0] + rel[0] + offset[0], base[1] + rel[1] + offset[1]]);
+
+            let id = self.next_text_id;
+            self.next_text_id = self.next_text_id.saturating_add(1);
+            self.text_blocks.push(CanvasTextBlock {
+                id,
+                pos,
+                text: tt.text.clone(),
+            });
+            new_text_ids.push(id);
+        }
+
+        for arc in &buf.arcs {
+            let remap = |n: NodeRef| -> Option<NodeRef> {
+                match n {
+                    NodeRef::Place(id) => place_map.get(&id).copied().map(NodeRef::Place),
+                    NodeRef::Transition(id) => transition_map.get(&id).copied().map(NodeRef::Transition),
+                }
+            };
+            let (Some(from), Some(to)) = (remap(arc.from), remap(arc.to)) else {
+                continue;
+            };
+            self.net.add_arc(from, to, arc.weight);
+        }
+        for inh in &buf.inhibitors {
+            let (Some(&pid), Some(&tid)) = (place_map.get(&inh.place_id), transition_map.get(&inh.transition_id)) else {
+                continue;
+            };
+            self.net.add_inhibitor_arc(pid, tid, inh.threshold);
+        }
+
+        self.clear_selection();
+        self.canvas.selected_places = place_map.values().copied().collect();
+        self.canvas.selected_transitions = transition_map.values().copied().collect();
+        self.canvas.selected_text = new_text_ids.last().copied();
+
+        self.paste_serial = self.paste_serial.saturating_add(1);
+    }
+
     fn arc_at(&self, rect: Rect, pos: Pos2) -> Option<u64> {
         let mut best_id = None;
         let mut best_dist = 10.0_f32;
@@ -598,13 +960,22 @@ impl PetriApp {
         let mut do_save = false;
         let mut do_exit = false;
         let mut do_delete = false;
+        let mut do_copy = false;
+        let mut do_paste = false;
 
+        let wants_keyboard = ctx.wants_keyboard_input();
         ctx.input(|i| {
             do_new = i.modifiers.command && i.key_pressed(egui::Key::N);
             do_open = i.modifiers.command && i.key_pressed(egui::Key::O);
             do_save = i.modifiers.command && i.key_pressed(egui::Key::S);
             do_exit = i.modifiers.command && i.key_pressed(egui::Key::Q);
             do_delete = i.key_pressed(egui::Key::Delete);
+
+            // When user is typing in a text field, allow regular text copy/paste.
+            if !wants_keyboard {
+                do_copy = i.modifiers.command && i.key_pressed(egui::Key::C);
+                do_paste = i.modifiers.command && i.key_pressed(egui::Key::V);
+            }
             #[cfg(target_os = "windows")]
             {
                 do_exit = do_exit || (i.modifiers.command && i.key_pressed(egui::Key::X));
@@ -625,6 +996,12 @@ impl PetriApp {
         }
         if do_delete {
             self.delete_selected();
+        }
+        if do_copy {
+            self.copy_selected_objects();
+        }
+        if do_paste {
+            self.paste_copied_objects();
         }
     }
 
