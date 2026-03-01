@@ -619,7 +619,7 @@ impl PetriApp {
         }
     }
 
-    fn undo_last_delete(&mut self) {
+    fn undo_last_action(&mut self) {
         let Some(state) = self.undo_stack.pop() else {
             return;
         };
@@ -724,9 +724,22 @@ impl PetriApp {
     }
 
     fn copy_selected_objects(&mut self) {
-        let place_ids = self.collect_selected_place_ids();
-        let transition_ids = self.collect_selected_transition_ids();
+        let mut place_ids = self.collect_selected_place_ids();
+        let mut transition_ids = self.collect_selected_transition_ids();
         let text_ids: Vec<u64> = self.canvas.selected_text.into_iter().collect();
+
+        // Fallback: if nothing is selected on canvas, allow copying currently opened properties target.
+        if place_ids.is_empty() && transition_ids.is_empty() && text_ids.is_empty() {
+            if self.show_place_props {
+                if let Some(pid) = self.place_props_id {
+                    place_ids.push(pid);
+                }
+            } else if self.show_transition_props {
+                if let Some(tid) = self.transition_props_id {
+                    transition_ids.push(tid);
+                }
+            }
+        }
 
         if place_ids.is_empty() && transition_ids.is_empty() && text_ids.is_empty() {
             return;
@@ -831,6 +844,10 @@ impl PetriApp {
         let Some(buf) = self.clipboard.clone() else {
             return;
         };
+        if buf.places.is_empty() && buf.transitions.is_empty() && buf.texts.is_empty() {
+            return;
+        }
+        self.push_undo_snapshot();
 
         let base = self.snapped_world(self.canvas.cursor_world);
         let step = self.grid_step_world();
@@ -1010,6 +1027,9 @@ impl PetriApp {
             do_copy = cmd_or_ctrl && i.key_pressed(egui::Key::C);
             do_paste = cmd_or_ctrl && i.key_pressed(egui::Key::V);
             do_undo = cmd_or_ctrl && i.key_pressed(egui::Key::Z);
+            // Windows-compatible alternatives (layout independent in practice for many setups).
+            do_copy = do_copy || (i.modifiers.ctrl && i.key_pressed(egui::Key::Insert));
+            do_paste = do_paste || (i.modifiers.shift && i.key_pressed(egui::Key::Insert));
             // Some keyboard layouts may not map Key::C/Key::V reliably, but integrations
             // also emit explicit copy/paste events for standard shortcuts.
             for e in &i.events {
@@ -1037,10 +1057,46 @@ impl PetriApp {
                     _ => {}
                 }
             }
+            // Extra fallback: logical-key events for layouts where physical key may be unavailable.
+            for e in &i.events {
+                if let egui::Event::Key {
+                    key,
+                    pressed: true,
+                    modifiers,
+                    ..
+                } = e
+                {
+                    let ctrl_like = modifiers.command || modifiers.ctrl || cmd_or_ctrl;
+                    if ctrl_like && *key == egui::Key::C {
+                        do_copy = true;
+                    }
+                    if ctrl_like && *key == egui::Key::V {
+                        do_paste = true;
+                    }
+                    if ctrl_like && *key == egui::Key::Z {
+                        do_undo = true;
+                    }
+                }
+            }
             #[cfg(target_os = "windows")]
             {
                 do_exit = do_exit || (i.modifiers.command && i.key_pressed(egui::Key::X));
             }
+        });
+
+        // Explicitly consume standard shortcuts before widgets can consume them in the same frame.
+        ctx.input_mut(|i| {
+            do_copy = do_copy
+                || i.consume_key(egui::Modifiers::CTRL, egui::Key::C)
+                || i.consume_key(egui::Modifiers::COMMAND, egui::Key::C)
+                || i.consume_key(egui::Modifiers::CTRL, egui::Key::Insert);
+            do_paste = do_paste
+                || i.consume_key(egui::Modifiers::CTRL, egui::Key::V)
+                || i.consume_key(egui::Modifiers::COMMAND, egui::Key::V)
+                || i.consume_key(egui::Modifiers::SHIFT, egui::Key::Insert);
+            do_undo = do_undo
+                || i.consume_key(egui::Modifiers::CTRL, egui::Key::Z)
+                || i.consume_key(egui::Modifiers::COMMAND, egui::Key::Z);
         });
 
         if do_new {
@@ -1065,7 +1121,7 @@ impl PetriApp {
             self.paste_copied_objects();
         }
         if do_undo {
-            self.undo_last_delete();
+            self.undo_last_action();
         }
     }
 
@@ -1094,6 +1150,20 @@ impl PetriApp {
                     }
                     if ui.button("Выход").clicked() {
                         ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+                    }
+                });
+                ui.menu_button("Правка", |ui| {
+                    if ui.button("Копировать (Ctrl+C)").clicked() {
+                        self.copy_selected_objects();
+                        ui.close_menu();
+                    }
+                    if ui.button("Вставить (Ctrl+V)").clicked() {
+                        self.paste_copied_objects();
+                        ui.close_menu();
+                    }
+                    if ui.button("Отменить (Ctrl+Z)").clicked() {
+                        self.undo_last_action();
+                        ui.close_menu();
                     }
                 });
 
@@ -1263,6 +1333,7 @@ impl PetriApp {
 
                 match self.tool {
                     Tool::Place => {
+                        self.push_undo_snapshot();
                         self.net.add_place(snapped);
                         if let Some(new_id) = self.net.places.iter().map(|p| p.id).max() {
                             self.assign_auto_name_for_place(new_id);
@@ -1271,6 +1342,7 @@ impl PetriApp {
                     Tool::Transition => {
                         // Store transition position as top-left.
                         // Snap the top-left to the grid (not the center) so the rectangle aligns with the grid.
+                        self.push_undo_snapshot();
                         let dims = Self::transition_dimensions(VisualSize::Medium);
                         let tl = self.snapped_world([world[0] - dims.x * 0.5, world[1] - dims.y * 0.5]);
                         self.net.add_transition(tl);
@@ -1278,6 +1350,7 @@ impl PetriApp {
                     Tool::Arc => {
                     }
                     Tool::Text => {
+                        self.push_undo_snapshot();
                         let id = self.next_text_id;
                         self.next_text_id = self.next_text_id.saturating_add(1);
                         self.text_blocks.push(CanvasTextBlock {
@@ -1346,6 +1419,7 @@ impl PetriApp {
                 if let Some(pointer) = response.interact_pointer_pos().or_else(|| response.hover_pos()) {
                     if let Some(last) = self.node_at(rect, pointer) {
                         if first != last {
+                            self.push_undo_snapshot();
                             self.net.add_arc(first, last, 1);
                         }
                     }
@@ -1366,6 +1440,7 @@ impl PetriApp {
                     };
 
                     if is_selected {
+                        self.push_undo_snapshot();
                         self.canvas.drag_prev_world = Some(self.screen_to_world(rect, pointer));
                         self.canvas.move_drag_active = true;
                     } else {
@@ -1382,6 +1457,7 @@ impl PetriApp {
                         self.clear_selection();
                         self.canvas.selected_text = Some(text_id);
                     }
+                    self.push_undo_snapshot();
                     self.canvas.drag_prev_world = Some(self.screen_to_world(rect, pointer));
                     self.canvas.move_drag_active = true;
                 } else {
