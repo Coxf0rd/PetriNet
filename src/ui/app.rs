@@ -1366,9 +1366,6 @@ impl PetriApp {
                 self.show_sim_params = true;
             }
             ui.separator();
-            if ui.button("Копировать выделенное").clicked() {
-                self.copy_selected_objects();
-            }
             if ui.button("Вставить").clicked() {
                 self.paste_copied_objects();
             }
