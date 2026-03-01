@@ -1381,6 +1381,26 @@ impl PetriApp {
         let (rect, response) = ui.allocate_exact_size(desired, Sense::click_and_drag());
         let painter = ui.painter_at(rect);
 
+        if response.clicked() || response.drag_started() {
+            response.request_focus();
+        }
+
+        let mut do_copy_local = false;
+        let mut do_paste_local = false;
+        let mut do_undo_local = false;
+        if response.has_focus() {
+            ui.input_mut(|i| {
+                do_copy_local = i.consume_key(egui::Modifiers::CTRL, egui::Key::C)
+                    || i.consume_key(egui::Modifiers::COMMAND, egui::Key::C)
+                    || i.consume_key(egui::Modifiers::CTRL, egui::Key::Insert);
+                do_paste_local = i.consume_key(egui::Modifiers::CTRL, egui::Key::V)
+                    || i.consume_key(egui::Modifiers::COMMAND, egui::Key::V)
+                    || i.consume_key(egui::Modifiers::SHIFT, egui::Key::Insert);
+                do_undo_local = i.consume_key(egui::Modifiers::CTRL, egui::Key::Z)
+                    || i.consume_key(egui::Modifiers::COMMAND, egui::Key::Z);
+            });
+        }
+
         let zoom_delta = ui.ctx().input(|i| i.zoom_delta());
         if (zoom_delta - 1.0).abs() > f32::EPSILON {
             self.canvas.zoom = (self.canvas.zoom * zoom_delta).clamp(0.2, 3.0);
@@ -1705,6 +1725,16 @@ impl PetriApp {
             self.canvas.selection_start = None;
             self.canvas.drag_prev_world = None;
             self.canvas.move_drag_active = false;
+        }
+
+        if do_copy_local {
+            self.copy_selected_objects();
+        }
+        if do_paste_local {
+            self.paste_copied_objects();
+        }
+        if do_undo_local {
+            self.undo_last_action();
         }
 
         if response.clicked_by(egui::PointerButton::Secondary) {
@@ -2943,6 +2973,7 @@ impl PetriApp {
 impl eframe::App for PetriApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         ctx.set_visuals(egui::Visuals::light());
+        self.handle_shortcuts(ctx);
         self.draw_menu(ctx);
         self.draw_tool_palette(ctx);
         self.draw_layout(ctx);
@@ -2969,9 +3000,6 @@ impl eframe::App for PetriApp {
         if self.show_atf {
             self.draw_atf_window(ctx);
         }
-
-        // Handle hotkeys after UI interactions so copy/undo/paste see the latest selection state.
-        self.handle_shortcuts(ctx);
     }
 }
 
