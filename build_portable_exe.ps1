@@ -1,6 +1,6 @@
 param(
     [string]$ProjectDir = $PSScriptRoot,
-    [string]$OutputExe = "PetriNet-0.3.0.exe",
+    [string]$OutputExe = "",
     [switch]$KeepTarget
 )
 
@@ -14,6 +14,19 @@ if (-not (Test-Path $cargoPath)) {
 }
 
 $releaseExe = Join-Path $ProjectDir "target\release\petri_net_legacy_editor.exe"
+if ([string]::IsNullOrWhiteSpace($OutputExe)) {
+    $cargoTomlPath = Join-Path $ProjectDir "Cargo.toml"
+    if (-not (Test-Path $cargoTomlPath)) {
+        throw "Cargo.toml not found: $cargoTomlPath"
+    }
+    $cargoTomlText = Get-Content -Path $cargoTomlPath -Raw
+    $match = [regex]::Match($cargoTomlText, '(?m)^\s*version\s*=\s*"([^"]+)"')
+    if (-not $match.Success) {
+        throw "Failed to read package version from Cargo.toml"
+    }
+    $version = $match.Groups[1].Value
+    $OutputExe = "PetriNet-$version.exe"
+}
 $outputExePath = Join-Path $ProjectDir $OutputExe
 
 Write-Host "Building release (static CRT)..."

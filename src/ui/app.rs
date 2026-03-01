@@ -28,6 +28,7 @@ struct CanvasState {
     selected_places: Vec<u64>,
     selected_transitions: Vec<u64>,
     selected_arc: Option<u64>,
+    selected_text: Option<u64>,
     arc_start: Option<NodeRef>,
     cursor_world: [f32; 2],
     selection_start: Option<Pos2>,
@@ -46,6 +47,7 @@ impl Default for CanvasState {
             selected_places: Vec::new(),
             selected_transitions: Vec::new(),
             selected_arc: None,
+            selected_text: None,
             arc_start: None,
             cursor_world: [0.0, 0.0],
             selection_start: None,
@@ -54,6 +56,13 @@ impl Default for CanvasState {
             move_drag_active: false,
         }
     }
+}
+
+#[derive(Debug, Clone)]
+struct CanvasTextBlock {
+    id: u64,
+    pos: [f32; 2],
+    text: String,
 }
 
 pub struct PetriApp {
@@ -83,6 +92,8 @@ pub struct PetriApp {
     debug_interval_ms: u64,
     last_debug_tick: Option<Instant>,
     show_proof: bool,
+    text_blocks: Vec<CanvasTextBlock>,
+    next_text_id: u64,
 }
 
 impl PetriApp {
@@ -120,6 +131,8 @@ impl PetriApp {
             debug_interval_ms: 400,
             last_debug_tick: None,
             show_proof: false,
+            text_blocks: Vec::new(),
+            next_text_id: 1,
         }
     }
 
@@ -127,6 +140,15 @@ impl PetriApp {
         self.net = PetriNet::new();
         self.net.set_counts(1, 1);
         self.file_path = None;
+        self.text_blocks.clear();
+        self.next_text_id = 1;
+    }
+
+    fn reset_sim_stop_controls(&mut self) {
+        self.sim_params.use_time_limit = false;
+        self.sim_params.use_pass_limit = false;
+        self.sim_params.stop.through_place = None;
+        self.sim_params.stop.sim_time = None;
     }
 
     fn open_file(&mut self) {
@@ -139,10 +161,16 @@ impl PetriApp {
                     self.net = result.model;
                     self.net.set_counts(self.net.places.len(), self.net.transitions.len());
                     self.file_path = Some(path);
+                    self.text_blocks.clear();
+                    self.next_text_id = 1;
                     let filtered: Vec<String> = result
                         .warnings
                         .iter()
-                        .filter(|w| !w.contains("best-effort"))
+                        .filter(|w| {
+                            !w.contains("best-effort")
+                                && !w.contains("signature heuristic")
+                                && !w.contains("восстановлены по сигнатурам")
+                        })
                         .cloned()
                         .collect();
                     if filtered.is_empty() {
@@ -390,6 +418,13 @@ impl PetriApp {
         )
     }
 
+    fn approx_text_rect(center: Pos2, text: &str, zoom: f32) -> Rect {
+        let scale = zoom.clamp(0.75, 2.0);
+        let width = (text.chars().count().max(1) as f32 * 7.0 * scale).max(24.0);
+        let height = 16.0 * scale;
+        Rect::from_center_size(center, Vec2::new(width, height))
+    }
+
     fn screen_to_world(&self, rect: Rect, p: Pos2) -> [f32; 2] {
         [
             (p.x - rect.left() - self.canvas.pan.x) / self.canvas.zoom,
@@ -411,7 +446,46 @@ impl PetriApp {
                 return Some(NodeRef::Transition(tr.id));
             }
         }
+        for place in &self.net.places {
+            let center = self.world_to_screen(rect, place.pos);
+            let radius = Self::place_radius(place.size) * self.canvas.zoom;
+            let name_offset = Self::keep_label_inside(
+                rect,
+                center,
+                Self::place_label_offset(place.text_position, radius, self.canvas.zoom),
+            );
+            let label_center = center + name_offset;
+            let label_rect = Self::approx_text_rect(label_center, &place.name, self.canvas.zoom);
+            if label_rect.contains(pos) {
+                return Some(NodeRef::Place(place.id));
+            }
+        }
+        for tr in &self.net.transitions {
+            let p = self.world_to_screen(rect, tr.pos);
+            let dims = Self::transition_dimensions(tr.size) * self.canvas.zoom;
+            let r = Rect::from_min_size(p, dims);
+            let label_center = r.center() + Self::label_offset(tr.label_position, self.canvas.zoom);
+            let label_rect = Self::approx_text_rect(label_center, &tr.name, self.canvas.zoom);
+            if label_rect.contains(pos) {
+                return Some(NodeRef::Transition(tr.id));
+            }
+        }
         None
+    }
+
+    fn text_at(&self, rect: Rect, pos: Pos2) -> Option<u64> {
+        self.text_blocks
+            .iter()
+            .rev()
+            .find(|item| {
+                let center = self.world_to_screen(rect, item.pos);
+                Self::approx_text_rect(center, &item.text, self.canvas.zoom).contains(pos)
+            })
+            .map(|item| item.id)
+    }
+
+    fn text_idx_by_id(&self, id: u64) -> Option<usize> {
+        self.text_blocks.iter().position(|item| item.id == id)
     }
 
     fn clear_selection(&mut self) {
@@ -420,9 +494,14 @@ impl PetriApp {
         self.canvas.selected_places.clear();
         self.canvas.selected_transitions.clear();
         self.canvas.selected_arc = None;
+        self.canvas.selected_text = None;
     }
 
     fn delete_selected(&mut self) {
+        if let Some(text_id) = self.canvas.selected_text.take() {
+            self.text_blocks.retain(|item| item.id != text_id);
+            return;
+        }
         if let Some(arc_id) = self.canvas.selected_arc.take() {
             self.net.arcs.retain(|a| a.id != arc_id);
             self.net.inhibitor_arcs.retain(|a| a.id != arc_id);
@@ -593,6 +672,7 @@ impl PetriApp {
                 });
 
                 if ui.button("Параметры симуляции").clicked() {
+                    self.reset_sim_stop_controls();
                     self.show_sim_params = true;
                 }
                 if ui
@@ -663,6 +743,7 @@ impl PetriApp {
             ui.radio_value(&mut self.tool, Tool::Run, "Запуск");
 
             if ui.button("СТАРТ").clicked() {
+                self.reset_sim_stop_controls();
                 self.show_sim_params = true;
             }
         });
@@ -748,10 +829,15 @@ impl PetriApp {
                     Tool::Arc => {
                     }
                     Tool::Text => {
-                        self.net.meta.description.push_str(&format!(
-                            "\nТекст ({:.1}, {:.1})",
-                            snapped[0], snapped[1]
-                        ));
+                        let id = self.next_text_id;
+                        self.next_text_id = self.next_text_id.saturating_add(1);
+                        self.text_blocks.push(CanvasTextBlock {
+                            id,
+                            pos: snapped,
+                            text: self.tr("Текст", "Text").to_string(),
+                        });
+                        self.clear_selection();
+                        self.canvas.selected_text = Some(id);
                     }
                     Tool::Delete => {
                         if let Some(node) = self.node_at(rect, click) {
@@ -773,6 +859,8 @@ impl PetriApp {
                             self.net.arcs.retain(|a| a.id != arc_id);
                             self.net.inhibitor_arcs.retain(|a| a.id != arc_id);
                             self.net.rebuild_matrices_from_arcs();
+                        } else if let Some(text_id) = self.text_at(rect, click) {
+                            self.text_blocks.retain(|item| item.id != text_id);
                         }
                     }
                     Tool::Edit => {
@@ -784,9 +872,12 @@ impl PetriApp {
                             }
                         } else if let Some(arc_id) = self.arc_at(rect, click) {
                             self.canvas.selected_arc = Some(arc_id);
+                        } else if let Some(text_id) = self.text_at(rect, click) {
+                            self.canvas.selected_text = Some(text_id);
                         }
                     }
                     Tool::Run => {
+                        self.reset_sim_stop_controls();
                         self.show_sim_params = true;
                     }
                 }
@@ -834,6 +925,13 @@ impl PetriApp {
                         self.canvas.drag_prev_world = None;
                         self.canvas.move_drag_active = false;
                     }
+                } else if let Some(text_id) = self.text_at(rect, pointer) {
+                    if self.canvas.selected_text != Some(text_id) {
+                        self.clear_selection();
+                        self.canvas.selected_text = Some(text_id);
+                    }
+                    self.canvas.drag_prev_world = Some(self.screen_to_world(rect, pointer));
+                    self.canvas.move_drag_active = true;
                 } else {
                     self.clear_selection();
                     self.canvas.selection_start = Some(pointer);
@@ -879,6 +977,12 @@ impl PetriApp {
                                     self.net.transitions[idx].pos[1] += dy;
                                 }
                             }
+                            if let Some(text_id) = self.canvas.selected_text {
+                                if let Some(idx) = self.text_idx_by_id(text_id) {
+                                    self.text_blocks[idx].pos[0] += dx;
+                                    self.text_blocks[idx].pos[1] += dy;
+                                }
+                            }
                         }
                     }
                     self.canvas.drag_prev_world = Some(world);
@@ -911,6 +1015,12 @@ impl PetriApp {
                         self.net.transitions[idx].pos[1] = snap(self.net.transitions[idx].pos[1]);
                     }
                 }
+                if let Some(text_id) = self.canvas.selected_text {
+                    if let Some(idx) = self.text_idx_by_id(text_id) {
+                        self.text_blocks[idx].pos[0] = snap(self.text_blocks[idx].pos[0]);
+                        self.text_blocks[idx].pos[1] = snap(self.text_blocks[idx].pos[1]);
+                    }
+                }
             }
             if let Some(sel_rect) = self.canvas.selection_rect.take() {
                 let norm = sel_rect.expand2(Vec2::ZERO);
@@ -934,6 +1044,7 @@ impl PetriApp {
                     .collect();
                 self.canvas.selected_place = None;
                 self.canvas.selected_transition = None;
+                self.canvas.selected_text = None;
             }
             self.canvas.selection_start = None;
             self.canvas.drag_prev_world = None;
@@ -958,6 +1069,9 @@ impl PetriApp {
                             self.show_place_props = false;
                         }
                     }
+                } else if let Some(text_id) = self.text_at(rect, click) {
+                    self.clear_selection();
+                    self.canvas.selected_text = Some(text_id);
                 }
             }
         }
@@ -1158,6 +1272,22 @@ impl PetriApp {
             );
         }
 
+        for text in &self.text_blocks {
+            let center = self.world_to_screen(rect, text.pos);
+            let color = if self.canvas.selected_text == Some(text.id) {
+                Color32::from_rgb(255, 140, 0)
+            } else {
+                Color32::from_rgb(40, 40, 40)
+            };
+            painter.text(
+                center,
+                egui::Align2::CENTER_CENTER,
+                &text.text,
+                egui::TextStyle::Body.resolve(ui.style()),
+                color,
+            );
+        }
+
         let preview_pos = response.hover_pos().map(|pointer| {
             let world = self.screen_to_world(rect, pointer);
             self.world_to_screen(rect, self.snapped_world(world))
@@ -1244,6 +1374,13 @@ impl PetriApp {
                 ui.separator();
                 ui.label("Выбранный переход");
                 ui.text_edit_singleline(&mut tr.name);
+            }
+        }
+        if let Some(text_id) = self.canvas.selected_text {
+            if let Some(idx) = self.text_idx_by_id(text_id) {
+                ui.separator();
+                ui.label("Выбранный текст");
+                ui.text_edit_singleline(&mut self.text_blocks[idx].text);
             }
         }
     }
@@ -1463,8 +1600,8 @@ impl PetriApp {
                     self.debug_step = 0;
                     self.debug_playing = false;
                     self.last_debug_tick = None;
-                    self.show_table_view = true;
                     self.show_results = true;
+                    self.show_sim_params = false;
                 }
             });
         self.show_sim_params = open;
@@ -1483,22 +1620,33 @@ impl PetriApp {
                     ui.label(format!("{}: {}", self.tr("Сработало переходов", "Fired transitions"), result.fired_count));
                     ui.separator();
                     ui.label(self.tr("Журнал (таблица)", "Log (table)"));
-                    egui::ScrollArea::both().max_height(320.0).show(ui, |ui| {
-                        egui::Grid::new("sim_log_grid").striped(true).show(ui, |ui| {
+                    egui::ScrollArea::horizontal().show(ui, |ui| {
+                        let row_h = ui.text_style_height(&egui::TextStyle::Body) + 4.0;
+                        egui::Grid::new("sim_log_grid_header").striped(true).show(ui, |ui| {
                             ui.label(self.tr("Время", "Time"));
                             for (p, _) in self.net.places.iter().enumerate() {
                                 ui.label(format!("P{}", p + 1));
                             }
                             ui.end_row();
-
-                            for entry in result.logs.iter() {
-                                ui.label(format!("{:.3}", entry.time));
-                                for token in &entry.marking {
-                                    ui.label(token.to_string());
-                                }
-                                ui.end_row();
-                            }
                         });
+
+                        egui::ScrollArea::vertical().max_height(320.0).show_rows(
+                            ui,
+                            row_h,
+                            result.logs.len(),
+                            |ui, range| {
+                                egui::Grid::new("sim_log_grid_rows").striped(true).show(ui, |ui| {
+                                    for idx in range {
+                                        let entry = &result.logs[idx];
+                                        ui.label(format!("{:.3}", entry.time));
+                                        for token in &entry.marking {
+                                            ui.label(token.to_string());
+                                        }
+                                        ui.end_row();
+                                    }
+                                });
+                            },
+                        );
                     });
 
                     if let Some(stats) = &result.place_stats {
@@ -1700,7 +1848,14 @@ impl PetriApp {
 
                 ui.separator();
                 ui.label(t("Текст/Описание", "Text/Description"));
-                ui.text_edit_singleline(&mut self.net.places[place_idx].note);
+                let old_note = self.net.places[place_idx].note.clone();
+                if ui
+                    .text_edit_singleline(&mut self.net.places[place_idx].note)
+                    .changed()
+                    && self.net.places[place_idx].name == old_note
+                {
+                    self.net.places[place_idx].name = self.net.places[place_idx].note.clone();
+                }
             });
         open
     }
@@ -1792,7 +1947,15 @@ impl PetriApp {
 
                 ui.separator();
                 ui.label(t("Текст/Описание", "Text/Description"));
-                ui.text_edit_singleline(&mut self.net.transitions[transition_idx].note);
+                let old_note = self.net.transitions[transition_idx].note.clone();
+                if ui
+                    .text_edit_singleline(&mut self.net.transitions[transition_idx].note)
+                    .changed()
+                    && self.net.transitions[transition_idx].name == old_note
+                {
+                    self.net.transitions[transition_idx].name =
+                        self.net.transitions[transition_idx].note.clone();
+                }
             });
         open
     }

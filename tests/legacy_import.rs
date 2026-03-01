@@ -70,7 +70,7 @@ fn legacy_import_restores_coordinates_and_arcs() {
         assert_eq!(imported.model.tables.m0[7], 1);
         assert_eq!(imported.model.tables.m0[16], 1);
         assert_eq!(imported.model.transitions[0].angle_deg, 90);
-        assert!(imported.model.places[0].name.starts_with('P'));
+        assert!(!imported.model.places[0].name.trim().is_empty());
 
         let place16_id = imported.model.places[15].id;
         let transition2_id = imported.model.transitions[1].id;
@@ -83,6 +83,28 @@ fn legacy_import_restores_coordinates_and_arcs() {
         assert!(imported.model.places.len() >= 1);
         assert!(imported.model.transitions.len() >= 1);
     }
+}
+
+#[test]
+fn legacy_import_reads_cp1251_place_and_transition_names() {
+    let path = Path::new("Сеть 3.gpn");
+    if !path.exists() {
+        return;
+    }
+
+    let imported = import_legacy_gpn(path).expect("legacy import must succeed");
+    assert!(
+        imported.model.places.iter().any(|p| p.name == "очередь"),
+        "expected CP1251 place name to be imported"
+    );
+    assert!(
+        imported
+            .model
+            .transitions
+            .iter()
+            .any(|t| t.name.contains("загрузка")),
+        "expected CP1251 transition name to be imported"
+    );
 }
 
 #[test]
@@ -136,6 +158,46 @@ fn legacy_simulation_has_enabled_transitions() {
     assert!(
         result.fired_count > 5,
         "simulation should keep firing transitions for the fixture, got {}",
+        result.fired_count
+    );
+}
+
+#[test]
+fn legacy_simulation_runs_many_steps_for_set3() {
+    let path = Path::new("Сеть 3.gpn");
+    if !path.exists() {
+        return;
+    }
+
+    let imported = import_legacy_gpn(path).expect("legacy import must succeed");
+    let params = SimulationParams {
+        use_pass_limit: true,
+        pass_limit: 200,
+        ..SimulationParams::default()
+    };
+
+    let result = run_simulation(&imported.model, &params, true, false);
+    eprintln!(
+        "places={} transitions={} arcs={} inhibitors={} mo={:?} mz={:?} fired_count={} logs={} final={:?}",
+        imported.model.places.len(),
+        imported.model.transitions.len(),
+        imported.model.arcs.len(),
+        imported.model.inhibitor_arcs.len(),
+        imported.model.tables.mo,
+        imported.model.tables.mz,
+        result.fired_count,
+        result.logs.len(),
+        result.final_marking
+    );
+    if let Some(last) = result.logs.last() {
+        eprintln!(
+            "last_log: t={:.3} fired={:?} marking={:?}",
+            last.time, last.fired_transition, last.marking
+        );
+    }
+    assert_eq!(
+        result.fired_count, 200,
+        "expected to reach pass_limit=200, got {}",
         result.fired_count
     );
 }

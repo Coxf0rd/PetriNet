@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+﻿use std::collections::HashMap;
 use std::fmt;
 use std::fs;
 use std::path::Path;
@@ -7,7 +7,9 @@ use crate::model::{NodeColor, NodeRef, PetriNetModel, VisualSize};
 
 const PLACE_RECORD_SIZE: usize = 231;
 const PLACE_DELAY_OFFSET: usize = 77;
+const PLACE_NAME_OFFSET: usize = 26;
 const TRANSITION_RECORD_SIZE: usize = 105;
+const TRANSITION_NAME_OFFSET: usize = 54;
 const ARC_SECTION_HEADER_SIZE: usize = 6;
 const ARC_RECORD_SIZE: usize = 46;
 
@@ -37,8 +39,8 @@ pub enum LegacyImportError {
 impl fmt::Display for LegacyImportError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Io(e) => write!(f, "Ошибка ввода-вывода: {e}"),
-            Self::Invalid(msg) => write!(f, "Некорректный legacy GPN: {msg}"),
+            Self::Io(e) => write!(f, "РћС€РёР±РєР° РІРІРѕРґР°-РІС‹РІРѕРґР°: {e}"),
+            Self::Invalid(msg) => write!(f, "РќРµРєРѕСЂСЂРµРєС‚РЅС‹Р№ legacy GPN: {msg}"),
         }
     }
 }
@@ -66,7 +68,7 @@ pub fn detect_legacy_gpn(bytes: &[u8]) -> bool {
 pub fn import_legacy_gpn(path: &Path) -> Result<LegacyImportResult, LegacyImportError> {
     let bytes = fs::read(path)?;
     if bytes.is_empty() {
-        return Err(LegacyImportError::Invalid("Пустой файл".to_string()));
+        return Err(LegacyImportError::Invalid("РџСѓСЃС‚РѕР№ С„Р°Р№Р»".to_string()));
     }
 
     let candidate_counts = detect_counts(&bytes);
@@ -81,14 +83,14 @@ pub fn import_legacy_gpn(path: &Path) -> Result<LegacyImportResult, LegacyImport
             (
                 p.clamp(1, 2000) as usize,
                 t.clamp(1, 2000) as usize,
-                vec!["Использованы эвристические counts".to_string()],
+                vec!["РСЃРїРѕР»СЊР·РѕРІР°РЅС‹ СЌРІСЂРёСЃС‚РёС‡РµСЃРєРёРµ counts".to_string()],
             )
         } else {
             (
                 1,
                 1,
                 vec![
-                    "Не удалось надежно извлечь числа мест/переходов, применены значения 1/1"
+                    "РќРµ СѓРґР°Р»РѕСЃСЊ РЅР°РґРµР¶РЅРѕ РёР·РІР»РµС‡СЊ С‡РёСЃР»Р° РјРµСЃС‚/РїРµСЂРµС…РѕРґРѕРІ, РїСЂРёРјРµРЅРµРЅС‹ Р·РЅР°С‡РµРЅРёСЏ 1/1"
                         .to_string(),
                 ],
             )
@@ -106,12 +108,18 @@ pub fn import_legacy_gpn(path: &Path) -> Result<LegacyImportResult, LegacyImport
         let mut arcs_applied = false;
 
         for (idx, place) in model.places.iter_mut().enumerate() {
-            if let Some(first) = parsed_place_nodes.get(idx).copied() {
+            if let Some(first) = parsed_place_nodes.get(idx).cloned() {
                 if !first.valid {
                     continue;
                 }
                 place.pos = [first.x, first.y];
                 place.size = VisualSize::Small;
+                if !first.name.is_empty() {
+                    place.name = first.name.clone();
+                    if place.note.trim().is_empty() {
+                        place.note = first.name;
+                    }
+                }
                 model.tables.m0[idx] = first.markers.max(0) as u32;
                 model.tables.mo[idx] = if first.capacity > 0 {
                     Some(first.capacity as u32)
@@ -124,7 +132,7 @@ pub fn import_legacy_gpn(path: &Path) -> Result<LegacyImportResult, LegacyImport
         }
 
         for (idx, tr) in model.transitions.iter_mut().enumerate() {
-            if let Some(first) = parsed_transition_nodes.get(idx).copied() {
+            if let Some(first) = parsed_transition_nodes.get(idx).cloned() {
                 if !first.valid {
                     continue;
                 }
@@ -132,13 +140,17 @@ pub fn import_legacy_gpn(path: &Path) -> Result<LegacyImportResult, LegacyImport
                 let (w, h) = legacy_transition_dims(tr.size);
                 tr.pos = [first.x - w * 0.5, first.y - h * 0.5];
                 tr.angle_deg = first.angle_deg;
+                if !first.name.is_empty() {
+                    if tr.note.trim().is_empty() {
+                        tr.note = first.name;
+                    }
+                }
                 model.tables.mpr[idx] = first.priority;
                 tr.color = map_legacy_color(first.color_raw);
             }
         }
 
-        if let Some(arcs) = parse_arcs_from_section(&bytes, places_count, transitions_count, layout)
-        {
+        if let Some(arcs) = parse_arcs_from_section(&bytes, places_count, transitions_count, layout) {
             apply_legacy_arcs(&mut model, &arcs);
             arcs_applied = true;
         } else if let Some(arcs) = parse_arcs_by_signature(
@@ -149,7 +161,7 @@ pub fn import_legacy_gpn(path: &Path) -> Result<LegacyImportResult, LegacyImport
             &model.transitions,
         ) {
             used_fallback = true;
-            warnings.push("Дуги извлечены эвристикой по сигнатурам".to_string());
+            warnings.push("Дуги восстановлены по сигнатурам".to_string());
             apply_legacy_arcs(&mut model, &arcs);
             arcs_applied = true;
         } else {
@@ -158,14 +170,15 @@ pub fn import_legacy_gpn(path: &Path) -> Result<LegacyImportResult, LegacyImport
         }
         if arcs_applied {
             prune_legacy_ghost_nodes(&mut model);
+            apply_legacy_read_arc_heuristics(&mut model);
         }
     } else {
         used_fallback = true;
-        warnings.push("Не удалось определить layout legacy секций".to_string());
+        warnings.push("РќРµ СѓРґР°Р»РѕСЃСЊ РѕРїСЂРµРґРµР»РёС‚СЊ layout legacy СЃРµРєС†РёР№".to_string());
     }
 
     if used_fallback {
-        warnings.push("Импорт legacy GPN выполнен в режиме best-effort".to_string());
+        warnings.push("РРјРїРѕСЂС‚ legacy GPN РІС‹РїРѕР»РЅРµРЅ РІ СЂРµР¶РёРјРµ best-effort".to_string());
     }
 
     let mut discovered_sections = detect_section_boundaries(&bytes);
@@ -383,7 +396,7 @@ pub fn export_legacy_gpn(path: &Path, model: &PetriNetModel) -> std::io::Result<
     fs::write(path, bytes)
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 struct LegacyTransitionNode {
     valid: bool,
     x: f32,
@@ -391,6 +404,7 @@ struct LegacyTransitionNode {
     priority: i32,
     angle_deg: i32,
     color_raw: i32,
+    name: String,
 }
 
 fn header_counts_from_prefix(bytes: &[u8]) -> Option<(usize, usize)> {
@@ -480,6 +494,7 @@ fn parse_transition_nodes_from_layout(
         let priority = read_i32(bytes, off + 8).unwrap_or(1);
         let angle_deg = read_i32(bytes, off + 12).unwrap_or(90);
         let color_raw = read_i32(bytes, off + 52).unwrap_or(0);
+        let name = read_legacy_name(bytes, off, TRANSITION_RECORD_SIZE, TRANSITION_NAME_OFFSET);
         let valid = (-50_000..=50_000).contains(&x) && (-50_000..=50_000).contains(&y);
         result.push(LegacyTransitionNode {
             valid,
@@ -488,12 +503,13 @@ fn parse_transition_nodes_from_layout(
             priority: priority.clamp(0, 1_000_000),
             angle_deg: angle_deg.clamp(-360, 360),
             color_raw,
+            name,
         });
     }
     result
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 struct LegacyPlaceNode {
     valid: bool,
     x: f32,
@@ -502,6 +518,7 @@ struct LegacyPlaceNode {
     delay_sec: f64,
     capacity: i32,
     color_raw: i32,
+    name: String,
 }
 
 fn parse_place_nodes_from_layout(
@@ -509,7 +526,7 @@ fn parse_place_nodes_from_layout(
     needed: usize,
     layout: LegacyLayout,
 ) -> Vec<LegacyPlaceNode> {
-    #[derive(Debug, Clone, Copy)]
+    #[derive(Debug, Clone)]
     struct RawPlaceNode {
         valid: bool,
         x: f32,
@@ -519,6 +536,7 @@ fn parse_place_nodes_from_layout(
         delay_sec: f64,
         capacity: i32,
         color_raw: i32,
+        name: String,
     }
 
     let mut raw = Vec::<RawPlaceNode>::new();
@@ -537,6 +555,7 @@ fn parse_place_nodes_from_layout(
         let delay_fallback = marker12 as f64;
         let capacity = read_i32(bytes, off + 16).unwrap_or(0);
         let color_raw = read_i32(bytes, off + 20).unwrap_or(0);
+        let name = read_legacy_name(bytes, off, PLACE_RECORD_SIZE, PLACE_NAME_OFFSET);
         raw.push(RawPlaceNode {
             valid,
             x: x as f32,
@@ -548,6 +567,7 @@ fn parse_place_nodes_from_layout(
                 .unwrap_or(delay_fallback.max(0.0)),
             capacity,
             color_raw,
+            name,
         });
     }
 
@@ -556,7 +576,14 @@ fn parse_place_nodes_from_layout(
         .filter(|node| node.valid)
         .map(|node| (node.marker8, node.marker12))
         .collect();
+    let capacity_values: Vec<i32> = raw
+        .iter()
+        .filter(|node| node.valid)
+        .map(|node| node.capacity)
+        .collect();
     let use_marker12 = should_use_marker12(&marker_pairs);
+    let capacity_one_is_unlimited =
+        should_treat_capacity_one_as_unlimited(&capacity_values);
     raw.into_iter()
         .map(|node| LegacyPlaceNode {
             valid: node.valid,
@@ -573,8 +600,13 @@ fn parse_place_nodes_from_layout(
                 0
             },
             delay_sec: node.delay_sec,
-            capacity: node.capacity,
+            capacity: if capacity_one_is_unlimited && node.capacity == 1 {
+                0
+            } else {
+                node.capacity
+            },
             color_raw: node.color_raw,
+            name: node.name,
         })
         .collect()
 }
@@ -605,6 +637,15 @@ fn should_use_marker12(marker_pairs: &[(i32, i32)]) -> bool {
     }
 
     marker8_is_legacy_sentinel * 10 >= total * 8 && marker12_is_binary * 10 >= total * 8
+}
+
+fn should_treat_capacity_one_as_unlimited(capacities: &[i32]) -> bool {
+    if capacities.is_empty() {
+        return false;
+    }
+    let ones = capacities.iter().filter(|&&value| value == 1).count();
+    let has_real_limits = capacities.iter().any(|&value| value > 1);
+    has_real_limits && ones * 10 >= capacities.len() * 7
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -886,6 +927,48 @@ fn prune_legacy_ghost_nodes(model: &mut PetriNetModel) {
     model.rebuild_matrices_from_arcs();
 }
 
+fn apply_legacy_read_arc_heuristics(model: &mut PetriNetModel) {
+    // NetStar legacy files can encode "resource" places as ordinary arcs, but semantically those arcs
+    // may behave like read-arcs (test for token without consuming it). Without this, some imported
+    // networks deadlock immediately.
+    let places = model.places.len();
+    let transitions = model.transitions.len();
+    if places == 0 || transitions == 0 {
+        return;
+    }
+
+    let mut changed = false;
+    for p in 0..places {
+        let name = model.places[p].name.to_lowercase();
+        let looks_like_free_resource = name.contains("свобод") || name.contains("free");
+        if !looks_like_free_resource {
+            continue;
+        }
+
+        // Heuristic: 1 token resource used by many transitions, and at least one transition returns it.
+        if model.tables.m0.get(p).copied().unwrap_or(0) != 1 {
+            continue;
+        }
+        let outgoing = (0..transitions).filter(|&t| model.tables.pre[p][t] > 0).count();
+        let incoming = (0..transitions).filter(|&t| model.tables.post[p][t] > 0).count();
+        if outgoing < 3 || incoming == 0 {
+            continue;
+        }
+
+        for t in 0..transitions {
+            let pre = model.tables.pre[p][t];
+            if pre > 0 && model.tables.post[p][t] == 0 {
+                model.tables.post[p][t] = pre;
+                changed = true;
+            }
+        }
+    }
+
+    if changed {
+        model.rebuild_arcs_from_matrices();
+    }
+}
+
 fn parse_arcs_by_signature(
     bytes: &[u8],
     places: usize,
@@ -973,7 +1056,7 @@ fn parse_arcs_by_signature(
         }
     }
 
-    let chosen = if counts_filtered.len() >= (counts_all.len() / 2).max(10) {
+    let chosen = if counts_filtered.len() > counts_all.len() {
         counts_filtered
     } else {
         counts_all
@@ -1141,6 +1224,54 @@ fn legacy_footer_template() -> &'static [u8] {
         0x4D, 0x69, 0x6B, 0x68, 0x61, 0x79, 0x6C, 0x69,
         0x73, 0x68, 0x69, 0x6E,
     ]
+}
+
+fn read_legacy_name(
+    bytes: &[u8],
+    record_offset: usize,
+    record_size: usize,
+    field_offset: usize,
+) -> String {
+    if field_offset + 1 >= record_size {
+        return String::new();
+    }
+    let len_off = record_offset.saturating_add(field_offset);
+    if len_off >= bytes.len() {
+        return String::new();
+    }
+
+    let len = bytes[len_off] as usize;
+    if len == 0 {
+        return String::new();
+    }
+
+    let value_off = len_off.saturating_add(1);
+    let record_end = record_offset.saturating_add(record_size).min(bytes.len());
+    if value_off >= record_end {
+        return String::new();
+    }
+    let max_len = record_end.saturating_sub(value_off);
+    let len = len.min(max_len);
+    let raw = &bytes[value_off..value_off + len];
+    decode_legacy_cp1251(raw)
+        .trim_matches(|ch: char| ch.is_whitespace() || ch.is_control())
+        .to_string()
+}
+
+fn decode_legacy_cp1251(raw: &[u8]) -> String {
+    raw.iter()
+        .copied()
+        .map(|b| match b {
+            0x00..=0x7F => b as char,
+            0xA8 => '\u{0401}',
+            0xB8 => '\u{0451}',
+            0xC0..=0xFF => {
+                let code = 0x0410 + (b - 0xC0) as u32;
+                char::from_u32(code).unwrap_or('\u{FFFD}')
+            }
+            _ => '\u{FFFD}',
+        })
+        .collect()
 }
 
 fn read_i32(bytes: &[u8], offset: usize) -> Option<i32> {
@@ -1318,7 +1449,7 @@ fn detect_section_boundaries(bytes: &[u8]) -> Vec<String> {
     let mut sections = Vec::new();
     for (off, p, t) in detect_counts(bytes).into_iter().take(5) {
         sections.push(format!(
-            "Кандидат секции counts @0x{off:08X}: places={p}, transitions={t}"
+            "РљР°РЅРґРёРґР°С‚ СЃРµРєС†РёРё counts @0x{off:08X}: places={p}, transitions={t}"
         ));
     }
     sections

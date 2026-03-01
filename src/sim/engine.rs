@@ -122,7 +122,8 @@ pub fn run_simulation(net: &PetriNet, params: &SimulationParams, fixed_step: boo
     let mut now = 0.0;
     let mut passes = 0_u64;
     let mut logs = Vec::new();
-    let mut rng = SmallRng::from_entropy();
+    // Deterministic by default: makes tests and bug reports reproducible.
+    let mut rng = SmallRng::seed_from_u64(0x5EED_5EED);
     let mut seen_markings: HashMap<Vec<u32>, f64> = HashMap::new();
     let mut cycle_time = None;
 
@@ -174,7 +175,7 @@ pub fn run_simulation(net: &PetriNet, params: &SimulationParams, fixed_step: boo
             break;
         }
 
-        let fired = pick_transition(net, &enabled);
+        let fired = pick_transition(net, &enabled, &mut rng);
         let touched_places = fire_transition(net, &mut state, fired, now, &mut rng);
         passes = passes.saturating_add(1);
 
@@ -282,16 +283,21 @@ fn enabled_transitions(net: &PetriNet, state: &SimState) -> Vec<usize> {
     enabled
 }
 
-fn pick_transition(net: &PetriNet, enabled: &[usize]) -> usize {
-    let mut best = enabled[0];
+fn pick_transition(net: &PetriNet, enabled: &[usize], rng: &mut SmallRng) -> usize {
+    let mut best_priority = *net.tables.mpr.get(enabled[0]).unwrap_or(&0);
     for &t in enabled.iter().skip(1) {
-        let p_best = *net.tables.mpr.get(best).unwrap_or(&0);
-        let p_cur = *net.tables.mpr.get(t).unwrap_or(&0);
-        if p_cur > p_best || (p_cur == p_best && t < best) {
-            best = t;
-        }
+        let p = *net.tables.mpr.get(t).unwrap_or(&0);
+        best_priority = best_priority.max(p);
     }
-    best
+
+    let mut candidates: Vec<usize> = enabled
+        .iter()
+        .copied()
+        .filter(|&t| *net.tables.mpr.get(t).unwrap_or(&0) == best_priority)
+        .collect();
+    candidates.sort_unstable();
+    let idx = rng.gen_range(0..candidates.len());
+    candidates[idx]
 }
 
 fn fire_transition(
