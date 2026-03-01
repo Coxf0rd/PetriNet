@@ -6,19 +6,10 @@ use serde::{Deserialize, Serialize};
 
 use crate::model::{PetriNet, StochasticDistribution};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct StopConditions {
     pub through_place: Option<(usize, u64)>,
     pub sim_time: Option<f64>,
-}
-
-impl Default for StopConditions {
-    fn default() -> Self {
-        Self {
-            through_place: None,
-            sim_time: None,
-        }
-    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -435,9 +426,11 @@ mod tests {
         net.tables.mpr[1] = 5;
         net.rebuild_arcs_from_matrices();
 
-        let mut p = SimulationParams::default();
-        p.use_pass_limit = true;
-        p.pass_limit = 1;
+        let p = SimulationParams {
+            use_pass_limit: true,
+            pass_limit: 1,
+            ..SimulationParams::default()
+        };
         let res = run_simulation(&net, &p, true, false);
         assert_eq!(res.logs[0].fired_transition, Some(1));
     }
@@ -456,10 +449,12 @@ mod tests {
         net.add_arc(NodeRef::Place(p1), NodeRef::Transition(t1), 1);
         net.add_arc(NodeRef::Transition(t1), NodeRef::Place(p2), 1);
 
-        let mut p = SimulationParams::default();
-        p.use_pass_limit = true;
-        p.pass_limit = 1;
-        p.dt = 0.5;
+        let p = SimulationParams {
+            use_pass_limit: true,
+            pass_limit: 1,
+            dt: 0.5,
+            ..SimulationParams::default()
+        };
 
         let res = run_simulation(&net, &p, true, false);
         assert_eq!(res.final_marking[1], 1);
@@ -477,9 +472,11 @@ mod tests {
         net.tables.mpr[1] = 100; // isolated but higher priority
         net.rebuild_arcs_from_matrices();
 
-        let mut p = SimulationParams::default();
-        p.use_pass_limit = true;
-        p.pass_limit = 1;
+        let p = SimulationParams {
+            use_pass_limit: true,
+            pass_limit: 1,
+            ..SimulationParams::default()
+        };
 
         let res = run_simulation(&net, &p, true, false);
         assert_eq!(res.logs[0].fired_transition, Some(0));
@@ -497,10 +494,12 @@ mod tests {
         net.tables.post[2][1] = 1; // T2 -> P3
         net.rebuild_arcs_from_matrices();
 
-        let mut p = SimulationParams::default();
-        p.use_pass_limit = true;
-        p.pass_limit = 2;
-        p.dt = 0.1;
+        let p = SimulationParams {
+            use_pass_limit: true,
+            pass_limit: 2,
+            dt: 0.1,
+            ..SimulationParams::default()
+        };
 
         let res = run_simulation(&net, &p, true, false);
         assert_eq!(res.fired_count, 2);

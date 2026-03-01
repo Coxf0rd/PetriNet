@@ -80,8 +80,8 @@ fn legacy_import_restores_coordinates_and_arcs() {
         });
         assert!(has_t2_to_p16);
     } else {
-        assert!(imported.model.places.len() >= 1);
-        assert!(imported.model.transitions.len() >= 1);
+        assert!(!imported.model.places.is_empty());
+        assert!(!imported.model.transitions.is_empty());
     }
 }
 

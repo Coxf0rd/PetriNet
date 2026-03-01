@@ -23,47 +23,32 @@ pub enum Tool {
     Run,
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub enum VisualSize {
     Small,
+    #[default]
     Medium,
     Large,
 }
 
-impl Default for VisualSize {
-    fn default() -> Self {
-        Self::Medium
-    }
-}
-
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub enum LabelPosition {
     Top,
+    #[default]
     Bottom,
     Left,
     Right,
     Center,
 }
 
-impl Default for LabelPosition {
-    fn default() -> Self {
-        Self::Bottom
-    }
-}
-
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub enum NodeColor {
+    #[default]
     Default,
     Blue,
     Red,
     Green,
     Yellow,
-}
-
-impl Default for NodeColor {
-    fn default() -> Self {
-        Self::Default
-    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -126,20 +111,15 @@ pub struct Place {
     pub stochastic: StochasticDistribution,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 pub enum StochasticDistribution {
+    #[default]
     None,
     Uniform { min: f64, max: f64 },
     Normal { mean: f64, std_dev: f64 },
     Exponential { lambda: f64 },
     Poisson { lambda: f64 },
     CustomValue { value: f64 },
-}
-
-impl Default for StochasticDistribution {
-    fn default() -> Self {
-        Self::None
-    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]

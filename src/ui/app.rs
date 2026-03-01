@@ -192,6 +192,10 @@ impl PetriApp {
     fn read_copy_buffer_from_system_clipboard(&self) -> Option<CopyBuffer> {
         let mut clipboard = arboard::Clipboard::new().ok()?;
         let text = clipboard.get_text().ok()?;
+        // Guard against accidental huge clipboard payloads that can freeze UI on parse.
+        if text.len() > 4 * 1024 * 1024 {
+            return None;
+        }
         let payload = text.strip_prefix(Self::CLIPBOARD_PREFIX)?;
         let parsed: ClipboardPayload = serde_json::from_str(payload).ok()?;
         Some(parsed.buffer)
@@ -1301,15 +1305,13 @@ impl PetriApp {
                 {
                     self.show_results = self.sim_result.is_some();
                 }
-                if ui.button("Proof").clicked() {
-                    if self.sim_result.is_some() {
-                        self.show_proof = true;
-                    }
+                if ui.button("Proof").clicked() && self.sim_result.is_some() {
+                    self.show_proof = true;
                 }
-                if ui.button(self.tr("Режим отладки", "Debug Mode")).clicked() {
-                    if self.sim_result.is_some() {
-                        self.show_debug = true;
-                    }
+                if ui.button(self.tr("Режим отладки", "Debug Mode")).clicked()
+                    && self.sim_result.is_some()
+                {
+                    self.show_debug = true;
                 }
                 if ui.button("ATF").clicked() {
                     self.show_atf = true;
@@ -2978,9 +2980,11 @@ mod tests {
         app.canvas.selected_place = Some(selected);
 
         let ctx = egui::Context::default();
-        let mut raw = egui::RawInput::default();
-        raw.modifiers = egui::Modifiers {
-            ctrl: true,
+        let mut raw = egui::RawInput {
+            modifiers: egui::Modifiers {
+                ctrl: true,
+                ..Default::default()
+            },
             ..Default::default()
         };
         raw.events.push(egui::Event::Text("с".to_string()));

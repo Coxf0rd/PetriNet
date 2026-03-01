@@ -140,10 +140,8 @@ pub fn import_legacy_gpn(path: &Path) -> Result<LegacyImportResult, LegacyImport
                 let (w, h) = legacy_transition_dims(tr.size);
                 tr.pos = [first.x - w * 0.5, first.y - h * 0.5];
                 tr.angle_deg = first.angle_deg;
-                if !first.name.is_empty() {
-                    if tr.note.trim().is_empty() {
-                        tr.note = first.name;
-                    }
+                if !first.name.is_empty() && tr.note.trim().is_empty() {
+                    tr.note = first.name;
                 }
                 model.tables.mpr[idx] = first.priority;
                 tr.color = map_legacy_color(first.color_raw);
@@ -422,7 +420,7 @@ pub fn export_legacy_gpn(path: &Path, model: &PetriNetModel) -> std::io::Result<
         write_u16(&mut record, 44, p2x);
         bytes.extend_from_slice(&record);
     }
-    bytes.extend_from_slice(&legacy_footer_template());
+    bytes.extend_from_slice(legacy_footer_template());
 
     fs::write(path, bytes)
 }
@@ -572,7 +570,7 @@ fn detect_place_capacity_offset(bytes: &[u8], needed: usize, layout: LegacyLayou
                 invalid += 1;
                 continue;
             };
-            if v < 0 || v > 1_000_000 {
+            if !(0..=1_000_000).contains(&v) {
                 invalid += 1;
                 continue;
             }
