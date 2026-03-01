@@ -521,6 +521,47 @@ struct LegacyPlaceNode {
     name: String,
 }
 
+fn detect_place_capacity_offset(bytes: &[u8], needed: usize, layout: LegacyLayout) -> usize {
+    // Legacy variants exist: in some files the "capacity/Mo" field is not at +16.
+    // We pick the most plausible offset by sampling first records and scoring candidates.
+    const CANDIDATES: [usize; 3] = [16, 24, 28];
+    let sample_n = needed.min(64);
+
+    let mut best_off = 16usize;
+    let mut best_score: i64 = i64::MIN;
+
+    for cap_off in CANDIDATES {
+        let mut ok = 0i64;
+        let mut nonzero = 0i64;
+        let mut invalid = 0i64;
+
+        for idx in 0..sample_n {
+            let off = layout.places_offset + idx * PLACE_RECORD_SIZE + cap_off;
+            let Some(v) = read_i32(bytes, off) else {
+                invalid += 1;
+                continue;
+            };
+            if v < 0 || v > 1_000_000 {
+                invalid += 1;
+                continue;
+            }
+            ok += 1;
+            if v != 0 {
+                nonzero += 1;
+            }
+        }
+
+        // Favor offsets that decode "reasonable" non-negative integers and aren't mostly invalid.
+        let score = ok * 2 + nonzero * 3 - invalid * 5;
+        if score > best_score || (score == best_score && cap_off == 16) {
+            best_score = score;
+            best_off = cap_off;
+        }
+    }
+
+    best_off
+}
+
 fn parse_place_nodes_from_layout(
     bytes: &[u8],
     needed: usize,
@@ -540,6 +581,7 @@ fn parse_place_nodes_from_layout(
     }
 
     let mut raw = Vec::<RawPlaceNode>::new();
+    let capacity_off = detect_place_capacity_offset(bytes, needed, layout);
     for idx in 0..needed {
         let off = layout.places_offset + idx * PLACE_RECORD_SIZE;
         let Some(x) = read_i32(bytes, off) else {
@@ -553,7 +595,7 @@ fn parse_place_nodes_from_layout(
         let marker12 = read_i32(bytes, off + 12).unwrap_or(0);
         let delay_raw = read_f64(bytes, off + PLACE_DELAY_OFFSET);
         let delay_fallback = marker12 as f64;
-        let capacity = read_i32(bytes, off + 16).unwrap_or(0);
+        let capacity = read_i32(bytes, off + capacity_off).unwrap_or(0);
         let color_raw = read_i32(bytes, off + 20).unwrap_or(0);
         let name = read_legacy_name(bytes, off, PLACE_RECORD_SIZE, PLACE_NAME_OFFSET);
         raw.push(RawPlaceNode {
@@ -576,14 +618,7 @@ fn parse_place_nodes_from_layout(
         .filter(|node| node.valid)
         .map(|node| (node.marker8, node.marker12))
         .collect();
-    let capacity_values: Vec<i32> = raw
-        .iter()
-        .filter(|node| node.valid)
-        .map(|node| node.capacity)
-        .collect();
     let use_marker12 = should_use_marker12(&marker_pairs);
-    let capacity_one_is_unlimited =
-        should_treat_capacity_one_as_unlimited(&capacity_values);
     raw.into_iter()
         .map(|node| LegacyPlaceNode {
             valid: node.valid,
@@ -600,11 +635,7 @@ fn parse_place_nodes_from_layout(
                 0
             },
             delay_sec: node.delay_sec,
-            capacity: if capacity_one_is_unlimited && node.capacity == 1 {
-                0
-            } else {
-                node.capacity
-            },
+            capacity: node.capacity,
             color_raw: node.color_raw,
             name: node.name,
         })
@@ -637,15 +668,6 @@ fn should_use_marker12(marker_pairs: &[(i32, i32)]) -> bool {
     }
 
     marker8_is_legacy_sentinel * 10 >= total * 8 && marker12_is_binary * 10 >= total * 8
-}
-
-fn should_treat_capacity_one_as_unlimited(capacities: &[i32]) -> bool {
-    if capacities.is_empty() {
-        return false;
-    }
-    let ones = capacities.iter().filter(|&&value| value == 1).count();
-    let has_real_limits = capacities.iter().any(|&value| value > 1);
-    has_real_limits && ones * 10 >= capacities.len() * 7
 }
 
 #[derive(Debug, Clone, Copy)]

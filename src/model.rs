@@ -193,7 +193,8 @@ pub struct Tables {
 impl Tables {
     pub fn resize(&mut self, places: usize, transitions: usize) {
         self.m0.resize(places, 0);
-        self.mo.resize(places, None);
+        // Default place capacity is 1 (Mo=1). Use None only when explicitly set to unlimited.
+        self.mo.resize_with(places, || Some(1));
         self.mz.resize(places, 0.0);
         self.mpr.resize(transitions, 0);
 

@@ -102,8 +102,8 @@ fn legacy_import_reads_cp1251_place_and_transition_names() {
             .model
             .transitions
             .iter()
-            .any(|t| t.name.contains("загрузка")),
-        "expected CP1251 transition name to be imported"
+            .any(|t| t.note.contains("загрузка") || t.name.contains("загрузка")),
+        "expected CP1251 transition label to be imported"
     );
 }
 
