@@ -2876,7 +2876,6 @@ impl PetriApp {
 impl eframe::App for PetriApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         ctx.set_visuals(egui::Visuals::light());
-        self.handle_shortcuts(ctx);
         self.draw_menu(ctx);
         self.draw_tool_palette(ctx);
         self.draw_layout(ctx);
@@ -2903,6 +2902,9 @@ impl eframe::App for PetriApp {
         if self.show_atf {
             self.draw_atf_window(ctx);
         }
+
+        // Handle hotkeys after UI interactions so copy/undo/paste see the latest selection state.
+        self.handle_shortcuts(ctx);
     }
 }
 
