@@ -173,7 +173,8 @@ impl PetriApp {
         [self.snap_scalar_to_grid(p[0]), self.snap_scalar_to_grid(p[1])]
     }
 
-    pub fn new(_cc: &eframe::CreationContext<'_>) -> Self {
+    #[cfg(test)]
+    fn new_for_tests() -> Self {
         let mut net = PetriNet::new();
         net.set_counts(2, 1);
         net.places[0].pos = [120.0, 150.0];
@@ -212,6 +213,55 @@ impl PetriApp {
             clipboard: None,
             paste_serial: 0,
             undo_stack: Vec::new(),
+        }
+    }
+
+    pub fn new(_cc: &eframe::CreationContext<'_>) -> Self {
+        #[cfg(test)]
+        {
+            Self::new_for_tests()
+        }
+        #[cfg(not(test))]
+        {
+            let mut net = PetriNet::new();
+            net.set_counts(2, 1);
+            net.places[0].pos = [120.0, 150.0];
+            net.places[1].pos = [340.0, 150.0];
+            net.transitions[0].pos = [240.0, 145.0];
+
+            Self {
+                net,
+                tool: Tool::Edit,
+                canvas: CanvasState::default(),
+                sim_params: SimulationParams::default(),
+                sim_result: None,
+                show_sim_params: false,
+                show_results: false,
+                show_atf: false,
+                atf_selected_place: 0,
+                atf_text: String::new(),
+                file_path: None,
+                last_error: None,
+                layout_mode: LayoutMode::TileVertical,
+                show_graph_view: true,
+                show_table_view: false,
+                table_fullscreen: false,
+                place_props_id: None,
+                transition_props_id: None,
+                show_place_props: false,
+                show_transition_props: false,
+                show_debug: false,
+                debug_step: 0,
+                debug_playing: false,
+                debug_interval_ms: 400,
+                last_debug_tick: None,
+                show_proof: false,
+                text_blocks: Vec::new(),
+                next_text_id: 1,
+                clipboard: None,
+                paste_serial: 0,
+                undo_stack: Vec::new(),
+            }
         }
     }
 
@@ -1075,6 +1125,20 @@ impl PetriApp {
                     }
                     if ctrl_like && *key == egui::Key::Z {
                         do_undo = true;
+                    }
+                }
+                if let egui::Event::Text(text) = e {
+                    if cmd_or_ctrl {
+                        // Layout fallback (RU keyboard): C=С, V=М, Z=Я.
+                        if text.eq_ignore_ascii_case("c") || text == "с" || text == "С" {
+                            do_copy = true;
+                        }
+                        if text.eq_ignore_ascii_case("v") || text == "м" || text == "М" {
+                            do_paste = true;
+                        }
+                        if text.eq_ignore_ascii_case("z") || text == "я" || text == "Я" {
+                            do_undo = true;
+                        }
                     }
                 }
             }
@@ -2839,6 +2903,65 @@ impl eframe::App for PetriApp {
         if self.show_atf {
             self.draw_atf_window(ctx);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn ctrl_c_shortcut_copies_selected_place() {
+        let mut app = PetriApp::new_for_tests();
+        let selected = app.net.places[0].id;
+        app.canvas.selected_place = Some(selected);
+
+        let ctx = egui::Context::default();
+        let mut raw = egui::RawInput::default();
+        raw.events.push(egui::Event::Key {
+            key: egui::Key::C,
+            physical_key: Some(egui::Key::C),
+            pressed: true,
+            repeat: false,
+            modifiers: egui::Modifiers {
+                ctrl: true,
+                ..Default::default()
+            },
+        });
+
+        ctx.begin_frame(raw);
+        app.handle_shortcuts(&ctx);
+        let _ = ctx.end_frame();
+
+        assert!(app.clipboard.is_some(), "clipboard should be populated by Ctrl+C");
+        let copied = app.clipboard.as_ref().unwrap();
+        assert_eq!(copied.places.len(), 1);
+    }
+
+    #[test]
+    fn ctrl_c_ru_layout_text_event_copies_selected_place() {
+        let mut app = PetriApp::new_for_tests();
+        let selected = app.net.places[0].id;
+        app.canvas.selected_place = Some(selected);
+
+        let ctx = egui::Context::default();
+        let mut raw = egui::RawInput::default();
+        raw.modifiers = egui::Modifiers {
+            ctrl: true,
+            ..Default::default()
+        };
+        raw.events.push(egui::Event::Text("с".to_string()));
+
+        ctx.begin_frame(raw);
+        app.handle_shortcuts(&ctx);
+        let _ = ctx.end_frame();
+
+        assert!(
+            app.clipboard.is_some(),
+            "clipboard should be populated by Ctrl+С (RU layout fallback)"
+        );
+        let copied = app.clipboard.as_ref().unwrap();
+        assert_eq!(copied.places.len(), 1);
     }
 }
 
