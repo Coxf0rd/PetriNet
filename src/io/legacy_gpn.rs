@@ -233,6 +233,19 @@ pub fn export_legacy_gpn(path: &Path, model: &PetriNetModel) -> std::io::Result<
     push_i32(&mut bytes, 0x20);
     push_i32(&mut bytes, 0);
 
+    let looks_like_auto_place_name = |name: &str| -> bool {
+        let trimmed = name.trim();
+        let mut chars = trimmed.chars();
+        let Some(first) = chars.next() else {
+            return false;
+        };
+        if !['P', 'p', 'Р', 'р'].contains(&first) {
+            return false;
+        }
+        let rest: String = chars.collect();
+        !rest.is_empty() && rest.chars().all(|c| c.is_ascii_digit())
+    };
+
     for idx in 0..places_count {
         let mut record = [0u8; PLACE_RECORD_SIZE];
         let place = &normalized.places[idx];
@@ -266,6 +279,16 @@ pub fn export_legacy_gpn(path: &Path, model: &PetriNetModel) -> std::io::Result<
                 .unwrap_or(0.0)
                 .max(0.0),
         );
+
+        // NetStar displays the place label from this legacy field.
+        // Prefer the explicit name; if it's an auto-name (P1, P2, ...) and note is filled,
+        // export note instead so "Текст/Описание" is visible in NetStar.
+        let place_label = if looks_like_auto_place_name(&place.name) && !place.note.trim().is_empty() {
+            place.note.as_str()
+        } else {
+            place.name.as_str()
+        };
+        write_legacy_name(&mut record, PLACE_NAME_OFFSET, place_label);
         bytes.extend_from_slice(&record);
     }
 
@@ -290,6 +313,14 @@ pub fn export_legacy_gpn(path: &Path, model: &PetriNetModel) -> std::io::Result<
         write_i32(&mut record, 40, -131072);
         write_i32(&mut record, 44, 720895);
         write_i32(&mut record, 52, map_color_to_legacy(transition.color));
+
+        // NetStar displays the transition label from this legacy field.
+        let tr_label = if transition.note.trim().is_empty() {
+            transition.name.as_str()
+        } else {
+            transition.note.as_str()
+        };
+        write_legacy_name(&mut record, TRANSITION_NAME_OFFSET, tr_label);
         bytes.extend_from_slice(&record);
     }
 
@@ -1294,6 +1325,38 @@ fn decode_legacy_cp1251(raw: &[u8]) -> String {
             _ => '\u{FFFD}',
         })
         .collect()
+}
+
+fn encode_legacy_cp1251(s: &str) -> Vec<u8> {
+    let mut out = Vec::with_capacity(s.len());
+    for ch in s.chars() {
+        let b = match ch {
+            '\u{0000}'..='\u{007F}' => ch as u8,
+            '\u{0401}' => 0xA8, // Ё
+            '\u{0451}' => 0xB8, // ё
+            '\u{0410}'..='\u{044F}' => (0xC0u32 + (ch as u32 - 0x0410)) as u8, // А..я
+            _ => b'?', // unsupported in our legacy subset
+        };
+        out.push(b);
+    }
+    out
+}
+
+fn write_legacy_name(record: &mut [u8], field_offset: usize, value: &str) {
+    if field_offset + 1 >= record.len() {
+        return;
+    }
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        record[field_offset] = 0;
+        return;
+    }
+
+    let encoded = encode_legacy_cp1251(trimmed);
+    let max_len = record.len().saturating_sub(field_offset + 1);
+    let len = encoded.len().min(max_len).min(255);
+    record[field_offset] = len as u8;
+    record[field_offset + 1..field_offset + 1 + len].copy_from_slice(&encoded[..len]);
 }
 
 fn read_i32(bytes: &[u8], offset: usize) -> Option<i32> {
