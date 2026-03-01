@@ -1,5 +1,5 @@
 ﻿use std::fs;
-use std::collections::HashSet;
+
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
@@ -253,17 +253,15 @@ impl PetriApp {
     }
 
     fn next_place_auto_name(&self) -> String {
-        let mut used = HashSet::new();
+        // Use monotonically increasing numbering (max + 1) so places are named in creation order.
+        // (The previous "smallest unused" behavior reused gaps after deletes, which felt random.)
+        let mut max_idx = 0usize;
         for place in &self.net.places {
             if let Some(idx) = Self::parse_place_auto_index(&place.name) {
-                used.insert(idx);
+                max_idx = max_idx.max(idx);
             }
         }
-        let mut candidate = 1usize;
-        while used.contains(&candidate) {
-            candidate += 1;
-        }
-        format!("P{}", candidate)
+        format!("P{}", max_idx.saturating_add(1))
     }
 
     fn assign_auto_name_for_place(&mut self, place_id: u64) {
