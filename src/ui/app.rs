@@ -736,22 +736,35 @@ impl PetriApp {
         }
 
         if !self.net.ui.hide_grid {
-            let step = if self.net.ui.snap_to_grid { 20.0 } else { 25.0 } * self.canvas.zoom;
-            let mut x = rect.left() + self.canvas.pan.x.rem_euclid(step);
-            while x < rect.right() {
+            // Draw grid aligned to world coordinates so snapped nodes land exactly on grid lines.
+            let step_world = if self.net.ui.snap_to_grid { 20.0 } else { 25.0 };
+            let world_min = self.screen_to_world(rect, rect.left_top());
+            let world_max = self.screen_to_world(rect, rect.right_bottom());
+
+            let min_x = world_min[0].min(world_max[0]);
+            let max_x = world_min[0].max(world_max[0]);
+            let min_y = world_min[1].min(world_max[1]);
+            let max_y = world_min[1].max(world_max[1]);
+
+            // Start on the previous grid line so the first visible line is stable when panning.
+            let mut xw = (min_x / step_world).floor() * step_world;
+            while xw <= max_x + step_world {
+                let xs = self.world_to_screen(rect, [xw, 0.0]).x.round();
                 painter.line_segment(
-                    [Pos2::new(x, rect.top()), Pos2::new(x, rect.bottom())],
+                    [Pos2::new(xs, rect.top()), Pos2::new(xs, rect.bottom())],
                     Stroke::new(1.0, Color32::from_gray(230)),
                 );
-                x += step;
+                xw += step_world;
             }
-            let mut y = rect.top() + self.canvas.pan.y.rem_euclid(step);
-            while y < rect.bottom() {
+
+            let mut yw = (min_y / step_world).floor() * step_world;
+            while yw <= max_y + step_world {
+                let ys = self.world_to_screen(rect, [0.0, yw]).y.round();
                 painter.line_segment(
-                    [Pos2::new(rect.left(), y), Pos2::new(rect.right(), y)],
+                    [Pos2::new(rect.left(), ys), Pos2::new(rect.right(), ys)],
                     Stroke::new(1.0, Color32::from_gray(230)),
                 );
-                y += step;
+                yw += step_world;
             }
         }
 
@@ -795,7 +808,10 @@ impl PetriApp {
                         }
                     }
                     Tool::Transition => {
-                        self.net.add_transition(snapped);
+                        // Store transition position as top-left, but center it on the snapped click.
+                        let dims = Self::transition_dimensions(VisualSize::Medium);
+                        self.net
+                            .add_transition([snapped[0] - dims.x * 0.5, snapped[1] - dims.y * 0.5]);
                     }
                     Tool::Arc => {
                     }
@@ -982,8 +998,14 @@ impl PetriApp {
                 }
                 for tid in move_transition_ids {
                     if let Some(idx) = self.transition_idx_by_id(tid) {
-                        self.net.transitions[idx].pos[0] = snap(self.net.transitions[idx].pos[0]);
-                        self.net.transitions[idx].pos[1] = snap(self.net.transitions[idx].pos[1]);
+                        // Snap by transition center, since transitions are stored as top-left.
+                        let dims = Self::transition_dimensions(self.net.transitions[idx].size);
+                        let cx = self.net.transitions[idx].pos[0] + dims.x * 0.5;
+                        let cy = self.net.transitions[idx].pos[1] + dims.y * 0.5;
+                        let cx = snap(cx);
+                        let cy = snap(cy);
+                        self.net.transitions[idx].pos[0] = cx - dims.x * 0.5;
+                        self.net.transitions[idx].pos[1] = cy - dims.y * 0.5;
                     }
                 }
                 if let Some(text_id) = self.canvas.selected_text {
