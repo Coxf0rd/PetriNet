@@ -162,6 +162,8 @@ pub struct PetriApp {
     undo_stack: Vec<UndoSnapshot>,
     legacy_export_hints: Option<LegacyExportHints>,
     status_hint: Option<String>,
+    show_help_development: bool,
+    show_help_controls: bool,
 }
 
 impl PetriApp {
@@ -254,6 +256,8 @@ impl PetriApp {
             undo_stack: Vec::new(),
             legacy_export_hints: None,
             status_hint: None,
+            show_help_development: false,
+            show_help_controls: false,
         }
     }
 
@@ -304,6 +308,8 @@ impl PetriApp {
                 undo_stack: Vec::new(),
                 legacy_export_hints: None,
                 status_hint: None,
+                show_help_development: false,
+                show_help_controls: false,
             }
         }
     }
@@ -1367,6 +1373,16 @@ impl PetriApp {
                     ui.checkbox(&mut self.net.ui.fix_time_step, "Фиксированный шаг времени");
                     ui.menu_button("Сбор статистики", |ui| {
                         ui.checkbox(&mut self.net.ui.marker_count_stats, "Статистика маркеров");
+                    });
+                    ui.menu_button("Help", |ui| {
+                        if ui.button("Разработка").clicked() {
+                            self.show_help_development = true;
+                            ui.close_menu();
+                        }
+                        if ui.button("Помощь по управлению").clicked() {
+                            self.show_help_controls = true;
+                            ui.close_menu();
+                        }
                     });
                 });
 
@@ -2871,6 +2887,45 @@ impl PetriApp {
         self.show_atf = open;
     }
 
+    fn draw_help_development(&mut self, ctx: &egui::Context) {
+        let mut open = self.show_help_development;
+        egui::Window::new("Help: Разработка")
+            .open(&mut open)
+            .resizable(false)
+            .show(ctx, |ui| {
+                ui.heading("Информация о приложении");
+                ui.separator();
+                ui.label(format!("Версия: {}", env!("CARGO_PKG_VERSION")));
+                ui.label("Разработчик: Coxford");
+                ui.separator();
+                ui.small("Редактор сетей Петри с совместимостью с форматом NetStar и инструментами имитации.");
+            });
+        self.show_help_development = open;
+    }
+
+    fn draw_help_controls(&mut self, ctx: &egui::Context) {
+        let mut open = self.show_help_controls;
+        egui::Window::new("Help: Помощь по управлению")
+            .open(&mut open)
+            .vscroll(true)
+            .show(ctx, |ui| {
+                ui.heading("Основные кнопки и комбинации");
+                ui.separator();
+                ui.label("ЛКМ: создать/выбрать элемент (в зависимости от активного инструмента)");
+                ui.label("ПКМ + перетаскивание: двигать рабочую область");
+                ui.label("Delete: удалить выделенное");
+                ui.separator();
+                ui.label("Ctrl+N: новый файл");
+                ui.label("Ctrl+O: открыть файл");
+                ui.label("Ctrl+S: сохранить файл");
+                ui.label("Ctrl+C: копировать выделенное");
+                ui.label("Ctrl+V: вставить");
+                ui.label("Ctrl+Z: отменить последнее действие");
+                ui.label("Ctrl+Q: выход");
+            });
+        self.show_help_controls = open;
+    }
+
     fn draw_status(&mut self, ctx: &egui::Context) {
         egui::TopBottomPanel::bottom("status").show(ctx, |ui| {
             ui.horizontal(|ui| {
@@ -3015,6 +3070,12 @@ impl eframe::App for PetriApp {
         if self.show_atf {
             self.draw_atf_window(ctx);
         }
+        if self.show_help_development {
+            self.draw_help_development(ctx);
+        }
+        if self.show_help_controls {
+            self.draw_help_controls(ctx);
+        }
         self.handle_shortcuts(ctx);
     }
 }
@@ -3079,6 +3140,12 @@ mod tests {
         assert_eq!(copied.places.len(), 1);
     }
 }
+
+
+
+
+
+
 
 
 
