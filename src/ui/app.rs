@@ -3202,8 +3202,16 @@ impl PetriApp {
 
                 ui.separator();
                 ui.horizontal(|ui| {
-                    ui.label(t("Стохастические процессы", "Stochastic processes"));
-                    ui.add_enabled(false, egui::Button::new(t("Сбор статистики", "Collect statistics")));
+                    ui.label(t("Стохастичестие процессы", "Stochastic processes"));
+                    let stats_enabled = self.net.ui.marker_count_stats;
+                    if ui
+                        .add_enabled(stats_enabled, egui::Button::new(t("Сбор статистики", "Collect statistics")))
+                        .clicked()
+                    {
+                        self.place_stats_dialog_place_id = Some(place_id);
+                        self.place_stats_dialog_backup =
+                            Some((place_id, self.net.places[place_idx].stats));
+                    }
                 });
                 egui::ComboBox::from_label(t("Распределение", "Distribution"))
                     .selected_text(Self::stochastic_text(&self.net.places[place_idx].stochastic, is_ru))
@@ -3883,6 +3891,7 @@ mod tests {
         assert_eq!(copied.places.len(), 1);
     }
 }
+
 
 
 
