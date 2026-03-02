@@ -147,6 +147,29 @@ pub struct Place {
     pub input_number: u32,
     pub input_description: String,
     pub stochastic: StochasticDistribution,
+    pub stats: PlaceStatisticsSelection,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(default)]
+pub struct PlaceStatisticsSelection {
+    pub markers_total: bool,
+    pub markers_input: bool,
+    pub markers_output: bool,
+    pub load_total: bool,
+    pub load_input: bool,
+    pub load_output: bool,
+}
+
+impl PlaceStatisticsSelection {
+    pub fn any_enabled(&self) -> bool {
+        self.markers_total
+            || self.markers_input
+            || self.markers_output
+            || self.load_total
+            || self.load_input
+            || self.load_output
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]

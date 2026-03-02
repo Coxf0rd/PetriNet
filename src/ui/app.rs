@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::formats::atf::generate_atf;
 use crate::io::{LegacyExportHints, load_gpn, save_gpn_with_hints};
-use crate::model::{LabelPosition, Language, NodeColor, NodeRef, PetriNet, Place, StochasticDistribution, Tool, Transition, UiDecorativeFrame, UiTextBlock, VisualSize};
+use crate::model::{LabelPosition, Language, NodeColor, NodeRef, PetriNet, Place, PlaceStatisticsSelection, StochasticDistribution, Tool, Transition, UiDecorativeFrame, UiTextBlock, VisualSize};
 use crate::sim::engine::{run_simulation, SimulationParams, SimulationResult};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -202,6 +202,8 @@ pub struct PetriApp {
     status_hint: Option<String>,
     show_help_development: bool,
     show_help_controls: bool,
+    place_stats_dialog_place_id: Option<u64>,
+    place_stats_dialog_backup: Option<(u64, PlaceStatisticsSelection)>,
 }
 
 impl PetriApp {
@@ -300,6 +302,8 @@ impl PetriApp {
             status_hint: None,
             show_help_development: false,
             show_help_controls: false,
+            place_stats_dialog_place_id: None,
+            place_stats_dialog_backup: None,
         }
     }
 
@@ -354,6 +358,8 @@ impl PetriApp {
                 status_hint: None,
                 show_help_development: false,
                 show_help_controls: false,
+            place_stats_dialog_place_id: None,
+            place_stats_dialog_backup: None,
             }
         }
     }
@@ -2794,16 +2800,28 @@ impl PetriApp {
                         );
                     });
 
+                                        let any_place_stats_selected = self.net.places.iter().any(|p| p.stats.any_enabled());
+                    let show_all_places_in_stats = !any_place_stats_selected;
+
                     if let Some(stats) = &result.place_stats {
                         ui.separator();
-                        ui.label(self.tr("Статистика маркеров (min/max/avg)", "Token statistics (min/max/avg)"));
+                        ui.label(self.tr("?????????? ???????? (min/max/avg)", "Token statistics (min/max/avg)"));
                         egui::Grid::new("stats_grid").striped(true).show(ui, |ui| {
-                            ui.label(self.tr("Позиция", "Place"));
+                            ui.label(self.tr("???????", "Place"));
                             ui.label("Min");
                             ui.label("Max");
                             ui.label("Avg");
                             ui.end_row();
                             for (p, st) in stats.iter().enumerate() {
+                                let selected = self
+                                    .net
+                                    .places
+                                    .get(p)
+                                    .map(|pl| pl.stats.markers_total)
+                                    .unwrap_or(false);
+                                if !show_all_places_in_stats && !selected {
+                                    continue;
+                                }
                                 ui.label(format!("P{}", p + 1));
                                 ui.label(st.min.to_string());
                                 ui.label(st.max.to_string());
@@ -2811,6 +2829,87 @@ impl PetriApp {
                                 ui.end_row();
                             }
                         });
+                    }
+
+                    if let Some(flow) = &result.place_flow {
+                        let want_flow = show_all_places_in_stats
+                            || self
+                                .net
+                                .places
+                                .iter()
+                                .any(|p| p.stats.markers_input || p.stats.markers_output);
+                        if want_flow {
+                            ui.separator();
+                            ui.label(self.tr("?????? (????/?????)", "Flows (in/out)"));
+                            egui::Grid::new("flow_grid").striped(true).show(ui, |ui| {
+                                ui.label(self.tr("???????", "Place"));
+                                ui.label(self.tr("????", "In"));
+                                ui.label(self.tr("?????", "Out"));
+                                ui.end_row();
+                                for (p, st) in flow.iter().enumerate() {
+                                    let selected = self
+                                        .net
+                                        .places
+                                        .get(p)
+                                        .map(|pl| pl.stats.markers_input || pl.stats.markers_output)
+                                        .unwrap_or(false);
+                                    if !show_all_places_in_stats && !selected {
+                                        continue;
+                                    }
+                                    ui.label(format!("P{}", p + 1));
+                                    ui.label(st.in_tokens.to_string());
+                                    ui.label(st.out_tokens.to_string());
+                                    ui.end_row();
+                                }
+                            });
+                        }
+                    }
+
+                    if let Some(load) = &result.place_load {
+                        let want_load = show_all_places_in_stats
+                            || self
+                                .net
+                                .places
+                                .iter()
+                                .any(|p| p.stats.load_total || p.stats.load_input || p.stats.load_output);
+                        if want_load {
+                            ui.separator();
+                            ui.label(self.tr("?????????????", "Load"));
+                            egui::Grid::new("load_grid").striped(true).show(ui, |ui| {
+                                ui.label(self.tr("???????", "Place"));
+                                ui.label(self.tr("?????", "Total"));
+                                ui.label(self.tr("?????", "Input"));
+                                ui.label(self.tr("??????", "Output"));
+                                ui.end_row();
+                                for (p, st) in load.iter().enumerate() {
+                                    let selected = self
+                                        .net
+                                        .places
+                                        .get(p)
+                                        .map(|pl| {
+                                            pl.stats.load_total || pl.stats.load_input || pl.stats.load_output
+                                        })
+                                        .unwrap_or(false);
+                                    if !show_all_places_in_stats && !selected {
+                                        continue;
+                                    }
+                                    ui.label(format!("P{}", p + 1));
+                                    ui.label(match st.avg_over_capacity {
+                                        Some(v) => format!("{:.3}", v),
+                                        None => "N/A".to_string(),
+                                    });
+                                    ui.label(match st.in_rate {
+                                        Some(v) => format!("{:.3}", v),
+                                        None => "N/A".to_string(),
+                                    });
+                                    ui.label(match st.out_rate {
+                                        Some(v) => format!("{:.3}", v),
+                                        None => "N/A".to_string(),
+                                    });
+                                    ui.end_row();
+                                }
+                            });
+                        }
                     }
                 });
             self.show_results = open;
@@ -3426,9 +3525,82 @@ impl PetriApp {
             LayoutMode::Minimized => {}
         });
     }
+fn draw_place_stats_dialog(&mut self, ctx: &egui::Context) {
+        let Some(place_id) = self.place_stats_dialog_place_id else {
+            self.place_stats_dialog_backup = None;
+            return;
+        };
+        if !self.net.ui.marker_count_stats {
+            self.place_stats_dialog_place_id = None;
+            self.place_stats_dialog_backup = None;
+            return;
+        }
+        let Some(place_idx) = self.place_idx_by_id(place_id) else {
+            self.place_stats_dialog_place_id = None;
+            self.place_stats_dialog_backup = None;
+            return;
+        };
+
+        let is_ru = matches!(self.net.ui.language, Language::Ru);
+        let t = |ru: &'static str, en: &'static str| if is_ru { ru } else { en };
+
+        let mut open = true;
+        egui::Window::new(t("??????????", "Statistics"))
+            .id(egui::Id::new(("place_stats_dialog", place_id)))
+            .collapsible(false)
+            .resizable(false)
+            .open(&mut open)
+            .show(ctx, |ui| {
+                ui.horizontal(|ui| {
+                    ui.label(format!("ID: P{}", place_id));
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        if ui.button("Cancel").clicked() {
+                            if let Some((backup_id, backup)) = self.place_stats_dialog_backup.take() {
+                                if backup_id == place_id {
+                                    self.net.places[place_idx].stats = backup;
+                                }
+                            }
+                            self.place_stats_dialog_place_id = None;
+                        }
+                        if ui.button("Ok").clicked() {
+                            self.place_stats_dialog_backup = None;
+                            self.place_stats_dialog_place_id = None;
+                        }
+                    });
+                });
+                ui.separator();
+
+                ui.columns(2, |cols| {
+                    cols[0].group(|ui| {
+                        ui.label(t("????? ????????", "Tokens"));
+                        ui.checkbox(&mut self.net.places[place_idx].stats.markers_total, t("?????", "Total"));
+                        ui.checkbox(&mut self.net.places[place_idx].stats.markers_input, t("?? ?????", "On input"));
+                        ui.checkbox(&mut self.net.places[place_idx].stats.markers_output, t("?? ??????", "On output"));
+                    });
+                    cols[1].group(|ui| {
+                        ui.label(t("?????????????", "Load"));
+                        ui.checkbox(&mut self.net.places[place_idx].stats.load_total, t("?????", "Total"));
+                        ui.checkbox(&mut self.net.places[place_idx].stats.load_input, t("?????", "Input"));
+                        ui.checkbox(&mut self.net.places[place_idx].stats.load_output, t("??????", "Output"));
+                    });
+                });
+            });
+
+        if !open {
+            // Treat closing via X as cancel.
+            if let Some((backup_id, backup)) = self.place_stats_dialog_backup.take() {
+                if backup_id == place_id {
+                    self.net.places[place_idx].stats = backup;
+                }
+            }
+            self.place_stats_dialog_place_id = None;
+        }
+    }
+
 }
 
-impl eframe::App for PetriApp {
+
+    impl eframe::App for PetriApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         ctx.set_visuals(egui::Visuals::light());
         self.draw_menu(ctx);
@@ -3445,6 +3617,7 @@ impl eframe::App for PetriApp {
         if self.show_place_props {
             self.draw_place_properties(ctx);
         }
+        self.draw_place_stats_dialog(ctx);
         if self.show_transition_props {
             self.draw_transition_properties(ctx);
         }

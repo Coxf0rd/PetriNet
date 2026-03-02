@@ -55,10 +55,26 @@ pub struct PlaceStats {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PlaceFlowStats {
+    pub in_tokens: u64,
+    pub out_tokens: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PlaceLoadStats {
+    pub avg_over_capacity: Option<f64>,
+    pub in_rate: Option<f64>,
+    pub out_rate: Option<f64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SimulationResult {
     pub cycle_time: Option<f64>,
     pub logs: Vec<LogEntry>,
     pub place_stats: Option<Vec<PlaceStats>>,
+    pub place_flow: Option<Vec<PlaceFlowStats>>,
+    pub place_load: Option<Vec<PlaceLoadStats>>,
+    pub sim_time: f64,
     pub fired_count: u64,
     pub final_marking: Vec<u32>,
 }
@@ -68,6 +84,8 @@ struct SimState {
     available: Vec<u32>,
     pending_release: Vec<Vec<f64>>,
     through_place_counter: Vec<u64>,
+    in_tokens: Vec<u64>,
+    out_tokens: Vec<u64>,
 }
 
 impl SimState {
@@ -107,6 +125,8 @@ pub fn run_simulation(net: &PetriNet, params: &SimulationParams, _fixed_step: bo
         available: net.tables.m0.clone(),
         pending_release: vec![Vec::new(); places],
         through_place_counter: vec![0; places],
+        in_tokens: vec![0; places],
+        out_tokens: vec![0; places],
     };
 
     let mut now = 0.0;
@@ -192,10 +212,60 @@ pub fn run_simulation(net: &PetriNet, params: &SimulationParams, _fixed_step: bo
         None
     };
 
+    let place_flow = if collect_stats {
+        Some(
+            (0..places)
+                .map(|p| PlaceFlowStats {
+                    in_tokens: state.in_tokens[p],
+                    out_tokens: state.out_tokens[p],
+                })
+                .collect(),
+        )
+    } else {
+        None
+    };
+
+    let sim_time = now.max(0.0);
+    let place_load = if collect_stats && !logs.is_empty() {
+        let n = logs.len() as f64;
+        Some(
+            (0..places)
+                .map(|p| {
+                    let avg_marking = stats_acc[p] / n;
+                    let avg_over_capacity = net.tables.mo.get(p).and_then(|cap| *cap).map(|cap| {
+                        if cap == 0 {
+                            0.0
+                        } else {
+                            (avg_marking / cap as f64).clamp(0.0, 1.0e9)
+                        }
+                    });
+                    let (in_rate, out_rate) = if sim_time > 0.0 {
+                        (
+                            Some(state.in_tokens[p] as f64 / sim_time),
+                            Some(state.out_tokens[p] as f64 / sim_time),
+                        )
+                    } else {
+                        (None, None)
+                    };
+                    PlaceLoadStats {
+                        avg_over_capacity,
+                        in_rate,
+                        out_rate,
+                    }
+                })
+                .collect(),
+        )
+    } else {
+        None
+    };
+
     SimulationResult {
         cycle_time,
         logs,
         place_stats,
+        place_flow,
+        place_load,
+        sim_time,
         fired_count: passes,
         final_marking: state.total_marking(),
     }
@@ -295,6 +365,7 @@ fn fire_transition(
     for p in 0..net.places.len() {
         let pre = net.tables.pre[p][t];
         if pre > 0 {
+            state.out_tokens[p] = state.out_tokens[p].saturating_add(pre as u64);
             push_touched(p);
         }
         state.available[p] = state.available[p].saturating_sub(pre);
@@ -305,6 +376,8 @@ fn fire_transition(
         if post == 0 {
             continue;
         }
+
+        state.in_tokens[p] = state.in_tokens[p].saturating_add(post as u64);
 
         push_touched(p);
         let delay = sample_place_delay(net, p, net.tables.mz[p].max(0.0), rng);
