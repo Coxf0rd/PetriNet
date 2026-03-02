@@ -1,4 +1,4 @@
-﻿use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet};
 
 use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
@@ -69,7 +69,36 @@ impl Default for MetaInfo {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+#[serde(default)]
+pub struct UiTextBlock {
+    pub id: u64,
+    pub pos: [f32; 2],
+    pub text: String,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(default)]
+pub struct UiDecorativeFrame {
+    pub id: u64,
+    pub pos: [f32; 2],
+    pub width: f32,
+    pub height: f32,
+}
+
+impl Default for UiDecorativeFrame {
+    fn default() -> Self {
+        Self {
+            id: 0,
+            pos: [0.0, 0.0],
+            width: 120.0,
+            height: 120.0,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(default)]
 pub struct UiSettings {
     pub language: Language,
     pub hide_grid: bool,
@@ -78,6 +107,10 @@ pub struct UiSettings {
     pub fix_time_step: bool,
     pub marker_count_stats: bool,
     pub light_theme: bool,
+    pub text_blocks: Vec<UiTextBlock>,
+    pub decorative_frames: Vec<UiDecorativeFrame>,
+    pub next_text_id: u64,
+    pub next_frame_id: u64,
 }
 
 impl Default for UiSettings {
@@ -90,6 +123,10 @@ impl Default for UiSettings {
             fix_time_step: true,
             marker_count_stats: true,
             light_theme: true,
+            text_blocks: Vec::new(),
+            decorative_frames: Vec::new(),
+            next_text_id: 1,
+            next_frame_id: 1,
         }
     }
 }
@@ -565,6 +602,8 @@ impl PetriNetModel {
         Ok(())
     }
 }
+
+
 
 
 
