@@ -521,7 +521,7 @@ impl PetriApp {
             arc_topology_fingerprint: None,
             arc_header_extra,
             footer_bytes,
-            raw_arc_and_tail: None,
+            raw_arc_and_tail: Some(bytes[arcs_off..].to_vec()),
         })
     }
 
