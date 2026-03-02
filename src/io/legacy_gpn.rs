@@ -312,7 +312,9 @@ pub fn export_legacy_gpn_with_hints(
         } else {
             place.name.as_str()
         };
-        write_legacy_name(&mut record, PLACE_NAME_OFFSET, place_label);
+        // Keep place name inside the safe legacy slot so it does not overwrite delay bytes.
+        let place_name_max = PLACE_DELAY_OFFSET.saturating_sub(PLACE_NAME_OFFSET + 1);
+        write_legacy_name_limited(&mut record, PLACE_NAME_OFFSET, place_label, place_name_max);
         bytes.extend_from_slice(&record);
     }
 
@@ -350,7 +352,16 @@ pub fn export_legacy_gpn_with_hints(
         } else {
             transition.note.as_str()
         };
-        write_legacy_name(&mut record, TRANSITION_NAME_OFFSET, tr_label);
+        // Reserve one byte at end to avoid touching undocumented tail fields.
+        let transition_name_max = TRANSITION_RECORD_SIZE
+            .saturating_sub(TRANSITION_NAME_OFFSET + 1)
+            .saturating_sub(1);
+        write_legacy_name_limited(
+            &mut record,
+            TRANSITION_NAME_OFFSET,
+            tr_label,
+            transition_name_max,
+        );
         bytes.extend_from_slice(&record);
     }
 
@@ -1431,7 +1442,7 @@ fn encode_legacy_cp1251(s: &str) -> Vec<u8> {
     out
 }
 
-fn write_legacy_name(record: &mut [u8], field_offset: usize, value: &str) {
+fn write_legacy_name_limited(record: &mut [u8], field_offset: usize, value: &str, hard_max_len: usize) {
     if field_offset + 1 >= record.len() {
         return;
     }
@@ -1442,7 +1453,10 @@ fn write_legacy_name(record: &mut [u8], field_offset: usize, value: &str) {
     }
 
     let encoded = encode_legacy_cp1251(trimmed);
-    let max_len = record.len().saturating_sub(field_offset + 1);
+    let max_len = record
+        .len()
+        .saturating_sub(field_offset + 1)
+        .min(hard_max_len);
     let len = encoded.len().min(max_len).min(255);
     record[field_offset] = len as u8;
     record[field_offset + 1..field_offset + 1 + len].copy_from_slice(&encoded[..len]);
@@ -1630,3 +1644,26 @@ fn detect_section_boundaries(bytes: &[u8]) -> Vec<String> {
 }
 
 
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::NamedTempFile;
+
+    #[test]
+    fn export_place_name_does_not_corrupt_delay_field() {
+        let mut model = PetriNetModel::new();
+        model.set_counts(1, 1);
+        model.places[0].name =
+            "THIS_IS_A_VERY_LONG_PLACE_NAME_THAT_USED_TO_OVERWRITE_DELAY_FIELD_IN_LEGACY_RECORD"
+                .to_string();
+        model.tables.mz[0] = 12.5;
+
+        let tmp = NamedTempFile::new().expect("temp file");
+        export_legacy_gpn(tmp.path(), &model).expect("legacy export");
+        let imported = import_legacy_gpn(tmp.path()).expect("legacy import");
+        let delay = imported.model.tables.mz.first().copied().unwrap_or_default();
+        assert!((delay - 12.5).abs() < 1e-9, "delay mismatch after roundtrip: {delay}");
+    }
+}
