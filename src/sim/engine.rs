@@ -101,7 +101,7 @@ impl SimState {
     }
 }
 
-pub fn run_simulation(net: &PetriNet, params: &SimulationParams, fixed_step: bool, collect_stats: bool) -> SimulationResult {
+pub fn run_simulation(net: &PetriNet, params: &SimulationParams, _fixed_step: bool, collect_stats: bool) -> SimulationResult {
     let places = net.places.len();
     let mut state = SimState {
         available: net.tables.m0.clone(),
@@ -109,7 +109,6 @@ pub fn run_simulation(net: &PetriNet, params: &SimulationParams, fixed_step: boo
         through_place_counter: vec![0; places],
     };
 
-    let dt = params.dt.max(0.000_001);
     let mut now = 0.0;
     let mut passes = 0_u64;
     let mut logs = Vec::new();
@@ -150,11 +149,7 @@ pub fn run_simulation(net: &PetriNet, params: &SimulationParams, fixed_step: boo
                 touched_places: Vec::new(),
             });
             if let Some(next_release) = state.next_release_time() {
-                let next_time = if fixed_step {
-                    (now + dt).min(next_release)
-                } else {
-                    next_release
-                };
+                let next_time = next_release;
                 if next_time > now {
                     now = next_time;
                     if should_stop(net, &state, params, now, passes) {
@@ -179,14 +174,6 @@ pub fn run_simulation(net: &PetriNet, params: &SimulationParams, fixed_step: boo
 
         if should_stop(net, &state, params, now, passes) {
             break;
-        }
-
-        if fixed_step {
-            now += dt;
-        } else {
-            // Без фиксированного шага оставляем совместимый детерминированный режим:
-            // по одному срабатыванию на такт.
-            now += dt;
         }
     }
 
@@ -504,5 +491,25 @@ mod tests {
         let res = run_simulation(&net, &p, true, false);
         assert_eq!(res.fired_count, 2);
         assert_eq!(res.final_marking[2], 1);
+    }
+    #[test]
+    fn zero_delay_transitions_do_not_advance_time() {
+        let mut net = PetriNet::new();
+        net.set_counts(1, 1);
+        net.tables.m0[0] = 1;
+        net.tables.pre[0][0] = 1;
+        net.tables.post[0][0] = 1;
+        net.rebuild_arcs_from_matrices();
+
+        let p = SimulationParams {
+            use_pass_limit: true,
+            pass_limit: 3,
+            dt: 0.1,
+            ..SimulationParams::default()
+        };
+
+        let res = run_simulation(&net, &p, false, false);
+        assert_eq!(res.fired_count, 3);
+        assert!(res.logs.iter().all(|entry| (entry.time - 0.0).abs() < f64::EPSILON));
     }
 }

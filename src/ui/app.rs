@@ -514,7 +514,6 @@ impl PetriApp {
             return None;
         }
         let footer_bytes = None;
-        let raw_arc_and_tail = Some(bytes[arcs_off..].to_vec());
         let arc_header_extra = Some(u16::from_le_bytes([bytes[arcs_off + 4], bytes[arcs_off + 5]]));
         Some(LegacyExportHints {
             places_count: Some(p),
@@ -522,7 +521,7 @@ impl PetriApp {
             arc_topology_fingerprint: None,
             arc_header_extra,
             footer_bytes,
-            raw_arc_and_tail,
+            raw_arc_and_tail: None,
         })
     }
 
@@ -1580,7 +1579,6 @@ impl PetriApp {
                     ui.checkbox(&mut self.net.ui.hide_grid, "Скрыть сетку");
                     ui.checkbox(&mut self.net.ui.snap_to_grid, "Привязка к сетке");
                     ui.checkbox(&mut self.net.ui.colored_petri_nets, "Цветные сети Петри");
-                    ui.checkbox(&mut self.net.ui.fix_time_step, "Фиксированный шаг времени");
                     ui.menu_button("Сбор статистики", |ui| {
                         ui.checkbox(&mut self.net.ui.marker_count_stats, "Статистика маркеров");
                     });
@@ -2698,10 +2696,6 @@ impl PetriApp {
                     egui::DragValue::new(&mut self.sim_params.pass_limit).range(0..=u64::MAX),
                 );
 
-                ui.horizontal(|ui| {
-                    ui.label("Шаг ?t (сек)");
-                    ui.add(egui::DragValue::new(&mut self.sim_params.dt).speed(0.01).range(0.000_001..=1000.0));
-                });
 
                 ui.horizontal(|ui| {
                     ui.label("Диапазон мест для вывода маркировки");
@@ -2741,7 +2735,7 @@ impl PetriApp {
                     self.sim_result = Some(run_simulation(
                         &self.net,
                         &self.sim_params,
-                        self.net.ui.fix_time_step,
+                        false,
                         self.net.ui.marker_count_stats,
                     ));
                     self.debug_step = 0;
