@@ -33,6 +33,7 @@ struct CanvasState {
     selected_transitions: Vec<u64>,
     selected_arc: Option<u64>,
     selected_text: Option<u64>,
+    selected_frame: Option<u64>,
     arc_start: Option<NodeRef>,
     cursor_world: [f32; 2],
     selection_start: Option<Pos2>,
@@ -53,6 +54,7 @@ impl Default for CanvasState {
             selected_transitions: Vec::new(),
             selected_arc: None,
             selected_text: None,
+            selected_frame: None,
             arc_start: None,
             cursor_world: [0.0, 0.0],
             selection_start: None,
@@ -64,11 +66,31 @@ impl Default for CanvasState {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 struct CanvasTextBlock {
     id: u64,
     pos: [f32; 2],
     text: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct CanvasFrame {
+    id: u64,
+    pos: [f32; 2],
+    side: f32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct UiSidecar {
+    version: u32,
+    #[serde(default)]
+    text_blocks: Vec<CanvasTextBlock>,
+    #[serde(default)]
+    decorative_frames: Vec<CanvasFrame>,
+    #[serde(default)]
+    next_text_id: u64,
+    #[serde(default)]
+    next_frame_id: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -126,6 +148,8 @@ struct UndoSnapshot {
     net: PetriNet,
     text_blocks: Vec<CanvasTextBlock>,
     next_text_id: u64,
+    decorative_frames: Vec<CanvasFrame>,
+    next_frame_id: u64,
 }
 
 pub struct PetriApp {
@@ -157,6 +181,8 @@ pub struct PetriApp {
     show_proof: bool,
     text_blocks: Vec<CanvasTextBlock>,
     next_text_id: u64,
+    decorative_frames: Vec<CanvasFrame>,
+    next_frame_id: u64,
     clipboard: Option<CopyBuffer>,
     paste_serial: u32,
     undo_stack: Vec<UndoSnapshot>,
@@ -170,6 +196,7 @@ impl PetriApp {
     const GRID_STEP_SNAP: f32 = 10.0;
     const GRID_STEP_FREE: f32 = 25.0;
     const CLIPBOARD_PREFIX: &'static str = "PETRINET_COPY_V1:";
+    const FRAME_DEFAULT_SIDE: f32 = 120.0;
 
     fn grid_step_world(&self) -> f32 {
         if self.net.ui.snap_to_grid {
@@ -251,6 +278,8 @@ impl PetriApp {
             show_proof: false,
             text_blocks: Vec::new(),
             next_text_id: 1,
+            decorative_frames: Vec::new(),
+            next_frame_id: 1,
             clipboard: None,
             paste_serial: 0,
             undo_stack: Vec::new(),
@@ -303,7 +332,9 @@ impl PetriApp {
                 show_proof: false,
                 text_blocks: Vec::new(),
                 next_text_id: 1,
-                clipboard: None,
+            decorative_frames: Vec::new(),
+            next_frame_id: 1,
+            clipboard: None,
                 paste_serial: 0,
                 undo_stack: Vec::new(),
                 legacy_export_hints: None,
@@ -320,6 +351,8 @@ impl PetriApp {
         self.file_path = None;
         self.text_blocks.clear();
         self.next_text_id = 1;
+        self.decorative_frames.clear();
+        self.next_frame_id = 1;
         self.undo_stack.clear();
         self.legacy_export_hints = None;
         self.status_hint = None;
@@ -331,6 +364,53 @@ impl PetriApp {
         self.sim_params.use_pass_limit = false;
         self.sim_params.stop.through_place = None;
         self.sim_params.stop.sim_time = None;
+    }
+
+    fn ui_sidecar_path(path: &std::path::Path) -> PathBuf {
+        let mut os = path.as_os_str().to_os_string();
+        os.push(".petriui.json");
+        PathBuf::from(os)
+    }
+
+    fn load_ui_sidecar(&mut self, path: &std::path::Path) {
+        let sidecar_path = Self::ui_sidecar_path(path);
+        let Ok(raw) = fs::read_to_string(&sidecar_path) else {
+            self.text_blocks.clear();
+            self.next_text_id = 1;
+            self.decorative_frames.clear();
+            self.next_frame_id = 1;
+            return;
+        };
+        let Ok(sidecar) = serde_json::from_str::<UiSidecar>(&raw) else {
+            self.text_blocks.clear();
+            self.next_text_id = 1;
+            self.decorative_frames.clear();
+            self.next_frame_id = 1;
+            return;
+        };
+
+        self.text_blocks = sidecar.text_blocks;
+        self.next_text_id = sidecar
+            .next_text_id
+            .max(self.text_blocks.iter().map(|t| t.id).max().unwrap_or(0).saturating_add(1));
+        self.decorative_frames = sidecar.decorative_frames;
+        self.next_frame_id = sidecar
+            .next_frame_id
+            .max(self.decorative_frames.iter().map(|f| f.id).max().unwrap_or(0).saturating_add(1));
+    }
+
+    fn save_ui_sidecar(&self, path: &std::path::Path) {
+        let sidecar = UiSidecar {
+            version: 1,
+            text_blocks: self.text_blocks.clone(),
+            decorative_frames: self.decorative_frames.clone(),
+            next_text_id: self.next_text_id,
+            next_frame_id: self.next_frame_id,
+        };
+        let sidecar_path = Self::ui_sidecar_path(path);
+        if let Ok(json) = serde_json::to_string_pretty(&sidecar) {
+            let _ = fs::write(sidecar_path, json);
+        }
     }
 
     fn extract_legacy_export_hints(path: &std::path::Path) -> Option<LegacyExportHints> {
@@ -438,10 +518,9 @@ impl PetriApp {
                     };
                     self.net = result.model;
                     self.net.set_counts(self.net.places.len(), self.net.transitions.len());
-                    self.file_path = Some(path);
-                    self.text_blocks.clear();
-                    self.next_text_id = 1;
+                    self.file_path = Some(path.clone());
                     self.undo_stack.clear();
+                    self.load_ui_sidecar(&path);
                     self.legacy_export_hints = legacy_hints;
                     self.status_hint = None;
                     self.canvas.cursor_valid = false;
@@ -471,9 +550,10 @@ impl PetriApp {
 
     fn save_file(&mut self) {
         if let Some(path) = self.file_path.clone() {
-            if let Err(e) = save_gpn_with_hints(&path, &self.net, self.legacy_export_hints.as_ref())
-            {
+            if let Err(e) = save_gpn_with_hints(&path, &self.net, self.legacy_export_hints.as_ref()) {
                 self.last_error = Some(e.to_string());
+            } else {
+                self.save_ui_sidecar(&path);
             }
         } else {
             self.save_file_as();
@@ -487,9 +567,10 @@ impl PetriApp {
             .save_file()
         {
             self.file_path = Some(path.clone());
-            if let Err(e) = save_gpn_with_hints(&path, &self.net, self.legacy_export_hints.as_ref())
-            {
+            if let Err(e) = save_gpn_with_hints(&path, &self.net, self.legacy_export_hints.as_ref()) {
                 self.last_error = Some(e.to_string());
+            } else {
+                self.save_ui_sidecar(&path);
             }
         }
     }
@@ -794,6 +875,24 @@ impl PetriApp {
         self.text_blocks.iter().position(|item| item.id == id)
     }
 
+    fn frame_idx_by_id(&self, id: u64) -> Option<usize> {
+        self.decorative_frames.iter().position(|item| item.id == id)
+    }
+
+    fn frame_at(&self, rect: Rect, pos: Pos2) -> Option<u64> {
+        self.decorative_frames
+            .iter()
+            .rev()
+            .find(|frame| {
+                let min = self.world_to_screen(rect, frame.pos);
+                let size = Vec2::splat(frame.side.max(10.0)) * self.canvas.zoom;
+                let r = Rect::from_min_size(min, size);
+                let tolerance = (6.0 * self.canvas.zoom).max(4.0);
+                r.expand(tolerance).contains(pos) && !r.shrink(tolerance).contains(pos)
+            })
+            .map(|frame| frame.id)
+    }
+
     fn clear_selection(&mut self) {
         self.canvas.selected_place = None;
         self.canvas.selected_transition = None;
@@ -801,6 +900,7 @@ impl PetriApp {
         self.canvas.selected_transitions.clear();
         self.canvas.selected_arc = None;
         self.canvas.selected_text = None;
+        self.canvas.selected_frame = None;
     }
 
     fn push_undo_snapshot(&mut self) {
@@ -808,6 +908,8 @@ impl PetriApp {
             net: self.net.clone(),
             text_blocks: self.text_blocks.clone(),
             next_text_id: self.next_text_id,
+            decorative_frames: self.decorative_frames.clone(),
+            next_frame_id: self.next_frame_id,
         });
         // Keep memory bounded.
         if self.undo_stack.len() > 64 {
@@ -822,6 +924,8 @@ impl PetriApp {
         self.net = state.net;
         self.text_blocks = state.text_blocks;
         self.next_text_id = state.next_text_id;
+        self.decorative_frames = state.decorative_frames;
+        self.next_frame_id = state.next_frame_id;
         self.clear_selection();
     }
 
@@ -836,6 +940,11 @@ impl PetriApp {
             self.net.arcs.retain(|a| a.id != arc_id);
             self.net.inhibitor_arcs.retain(|a| a.id != arc_id);
             self.net.rebuild_matrices_from_arcs();
+            return;
+        }
+        if let Some(frame_id) = self.canvas.selected_frame.take() {
+            self.push_undo_snapshot();
+            self.decorative_frames.retain(|item| item.id != frame_id);
             return;
         }
 
@@ -986,6 +1095,7 @@ impl PetriApp {
             NodeRef::Place(id) => place_set.contains(&id),
             NodeRef::Transition(id) => transition_set.contains(&id),
         };
+
         for arc in &self.net.arcs {
             if in_sel(arc.from) && in_sel(arc.to) {
                 copied_arcs.push(CopiedArc {
@@ -1180,6 +1290,7 @@ impl PetriApp {
     fn arc_at(&self, rect: Rect, pos: Pos2) -> Option<u64> {
         let mut best_id = None;
         let mut best_dist = 10.0_f32;
+
 
         for arc in &self.net.arcs {
             let (a, b) = match (arc.from, arc.to) {
@@ -1509,7 +1620,7 @@ impl PetriApp {
         if response.hovered() {
             ui.output_mut(|o| {
                 o.cursor_icon = match self.tool {
-                    Tool::Place | Tool::Transition | Tool::Arc => egui::CursorIcon::Crosshair,
+                    Tool::Place | Tool::Transition | Tool::Arc | Tool::Frame => egui::CursorIcon::Crosshair,
                     Tool::Text => egui::CursorIcon::Text,
                     Tool::Delete => egui::CursorIcon::NotAllowed,
                     Tool::Edit | Tool::Run => egui::CursorIcon::PointingHand,
@@ -1565,6 +1676,18 @@ impl PetriApp {
                         self.clear_selection();
                         self.canvas.selected_text = Some(id);
                     }
+                    Tool::Frame => {
+                        self.push_undo_snapshot();
+                        let id = self.next_frame_id;
+                        self.next_frame_id = self.next_frame_id.saturating_add(1);
+                        self.decorative_frames.push(CanvasFrame {
+                            id,
+                            pos: snapped,
+                            side: Self::FRAME_DEFAULT_SIDE,
+                        });
+                        self.clear_selection();
+                        self.canvas.selected_frame = Some(id);
+                    }
                     Tool::Delete => {
                         if let Some(node) = self.node_at(rect, click) {
                             self.push_undo_snapshot();
@@ -1590,6 +1713,9 @@ impl PetriApp {
                         } else if let Some(text_id) = self.text_at(rect, click) {
                             self.push_undo_snapshot();
                             self.text_blocks.retain(|item| item.id != text_id);
+                        } else if let Some(frame_id) = self.frame_at(rect, click) {
+                            self.push_undo_snapshot();
+                            self.decorative_frames.retain(|item| item.id != frame_id);
                         }
                     }
                     Tool::Edit => {
@@ -1603,6 +1729,8 @@ impl PetriApp {
                             self.canvas.selected_arc = Some(arc_id);
                         } else if let Some(text_id) = self.text_at(rect, click) {
                             self.canvas.selected_text = Some(text_id);
+                        } else if let Some(frame_id) = self.frame_at(rect, click) {
+                            self.canvas.selected_frame = Some(frame_id);
                         }
                     }
                     Tool::Run => {
@@ -1664,6 +1792,14 @@ impl PetriApp {
                     self.push_undo_snapshot();
                     self.canvas.drag_prev_world = Some(self.screen_to_world(rect, pointer));
                     self.canvas.move_drag_active = true;
+                } else if let Some(frame_id) = self.frame_at(rect, pointer) {
+                    if self.canvas.selected_frame != Some(frame_id) {
+                        self.clear_selection();
+                        self.canvas.selected_frame = Some(frame_id);
+                    }
+                    self.push_undo_snapshot();
+                    self.canvas.drag_prev_world = Some(self.screen_to_world(rect, pointer));
+                    self.canvas.move_drag_active = true;
                 } else {
                     self.clear_selection();
                     self.canvas.selection_start = Some(pointer);
@@ -1715,6 +1851,12 @@ impl PetriApp {
                                     self.text_blocks[idx].pos[1] += dy;
                                 }
                             }
+                            if let Some(frame_id) = self.canvas.selected_frame {
+                                if let Some(idx) = self.frame_idx_by_id(frame_id) {
+                                    self.decorative_frames[idx].pos[0] += dx;
+                                    self.decorative_frames[idx].pos[1] += dy;
+                                }
+                            }
                         }
                     }
                     self.canvas.drag_prev_world = Some(world);
@@ -1754,6 +1896,12 @@ impl PetriApp {
                         self.text_blocks[idx].pos[1] = snap(self.text_blocks[idx].pos[1]);
                     }
                 }
+                if let Some(frame_id) = self.canvas.selected_frame {
+                    if let Some(idx) = self.frame_idx_by_id(frame_id) {
+                        self.decorative_frames[idx].pos[0] = snap(self.decorative_frames[idx].pos[0]);
+                        self.decorative_frames[idx].pos[1] = snap(self.decorative_frames[idx].pos[1]);
+                    }
+                }
             }
             if let Some(sel_rect) = self.canvas.selection_rect.take() {
                 let norm = sel_rect.expand2(Vec2::ZERO);
@@ -1778,6 +1926,7 @@ impl PetriApp {
                 self.canvas.selected_place = None;
                 self.canvas.selected_transition = None;
                 self.canvas.selected_text = None;
+        self.canvas.selected_frame = None;
             }
             self.canvas.selection_start = None;
             self.canvas.drag_prev_world = None;
@@ -1805,6 +1954,9 @@ impl PetriApp {
                 } else if let Some(text_id) = self.text_at(rect, click) {
                     self.clear_selection();
                     self.canvas.selected_text = Some(text_id);
+                } else if let Some(frame_id) = self.frame_at(rect, click) {
+                    self.clear_selection();
+                    self.canvas.selected_frame = Some(frame_id);
                 }
             }
         }
@@ -1818,6 +1970,24 @@ impl PetriApp {
             );
         }
 
+        for frame in &self.decorative_frames {
+            let min = self.world_to_screen(rect, frame.pos);
+            let size = Vec2::splat(frame.side.max(10.0)) * self.canvas.zoom;
+            let r = Rect::from_min_size(min, size);
+            let is_selected = self.canvas.selected_frame == Some(frame.id);
+            painter.rect_stroke(
+                r,
+                0.0,
+                Stroke::new(
+                    if is_selected { 3.0 } else { 1.5 },
+                    if is_selected {
+                        Color32::from_rgb(255, 140, 0)
+                    } else {
+                        Color32::from_gray(90)
+                    },
+                ),
+            );
+        }
         for arc in &self.net.arcs {
             let (from_center, from_radius, from_rect, to_center, to_radius, to_rect) = match (arc.from, arc.to) {
                 (NodeRef::Place(p), NodeRef::Transition(t)) => {
@@ -2048,6 +2218,11 @@ impl PetriApp {
                         Color32::from_rgb(60, 120, 220),
                     );
                 }
+                Tool::Frame => {
+                    let s = Self::FRAME_DEFAULT_SIDE * self.canvas.zoom;
+                    let r = Rect::from_center_size(preview, Vec2::splat(s));
+                    painter.rect_stroke(r, 0.0, Stroke::new(2.0, Color32::from_rgb(60, 120, 220)));
+                }
                 Tool::Delete => {
                     let s = 8.0 * self.canvas.zoom;
                     let a = preview + Vec2::new(-s, -s);
@@ -2114,6 +2289,16 @@ impl PetriApp {
                 ui.separator();
                 ui.label("Выбранный текст");
                 ui.text_edit_singleline(&mut self.text_blocks[idx].text);
+            }
+        }
+        if let Some(frame_id) = self.canvas.selected_frame {
+            if let Some(idx) = self.frame_idx_by_id(frame_id) {
+                ui.separator();
+                ui.label("Выбранная рамка");
+                ui.horizontal(|ui| {
+                    ui.label("Сторона");
+                    ui.add(egui::DragValue::new(&mut self.decorative_frames[idx].side).speed(1.0).range(10.0..=5000.0));
+                });
             }
         }
     }
@@ -2895,10 +3080,10 @@ impl PetriApp {
             .show(ctx, |ui| {
                 ui.heading("Информация о приложении");
                 ui.separator();
-                ui.label(format!("Версия: {}", env!("CARGO_PKG_VERSION")));
-                ui.label("Разработчик: Coxford");
+                ui.label(egui::RichText::new(format!("Версия: {}", env!("CARGO_PKG_VERSION"))).size(20.0));
+                ui.label(egui::RichText::new("Разработчик: Вайбкод + вылеты NetStar").size(18.0));
                 ui.separator();
-                ui.small("Редактор сетей Петри с совместимостью с форматом NetStar и инструментами имитации.");
+                ui.label("Редактор сетей Петри с совместимостью с форматом NetStar и инструментами имитации.");
             });
         self.show_help_development = open;
     }
@@ -3140,6 +3325,44 @@ mod tests {
         assert_eq!(copied.places.len(), 1);
     }
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
