@@ -1,6 +1,6 @@
-[package]
+﻿[package]
 name = "petri_net_legacy_editor"
-version = "0.5.5"
+version = "0.5.6"
 edition = "2021"
 license = "MIT"
 build = "build.rs"
@@ -25,3 +25,4 @@ winres = "0.1"
 strip = true
 lto = "thin"
 codegen-units = 1
+
