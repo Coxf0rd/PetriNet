@@ -595,7 +595,7 @@ impl PetriNetModel {
                 return Err(anyhow!("Порог ингибиторной дуги {} должен быть > 0", inh.id));
             }
             if !place_ids.contains(&inh.place_id) || !transition_ids.contains(&inh.transition_id) {
-                return Err(anyhow!("РРЅРіРёР±РёС‚РѕСЂРЅР°СЏ РґСѓРіР° {} СЃСЃС‹Р»Р°РµС‚СЃСЏ РЅР° РѕС‚СЃСѓС‚СЃС‚РІСѓСЋС‰РёРµ РІРµСЂС€РёРЅС‹", inh.id));
+                return Err(anyhow!("Ингибиторная дуга {} ссылается на отсутствующие вершины", inh.id));
             }
         }
 

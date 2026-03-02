@@ -613,7 +613,7 @@ impl PetriApp {
                         self.last_error = None;
                     } else {
                         self.last_error = Some(format!(
-                            "РРјРїРѕСЂС‚ СЃ РїСЂРµРґСѓРїСЂРµР¶РґРµРЅРёСЏРјРё: {}",
+                            "Импорт с предупреждениями: {}",
                             filtered.join("; ")
                         ));
                     }
@@ -1551,8 +1551,8 @@ impl PetriApp {
                         self.open_file();
                         ui.close_menu();
                     }
-                    ui.menu_button("РРјРїРѕСЂС‚", |ui| {
-                        ui.label("РРјРїРѕСЂС‚ PeSim: TODO");
+                    ui.menu_button("Импорт", |ui| {
+                        ui.label("Импорт PeSim: TODO");
                     });
                     ui.menu_button("Экспорт", |ui| {
                         if ui.button("Экспортировать в NetStar").clicked() {
@@ -1648,7 +1648,7 @@ impl PetriApp {
 
     fn draw_tool_palette(&mut self, ctx: &egui::Context) {
         egui::SidePanel::left("tools").resizable(false).show(ctx, |ui| {
-            ui.heading("РРЅСЃС‚СЂСѓРјРµРЅС‚С‹");
+            ui.heading("Инструменты");
             ui.separator();
             ui.radio_value(&mut self.tool, Tool::Place, "Место");
             ui.radio_value(&mut self.tool, Tool::Transition, "Переход");
@@ -2905,7 +2905,7 @@ impl PetriApp {
                 ui.checkbox(
                     &mut self.net.places[place_idx].marker_color_on_pass,
                     t(
-                        "РР·РјРµРЅСЏС‚СЊ С†РІРµС‚ РјР°СЂРєРµСЂР° РїСЂРё РїСЂРѕС…РѕР¶РґРµРЅРёРё С‡РµСЂРµР· РїРѕР·РёС†РёСЋ",
+                        "Изменять цвет маркера при прохождении через позицию",
                         "Change marker color when token passes this place",
                     ),
                 );
@@ -3286,7 +3286,7 @@ impl PetriApp {
             .open(&mut open)
             .resizable(false)
             .show(ctx, |ui| {
-                ui.heading("РРЅС„РѕСЂРјР°С†РёСЏ Рѕ РїСЂРёР»РѕР¶РµРЅРёРё");
+                ui.heading("Информация о приложении");
                 ui.separator();
                 ui.label(egui::RichText::new(format!("Версия: {}", env!("CARGO_PKG_VERSION"))).size(20.0));
                 ui.label(egui::RichText::new("Разработчик: Вайбкод + вылеты NetStar").size(18.0));
