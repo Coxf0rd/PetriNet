@@ -364,7 +364,9 @@ pub fn export_legacy_gpn_with_hints(
         .and_then(|h| h.raw_arc_and_tail.as_ref())
         .filter(|blob| !blob.is_empty())
     {
-        bytes.extend_from_slice(raw_arc_and_tail);
+        let mut raw_arc_and_tail = raw_arc_and_tail.clone();
+        force_netstar_sim_limits_in_tail(&mut raw_arc_and_tail);
+        bytes.extend_from_slice(&raw_arc_and_tail);
         return fs::write(path, bytes);
     }
 
@@ -471,7 +473,9 @@ pub fn export_legacy_gpn_with_hints(
         .and_then(|h| h.footer_bytes.as_ref())
         .filter(|v| !v.is_empty() && v.len() <= 512)
     {
-        bytes.extend_from_slice(footer);
+        let mut footer = footer.clone();
+        force_netstar_sim_limits_in_tail(&mut footer);
+        bytes.extend_from_slice(&footer);
     } else {
         bytes.extend_from_slice(legacy_footer_template());
     }
@@ -1317,6 +1321,17 @@ fn map_color_to_legacy(color: NodeColor) -> i32 {
         NodeColor::Yellow => 0x00FF0100,
         NodeColor::Default => 0,
     }
+}
+
+fn force_netstar_sim_limits_in_tail(tail: &mut [u8]) {
+    const LEGACY_FOOTER_SIZE: usize = 52;
+    if tail.len() < LEGACY_FOOTER_SIZE {
+        return;
+    }
+    let footer_start = tail.len() - LEGACY_FOOTER_SIZE;
+    let footer = &mut tail[footer_start..];
+    footer[0..4].copy_from_slice(&1000i32.to_le_bytes());
+    footer[16..20].copy_from_slice(&1000i32.to_le_bytes());
 }
 
 fn legacy_footer_template() -> &'static [u8] {

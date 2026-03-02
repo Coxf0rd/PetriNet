@@ -472,9 +472,14 @@ fn legacy_export_with_hints_preserves_original_arc_blob_for_set3() {
 
     let out_arcs_off = 16usize + places * 231 + transitions * 105;
     assert!(out_arcs_off < out_bytes.len(), "output arcs section must exist");
-    assert_eq!(
-        &out_bytes[out_arcs_off..],
-        raw_arc_and_tail.as_slice(),
-        "arc+tail blob must be preserved verbatim"
-    );
+    let out_tail = &out_bytes[out_arcs_off..];
+    assert_eq!(out_tail.len(), raw_arc_and_tail.len());
+    if raw_arc_and_tail.len() >= 52 {
+        let prefix_len = raw_arc_and_tail.len() - 52;
+        assert_eq!(&out_tail[..prefix_len], &raw_arc_and_tail[..prefix_len]);
+        assert_eq!(&out_tail[prefix_len..prefix_len + 4], &[0xE8, 0x03, 0x00, 0x00]);
+        assert_eq!(&out_tail[prefix_len + 16..prefix_len + 20], &[0xE8, 0x03, 0x00, 0x00]);
+    } else {
+        assert_eq!(out_tail, raw_arc_and_tail.as_slice(), "short raw arc blob must be preserved");
+    }
 }
