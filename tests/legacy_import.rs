@@ -464,7 +464,7 @@ fn legacy_export_with_hints_writes_native_arc_section_for_set3() {
     let out_arcs_off = 16usize + places * 231 + transitions * 105;
     assert!(out_arcs_off + 6 <= out_bytes.len(), "output arcs section must exist");
     let out_arc_extra = u16::from_le_bytes([out_bytes[out_arcs_off + 4], out_bytes[out_arcs_off + 5]]);
-    assert_eq!(out_arc_extra, 0, "native exporter must not copy arc header extra from hints");
+    assert_eq!(out_arc_extra, 99, "native exporter uses canonical arc header extra (not hints)");
 
     let out_arc_max = i32::from_le_bytes([
         out_bytes[out_arcs_off],

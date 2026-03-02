@@ -442,7 +442,8 @@ pub fn export_legacy_gpn_with_hints(
         .and_then(|value| i32::try_from(value).ok())
         .unwrap_or(-1);
     push_i32(&mut bytes, arc_max_index);
-    let arc_extra = 0u16;
+    // NetStar legacy expects this header value to be 99 (0x63).
+    let arc_extra = 99u16;
     bytes.extend_from_slice(&arc_extra.to_le_bytes());
     for (inhibitor, direction, source_idx, target_idx, (p1, p2, p3)) in encoded_arcs {
         let p1x = clamp_u16(p1[0]);
