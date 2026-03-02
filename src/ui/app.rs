@@ -501,7 +501,7 @@ impl PetriApp {
 
     fn open_file(&mut self) {
         if let Some(path) = rfd::FileDialog::new()
-            .add_filter("Файлы GPN", &["gpn"])
+            .add_filter("Файлы PetriNet", &["gpn2", "pn", "gpn"])
             .pick_file()
         {
             match load_gpn(&path) {
@@ -550,7 +550,7 @@ impl PetriApp {
 
     fn save_file(&mut self) {
         if let Some(path) = self.file_path.clone() {
-            if let Err(e) = save_gpn_with_hints(&path, &self.net, self.legacy_export_hints.as_ref()) {
+            if let Err(e) = crate::io::gpn2::save_gpn2(&path, &self.net) {
                 self.last_error = Some(e.to_string());
             } else {
                 self.save_ui_sidecar(&path);
@@ -562,12 +562,12 @@ impl PetriApp {
 
     fn save_file_as(&mut self) {
         if let Some(path) = rfd::FileDialog::new()
-            .add_filter("Файлы GPN", &["gpn"])
-            .set_file_name("модель.gpn")
+            .add_filter("Файлы PetriNet", &["gpn2", "pn", "gpn"])
+            .set_file_name("модель.gpn2")
             .save_file()
         {
             self.file_path = Some(path.clone());
-            if let Err(e) = save_gpn_with_hints(&path, &self.net, self.legacy_export_hints.as_ref()) {
+            if let Err(e) = crate::io::gpn2::save_gpn2(&path, &self.net) {
                 self.last_error = Some(e.to_string());
             } else {
                 self.save_ui_sidecar(&path);
@@ -575,6 +575,17 @@ impl PetriApp {
         }
     }
 
+    fn export_netstar_file(&mut self) {
+        if let Some(path) = rfd::FileDialog::new()
+            .add_filter("Файлы NetStar", &["gpn"])
+            .set_file_name("экспорт_netstar.gpn")
+            .save_file()
+        {
+            if let Err(e) = save_gpn_with_hints(&path, &self.net, self.legacy_export_hints.as_ref()) {
+                self.last_error = Some(e.to_string());
+            }
+        }
+    }
     fn place_idx_by_id(&self, id: u64) -> Option<usize> {
         self.net.places.iter().position(|p| p.id == id)
     }
@@ -1439,12 +1450,18 @@ impl PetriApp {
                         self.new_file();
                         ui.close_menu();
                     }
-                    if ui.button("Открыть (.gpn) (Ctrl+O)").clicked() {
+                    if ui.button("Открыть (Ctrl+O)").clicked() {
                         self.open_file();
                         ui.close_menu();
                     }
                     ui.menu_button("Импорт", |ui| {
                         ui.label("Импорт PeSim: TODO");
+                    });
+                    ui.menu_button("Экспорт", |ui| {
+                        if ui.button("Экспортировать в NetStar").clicked() {
+                            self.export_netstar_file();
+                            ui.close_menu();
+                        }
                     });
                     if ui.button("Сохранить (Ctrl+S)").clicked() {
                         self.save_file();
@@ -1458,21 +1475,6 @@ impl PetriApp {
                         ctx.send_viewport_cmd(egui::ViewportCommand::Close);
                     }
                 });
-                ui.menu_button("Правка", |ui| {
-                    if ui.button("Копировать (Ctrl+C)").clicked() {
-                        self.copy_selected_objects();
-                        ui.close_menu();
-                    }
-                    if ui.button("Вставить (Ctrl+V)").clicked() {
-                        self.paste_copied_objects();
-                        ui.close_menu();
-                    }
-                    if ui.button("Отменить (Ctrl+Z)").clicked() {
-                        self.undo_last_action();
-                        ui.close_menu();
-                    }
-                });
-
                 ui.menu_button("Опции", |ui| {
                     ui.menu_button("Язык", |ui| {
                         ui.radio_value(&mut self.net.ui.language, Language::Ru, "RU");
@@ -1552,6 +1554,7 @@ impl PetriApp {
             ui.radio_value(&mut self.tool, Tool::Transition, "Переход");
             ui.radio_value(&mut self.tool, Tool::Arc, "Дуга");
             ui.radio_value(&mut self.tool, Tool::Text, "Текст");
+            ui.radio_value(&mut self.tool, Tool::Frame, "Рамка");
             ui.radio_value(&mut self.tool, Tool::Edit, "Редактировать");
             ui.radio_value(&mut self.tool, Tool::Delete, "Удалить");
             ui.radio_value(&mut self.tool, Tool::Run, "Запуск");
@@ -3325,6 +3328,12 @@ mod tests {
         assert_eq!(copied.places.len(), 1);
     }
 }
+
+
+
+
+
+
 
 
 
