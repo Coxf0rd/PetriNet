@@ -524,37 +524,30 @@ impl PetriApp {
         rest.parse::<usize>().ok()
     }
 
-    fn next_place_auto_name(&self) -> String {
-        // Use monotonically increasing numbering (max + 1) so places are named in creation order.
-        // (The previous "smallest unused" behavior reused gaps after deletes, which felt random.)
-        let mut max_idx = 0usize;
-        for place in &self.net.places {
-            if let Some(idx) = Self::parse_place_auto_index(&place.name) {
-                max_idx = max_idx.max(idx);
-            }
-        }
-        format!("P{}", max_idx.saturating_add(1))
-    }
-
-    fn next_transition_auto_name(&self) -> String {
-        let mut max_idx = 0usize;
-        for tr in &self.net.transitions {
-            if let Some(idx) = Self::parse_transition_auto_index(&tr.name) {
-                max_idx = max_idx.max(idx);
-            }
-        }
-        format!("T{}", max_idx.saturating_add(1))
-    }
 
     fn assign_auto_name_for_place(&mut self, place_id: u64) {
-        let new_name = self.next_place_auto_name();
+        let mut ids: Vec<u64> = self.net.places.iter().map(|p| p.id).collect();
+        ids.sort_unstable();
+        let rank = ids
+            .iter()
+            .position(|&id| id == place_id)
+            .map(|idx| idx + 1)
+            .unwrap_or_else(|| self.net.places.len().max(1));
+        let new_name = format!("P{rank}");
         if let Some(index) = self.place_idx_by_id(place_id) {
             self.net.places[index].name = new_name;
         }
     }
 
     fn assign_auto_name_for_transition(&mut self, transition_id: u64) {
-        let new_name = self.next_transition_auto_name();
+        let mut ids: Vec<u64> = self.net.transitions.iter().map(|t| t.id).collect();
+        ids.sort_unstable();
+        let rank = ids
+            .iter()
+            .position(|&id| id == transition_id)
+            .map(|idx| idx + 1)
+            .unwrap_or_else(|| self.net.transitions.len().max(1));
+        let new_name = format!("T{rank}");
         if let Some(index) = self.transition_idx_by_id(transition_id) {
             self.net.transitions[index].name = new_name;
         }
@@ -568,19 +561,19 @@ impl PetriApp {
     }
 
     fn debug_visible_log_indices(result: &SimulationResult) -> Vec<usize> {
-        let mut indices = Vec::new();
-        let mut previous_marking: Option<&[u32]> = None;
-        for (idx, entry) in result.logs.iter().enumerate() {
-            let marking_changed = previous_marking
-                .map(|prev| prev != entry.marking.as_slice())
-                .unwrap_or(true);
+        if result.logs.is_empty() {
+            return Vec::new();
+        }
+
+        // Step 0 in debug must always point to the initial state.
+        let mut indices = vec![0usize];
+        let mut previous_marking = result.logs[0].marking.as_slice();
+        for (idx, entry) in result.logs.iter().enumerate().skip(1) {
+            let marking_changed = previous_marking != entry.marking.as_slice();
             if entry.fired_transition.is_some() || marking_changed {
                 indices.push(idx);
             }
-            previous_marking = Some(entry.marking.as_slice());
-        }
-        if indices.is_empty() && !result.logs.is_empty() {
-            indices.push(0);
+            previous_marking = entry.marking.as_slice();
         }
         indices
     }
@@ -2596,12 +2589,12 @@ impl PetriApp {
                 }
 
                 ui.separator();
+                ui.label(t("Название", "Name"));
+                ui.text_edit_singleline(&mut self.net.places[place_idx].name);
                 ui.label(t("Текст/Описание", "Text/Description"));
-                let old_note = self.net.places[place_idx].note.clone();
                 if ui
                     .text_edit_singleline(&mut self.net.places[place_idx].note)
                     .changed()
-                    && self.net.places[place_idx].name == old_note
                 {
                     self.net.places[place_idx].name = self.net.places[place_idx].note.clone();
                 }
@@ -2695,12 +2688,12 @@ impl PetriApp {
                     });
 
                 ui.separator();
+                ui.label(t("Название", "Name"));
+                ui.text_edit_singleline(&mut self.net.transitions[transition_idx].name);
                 ui.label(t("Текст/Описание", "Text/Description"));
-                let old_note = self.net.transitions[transition_idx].note.clone();
                 if ui
                     .text_edit_singleline(&mut self.net.transitions[transition_idx].note)
                     .changed()
-                    && self.net.transitions[transition_idx].name == old_note
                 {
                     self.net.transitions[transition_idx].name =
                         self.net.transitions[transition_idx].note.clone();
@@ -3101,4 +3094,7 @@ mod tests {
         assert_eq!(copied.places.len(), 1);
     }
 }
+
+
+
 
