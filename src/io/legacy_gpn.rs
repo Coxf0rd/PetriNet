@@ -1,4 +1,4 @@
-﻿use std::collections::HashMap;
+use std::collections::HashMap;
 use std::fmt;
 use std::fs;
 use std::path::Path;
@@ -226,7 +226,7 @@ pub fn export_legacy_gpn(path: &Path, model: &PetriNetModel) -> std::io::Result<
 pub fn export_legacy_gpn_with_hints(
     path: &Path,
     model: &PetriNetModel,
-    hints: Option<&LegacyExportHints>,
+    _hints: Option<&LegacyExportHints>,
 ) -> std::io::Result<()> {
     let mut normalized = model.clone();
     normalized.rebuild_matrices_from_arcs();
@@ -354,22 +354,6 @@ pub fn export_legacy_gpn_with_hints(
         bytes.extend_from_slice(&record);
     }
 
-    let arc_fingerprint = arc_topology_fingerprint(&normalized);
-    if let Some(raw_arc_and_tail) = hints
-        .filter(|h| {
-            h.places_count == Some(places_count)
-                && h.transitions_count == Some(transitions_count)
-                && h.arc_topology_fingerprint == Some(arc_fingerprint)
-        })
-        .and_then(|h| h.raw_arc_and_tail.as_ref())
-        .filter(|blob| !blob.is_empty())
-    {
-        let mut raw_arc_and_tail = raw_arc_and_tail.clone();
-        force_netstar_sim_limits_in_tail(&mut raw_arc_and_tail);
-        bytes.extend_from_slice(&raw_arc_and_tail);
-        return fs::write(path, bytes);
-    }
-
     let mut arc_records = Vec::<(bool, i32, usize, usize, NodeRef, NodeRef)>::new();
 
     for arc in &normalized.arcs {
@@ -447,38 +431,31 @@ pub fn export_legacy_gpn_with_hints(
         .and_then(|value| i32::try_from(value).ok())
         .unwrap_or(-1);
     push_i32(&mut bytes, arc_max_index);
-    let arc_extra = hints.and_then(|h| h.arc_header_extra).unwrap_or(0);
+    let arc_extra = 0u16;
     bytes.extend_from_slice(&arc_extra.to_le_bytes());
     for (inhibitor, direction, source_idx, target_idx, (p1, p2, p3)) in encoded_arcs {
-        let mut record = [0u8; ARC_RECORD_SIZE];
         let p1x = clamp_u16(p1[0]);
         let p1y = clamp_u16(p1[1]);
         let p2x = clamp_u16(p2[0]);
         let p2y = clamp_u16(p2[1]);
         let p3x = clamp_u16(p3[0]);
         let p3y = clamp_u16(p3[1]);
-        write_u16(&mut record, 2, p1y);
-        write_u16(&mut record, 6, p2y);
-        write_u16(&mut record, 10, p1x);
-        write_u16(&mut record, 14, p3y);
-        write_i32(&mut record, 24, if inhibitor { 0 } else { 1 });
-        write_i32(&mut record, 28, direction);
-        write_i32(&mut record, 32, source_idx as i32);
-        write_i32(&mut record, 36, target_idx as i32);
-        write_i32(&mut record, 40, p3x as i32);
-        write_u16(&mut record, 44, p2x);
+        let record = LegacyArcBinaryRecord {
+            marker: if inhibitor { 0 } else { 1 },
+            direction,
+            source_raw: source_idx as i32,
+            target_raw: target_idx as i32,
+            p1x,
+            p1y,
+            p2x,
+            p2y,
+            p3x: p3x as i32,
+            p3y,
+        }
+        .encode();
         bytes.extend_from_slice(&record);
     }
-    if let Some(footer) = hints
-        .and_then(|h| h.footer_bytes.as_ref())
-        .filter(|v| !v.is_empty() && v.len() <= 512)
-    {
-        let mut footer = footer.clone();
-        force_netstar_sim_limits_in_tail(&mut footer);
-        bytes.extend_from_slice(&footer);
-    } else {
-        bytes.extend_from_slice(legacy_footer_template());
-    }
+    bytes.extend_from_slice(legacy_footer_template());
 
     fs::write(path, bytes)
 }
@@ -766,6 +743,88 @@ struct LegacyArcRecord {
     inhibitor: bool,
 }
 
+#[derive(Debug, Clone, Copy)]
+struct LegacyArcBinaryRecord {
+    marker: i32,
+    direction: i32,
+    source_raw: i32,
+    target_raw: i32,
+    p1x: u16,
+    p1y: u16,
+    p2x: u16,
+    p2y: u16,
+    p3x: i32,
+    p3y: u16,
+}
+
+impl LegacyArcBinaryRecord {
+    fn decode(bytes: &[u8], off: usize) -> Option<Self> {
+        if off + ARC_RECORD_SIZE > bytes.len() {
+            return None;
+        }
+        let p1y = u16::from_le_bytes([bytes[off + 2], bytes[off + 3]]);
+        let p2y = u16::from_le_bytes([bytes[off + 6], bytes[off + 7]]);
+        let p1x = u16::from_le_bytes([bytes[off + 10], bytes[off + 11]]);
+        let p3y = u16::from_le_bytes([bytes[off + 14], bytes[off + 15]]);
+        let marker = read_i32(bytes, off + 24)?;
+        let direction = read_i32(bytes, off + 28)?;
+        let source_raw = read_i32(bytes, off + 32)?;
+        let target_raw = read_i32(bytes, off + 36)?;
+        let p3x = read_i32(bytes, off + 40)?;
+        let p2x = u16::from_le_bytes([bytes[off + 44], bytes[off + 45]]);
+        Some(Self {
+            marker,
+            direction,
+            source_raw,
+            target_raw,
+            p1x,
+            p1y,
+            p2x,
+            p2y,
+            p3x,
+            p3y,
+        })
+    }
+
+    fn encode(&self) -> [u8; ARC_RECORD_SIZE] {
+        let mut record = [0u8; ARC_RECORD_SIZE];
+        write_u16(&mut record, 2, self.p1y);
+        write_u16(&mut record, 6, self.p2y);
+        write_u16(&mut record, 10, self.p1x);
+        write_u16(&mut record, 14, self.p3y);
+        write_i32(&mut record, 24, self.marker);
+        write_i32(&mut record, 28, self.direction);
+        write_i32(&mut record, 32, self.source_raw);
+        write_i32(&mut record, 36, self.target_raw);
+        write_i32(&mut record, 40, self.p3x);
+        write_u16(&mut record, 44, self.p2x);
+        record
+    }
+
+    fn to_topology(self, places: usize, transitions: usize) -> Option<(usize, usize, bool, bool)> {
+        if self.marker != 0 && self.marker != 1 {
+            return None;
+        }
+        if self.direction != -1 && self.direction != 1 {
+            return None;
+        }
+        if self.source_raw < 1 || self.target_raw < 1 {
+            return None;
+        }
+        let (place_idx, transition_idx, place_to_transition) = if self.direction == -1 {
+            if self.source_raw > places as i32 || self.target_raw > transitions as i32 {
+                return None;
+            }
+            ((self.source_raw - 1) as usize, (self.target_raw - 1) as usize, true)
+        } else {
+            if self.source_raw > transitions as i32 || self.target_raw > places as i32 {
+                return None;
+            }
+            ((self.target_raw - 1) as usize, (self.source_raw - 1) as usize, false)
+        };
+        Some((place_idx, transition_idx, place_to_transition, self.marker == 0))
+    }
+}
 fn parse_arcs_from_section(
     bytes: &[u8],
     places: usize,
@@ -783,40 +842,13 @@ fn parse_arcs_from_section(
     }
     let max_records = (bytes.len().saturating_sub(section_start)) / ARC_RECORD_SIZE;
     arc_count = arc_count.min(max_records);
-
     let mut counts = HashMap::<(usize, usize, bool, bool), u32>::new();
-    let parse_one = |off: usize| -> Option<(usize, usize, bool, bool)> {
-        let marker = read_i32(bytes, off + 24)?;
-        if marker != 0 && marker != 1 {
-            return None;
-        }
-        let direction = read_i32(bytes, off + 28)?;
-        if direction != -1 && direction != 1 {
-            return None;
-        }
-        let source_raw = read_i32(bytes, off + 32)?;
-        let target_raw = read_i32(bytes, off + 36)?;
-        if source_raw < 1 || target_raw < 1 {
-            return None;
-        }
-        let (place_idx, transition_idx, place_to_transition) = if direction == -1 {
-            if source_raw > places as i32 || target_raw > transitions as i32 {
-                return None;
-            }
-            ((source_raw - 1) as usize, (target_raw - 1) as usize, true)
-        } else {
-            if source_raw > transitions as i32 || target_raw > places as i32 {
-                return None;
-            }
-            ((target_raw - 1) as usize, (source_raw - 1) as usize, false)
-        };
-        Some((place_idx, transition_idx, place_to_transition, marker == 0))
-    };
 
     let mut parsed_records = 0usize;
     for index in 0..arc_count {
         let off = section_start + index * ARC_RECORD_SIZE;
-        if let Some((place_idx, transition_idx, place_to_transition, inhibitor)) = parse_one(off) {
+        let Some(bin) = LegacyArcBinaryRecord::decode(bytes, off) else { continue; };
+        if let Some((place_idx, transition_idx, place_to_transition, inhibitor)) = bin.to_topology(places, transitions) {
             *counts
                 .entry((place_idx, transition_idx, place_to_transition, inhibitor))
                 .or_insert(0) += 1;
@@ -1323,17 +1355,6 @@ fn map_color_to_legacy(color: NodeColor) -> i32 {
     }
 }
 
-fn force_netstar_sim_limits_in_tail(tail: &mut [u8]) {
-    const LEGACY_FOOTER_SIZE: usize = 52;
-    if tail.len() < LEGACY_FOOTER_SIZE {
-        return;
-    }
-    let footer_start = tail.len() - LEGACY_FOOTER_SIZE;
-    let footer = &mut tail[footer_start..];
-    footer[0..4].copy_from_slice(&1000i32.to_le_bytes());
-    footer[16..20].copy_from_slice(&1000i32.to_le_bytes());
-}
-
 fn legacy_footer_template() -> &'static [u8] {
     &[
         // NetStar simulation defaults: time limit = 1000, pass limit = 1000.
@@ -1393,57 +1414,6 @@ fn decode_legacy_cp1251(raw: &[u8]) -> String {
             _ => '\u{FFFD}',
         })
         .collect()
-}
-
-fn arc_topology_fingerprint(model: &PetriNetModel) -> u64 {
-    use std::collections::hash_map::DefaultHasher;
-    use std::hash::{Hash, Hasher};
-
-    let place_idx: HashMap<u64, usize> = model
-        .places
-        .iter()
-        .enumerate()
-        .map(|(idx, place)| (place.id, idx + 1))
-        .collect();
-    let transition_idx: HashMap<u64, usize> = model
-        .transitions
-        .iter()
-        .enumerate()
-        .map(|(idx, transition)| (transition.id, idx + 1))
-        .collect();
-
-    let mut edges = Vec::<(u8, i8, usize, usize, u32)>::new();
-    for arc in &model.arcs {
-        match (arc.from, arc.to) {
-            (NodeRef::Place(place_id), NodeRef::Transition(transition_id)) => {
-                if let (Some(&p), Some(&t)) = (place_idx.get(&place_id), transition_idx.get(&transition_id)) {
-                    edges.push((0, -1, p, t, arc.weight.max(1)));
-                }
-            }
-            (NodeRef::Transition(transition_id), NodeRef::Place(place_id)) => {
-                if let (Some(&t), Some(&p)) = (transition_idx.get(&transition_id), place_idx.get(&place_id)) {
-                    edges.push((0, 1, t, p, arc.weight.max(1)));
-                }
-            }
-            _ => {}
-        }
-    }
-    for inh in &model.inhibitor_arcs {
-        if let (Some(&p), Some(&t)) = (place_idx.get(&inh.place_id), transition_idx.get(&inh.transition_id)) {
-            edges.push((1, -1, p, t, inh.threshold.max(1)));
-        }
-    }
-    edges.sort_unstable();
-
-    let mut hasher = DefaultHasher::new();
-    places_count_hash(model, &mut hasher);
-    edges.hash(&mut hasher);
-    hasher.finish()
-}
-
-fn places_count_hash(model: &PetriNetModel, hasher: &mut impl std::hash::Hasher) {
-    hasher.write_u64(model.places.len() as u64);
-    hasher.write_u64(model.transitions.len() as u64);
 }
 
 fn encode_legacy_cp1251(s: &str) -> Vec<u8> {
@@ -1658,4 +1628,5 @@ fn detect_section_boundaries(bytes: &[u8]) -> Vec<String> {
     }
     sections
 }
+
 

@@ -439,47 +439,48 @@ fn arc_topology_fingerprint(model: &PetriNetModel) -> u64 {
 }
 
 #[test]
-fn legacy_export_with_hints_preserves_original_arc_blob_for_set3() {
-    let path = Path::new("РЎРµС‚СЊ 3.gpn");
-    if !path.exists() {
-        return;
-    }
-
-    let src_bytes = std::fs::read(path).expect("read source set3");
-    assert!(src_bytes.len() > 16, "set3 must not be empty");
-
-    let imported = import_legacy_gpn(path).expect("legacy import must succeed");
+fn legacy_export_with_hints_writes_native_arc_section_for_set3() {
+    let path = legacy_fixture_path();
+    let imported = import_legacy_gpn(Path::new(&path)).expect("legacy import must succeed");
     let places = imported.model.places.len();
     let transitions = imported.model.transitions.len();
-    let arcs_off = 16usize + places * 231 + transitions * 105;
-    assert!(arcs_off < src_bytes.len(), "arcs section must exist");
-    let raw_arc_and_tail = src_bytes[arcs_off..].to_vec();
 
+    let fake_tail = vec![0xAAu8; 512];
     let hints = LegacyExportHints {
         places_count: Some(places),
         transitions_count: Some(transitions),
         arc_topology_fingerprint: Some(arc_topology_fingerprint(&imported.model)),
-        arc_header_extra: None,
-        footer_bytes: None,
-        raw_arc_and_tail: Some(raw_arc_and_tail.clone()),
+        arc_header_extra: Some(123),
+        footer_bytes: Some(fake_tail.clone()),
+        raw_arc_and_tail: Some(fake_tail),
     };
 
     let dir = tempfile::tempdir().expect("tempdir");
-    let out = dir.path().join("set3_hinted.gpn");
+    let out = dir.path().join("set3_hinted_native.gpn");
     export_legacy_gpn_with_hints(&out, &imported.model, Some(&hints))
         .expect("legacy export with hints must succeed");
     let out_bytes = std::fs::read(&out).expect("read saved file");
 
     let out_arcs_off = 16usize + places * 231 + transitions * 105;
-    assert!(out_arcs_off < out_bytes.len(), "output arcs section must exist");
-    let out_tail = &out_bytes[out_arcs_off..];
-    assert_eq!(out_tail.len(), raw_arc_and_tail.len());
-    if raw_arc_and_tail.len() >= 52 {
-        let prefix_len = raw_arc_and_tail.len() - 52;
-        assert_eq!(&out_tail[..prefix_len], &raw_arc_and_tail[..prefix_len]);
-        assert_eq!(&out_tail[prefix_len..prefix_len + 4], &[0xE8, 0x03, 0x00, 0x00]);
-        assert_eq!(&out_tail[prefix_len + 16..prefix_len + 20], &[0xE8, 0x03, 0x00, 0x00]);
-    } else {
-        assert_eq!(out_tail, raw_arc_and_tail.as_slice(), "short raw arc blob must be preserved");
-    }
+    assert!(out_arcs_off + 6 <= out_bytes.len(), "output arcs section must exist");
+    let out_arc_extra = u16::from_le_bytes([out_bytes[out_arcs_off + 4], out_bytes[out_arcs_off + 5]]);
+    assert_eq!(out_arc_extra, 0, "native exporter must not copy arc header extra from hints");
+
+    let out_arc_max = i32::from_le_bytes([
+        out_bytes[out_arcs_off],
+        out_bytes[out_arcs_off + 1],
+        out_bytes[out_arcs_off + 2],
+        out_bytes[out_arcs_off + 3],
+    ]);
+    let out_arc_count = (out_arc_max + 1).max(0) as usize;
+    let out_section_end = out_arcs_off + 6 + out_arc_count * 46;
+    assert!(out_section_end <= out_bytes.len(), "output arc section must fit file");
+    let footer = &out_bytes[out_section_end..];
+    assert_eq!(footer.len(), 52, "native exporter must write canonical footer");
+    assert_eq!(&footer[0..4], &[0xE8, 0x03, 0x00, 0x00]);
+    assert_eq!(&footer[16..20], &[0xE8, 0x03, 0x00, 0x00]);
+
+    let reloaded = import_legacy_gpn(&out).expect("reimport must succeed");
+    assert_eq!(reloaded.model.arcs.len(), imported.model.arcs.len());
+    assert_eq!(reloaded.model.inhibitor_arcs.len(), imported.model.inhibitor_arcs.len());
 }
