@@ -54,7 +54,6 @@ Copy-Item $releaseExe $outputExePath -Force
 Write-Host "Executable ready: $outputExePath"
 
 # Keep only the newest versioned executable in the project dir.
-# This avoids accumulating multiple PetriNet-<version>.exe files over time.
 $outputExeFull = $null
 try {
     $outputExeFull = (Resolve-Path -LiteralPath $outputExePath).Path
@@ -68,6 +67,16 @@ Get-ChildItem -Path $ProjectDir -Filter "PetriNet-*.exe" -File -ErrorAction Sile
         } catch {
             Write-Warning "Failed to remove old exe: $($_.FullName). Close any running old version and rebuild."
         }
+    }
+}
+
+# If a stable PetriNet.exe exists from an older workflow, remove it.
+$stableExe = Join-Path $ProjectDir "PetriNet.exe"
+if (Test-Path $stableExe) {
+    try {
+        Remove-Item -LiteralPath $stableExe -Force -ErrorAction Stop
+    } catch {
+        Write-Warning "Failed to remove old exe: $stableExe. Close any running old version and rebuild."
     }
 }
 

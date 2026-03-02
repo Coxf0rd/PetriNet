@@ -20,11 +20,11 @@ fn app_icon() -> egui::IconData {
                 dx * dx + dy * dy <= (size as f32 * 0.42).powi(2)
             };
             let (r, g, b, a) = if border {
-                (18, 18, 18, 255)
+                (240, 240, 240, 255)
             } else if in_circle {
-                (52, 120, 220, 255)
+                (255, 140, 0, 255)
             } else {
-                (245, 245, 245, 255)
+                (28, 28, 28, 255)
             };
             rgba[idx] = r;
             rgba[idx + 1] = g;
