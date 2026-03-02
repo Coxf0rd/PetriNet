@@ -383,9 +383,8 @@ fn legacy_export_has_stable_arc_polyline_points() {
 
     let footer = &bytes[section_end..];
     assert_eq!(footer.len(), 52, "legacy footer must match NetStar-compatible size");
-    assert_eq!(footer[0], 0x58);
-    assert_eq!(footer[1], 0x81);
-    assert_eq!(footer[2], 0x40);
+    assert_eq!(&footer[0..4], &[0xE8, 0x03, 0x00, 0x00]);
+    assert_eq!(&footer[16..20], &[0xE8, 0x03, 0x00, 0x00]);
 }
 
 fn arc_topology_fingerprint(model: &PetriNetModel) -> u64 {
