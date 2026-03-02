@@ -40,6 +40,9 @@ struct CanvasState {
     selection_rect: Option<Rect>,
     drag_prev_world: Option<[f32; 2]>,
     move_drag_active: bool,
+    frame_draw_start_world: Option<[f32; 2]>,
+    frame_draw_current_world: Option<[f32; 2]>,
+    frame_resize_id: Option<u64>,
     cursor_valid: bool,
 }
 
@@ -61,6 +64,9 @@ impl Default for CanvasState {
             selection_rect: None,
             drag_prev_world: None,
             move_drag_active: false,
+            frame_draw_start_world: None,
+            frame_draw_current_world: None,
+            frame_resize_id: None,
             cursor_valid: false,
         }
     }
@@ -197,6 +203,8 @@ impl PetriApp {
     const GRID_STEP_FREE: f32 = 25.0;
     const CLIPBOARD_PREFIX: &'static str = "PETRINET_COPY_V1:";
     const FRAME_DEFAULT_SIDE: f32 = 120.0;
+    const FRAME_MIN_SIDE: f32 = 10.0;
+    const FRAME_RESIZE_HANDLE_PX: f32 = 10.0;
 
     fn grid_step_world(&self) -> f32 {
         if self.net.ui.snap_to_grid {
@@ -890,18 +898,35 @@ impl PetriApp {
         self.decorative_frames.iter().position(|item| item.id == id)
     }
 
-    fn frame_at(&self, rect: Rect, pos: Pos2) -> Option<u64> {
+        fn frame_at(&self, rect: Rect, pos: Pos2) -> Option<u64> {
         self.decorative_frames
             .iter()
             .rev()
             .find(|frame| {
                 let min = self.world_to_screen(rect, frame.pos);
-                let size = Vec2::splat(frame.side.max(10.0)) * self.canvas.zoom;
+                let size = Vec2::splat(frame.side.max(Self::FRAME_MIN_SIDE)) * self.canvas.zoom;
                 let r = Rect::from_min_size(min, size);
                 let tolerance = (6.0 * self.canvas.zoom).max(4.0);
                 r.expand(tolerance).contains(pos) && !r.shrink(tolerance).contains(pos)
             })
             .map(|frame| frame.id)
+    }
+
+    fn frame_from_drag(start: [f32; 2], current: [f32; 2]) -> ([f32; 2], f32) {
+        let dx = current[0] - start[0];
+        let dy = current[1] - start[1];
+        let side = dx.abs().max(dy.abs());
+        let x = if dx >= 0.0 { start[0] } else { start[0] - side };
+        let y = if dy >= 0.0 { start[1] } else { start[1] - side };
+        ([x, y], side)
+    }
+
+    fn frame_resize_handle_rect(&self, rect: Rect, frame: &CanvasFrame) -> Rect {
+        let min = self.world_to_screen(rect, frame.pos);
+        let side = frame.side.max(Self::FRAME_MIN_SIDE) * self.canvas.zoom;
+        let handle = Self::FRAME_RESIZE_HANDLE_PX;
+        let center = Pos2::new(min.x + side, min.y + side);
+        Rect::from_center_size(center, Vec2::splat(handle))
     }
 
     fn clear_selection(&mut self) {
@@ -912,6 +937,9 @@ impl PetriApp {
         self.canvas.selected_arc = None;
         self.canvas.selected_text = None;
         self.canvas.selected_frame = None;
+        self.canvas.frame_draw_start_world = None;
+        self.canvas.frame_draw_current_world = None;
+        self.canvas.frame_resize_id = None;
     }
 
     fn push_undo_snapshot(&mut self) {
@@ -1679,18 +1707,7 @@ impl PetriApp {
                         self.clear_selection();
                         self.canvas.selected_text = Some(id);
                     }
-                    Tool::Frame => {
-                        self.push_undo_snapshot();
-                        let id = self.next_frame_id;
-                        self.next_frame_id = self.next_frame_id.saturating_add(1);
-                        self.decorative_frames.push(CanvasFrame {
-                            id,
-                            pos: snapped,
-                            side: Self::FRAME_DEFAULT_SIDE,
-                        });
-                        self.clear_selection();
-                        self.canvas.selected_frame = Some(id);
-                    }
+                    Tool::Frame => {}
                     Tool::Delete => {
                         if let Some(node) = self.node_at(rect, click) {
                             self.push_undo_snapshot();
@@ -1762,59 +1779,126 @@ impl PetriApp {
             }
         }
 
+        if response.drag_started_by(egui::PointerButton::Primary) && self.tool == Tool::Frame {
+            if let Some(pointer) = response.interact_pointer_pos() {
+                self.clear_selection();
+                let start = self.snapped_world(self.screen_to_world(rect, pointer));
+                self.canvas.frame_draw_start_world = Some(start);
+                self.canvas.frame_draw_current_world = Some(start);
+            }
+        }
+
+        if self.tool == Tool::Frame && response.dragged_by(egui::PointerButton::Primary) {
+            if let Some(pointer) = response.interact_pointer_pos() {
+                self.canvas.frame_draw_current_world = Some(self.snapped_world(self.screen_to_world(rect, pointer)));
+            }
+        }
+
+        if self.tool == Tool::Frame && response.drag_stopped() {
+            if let (Some(start), Some(current)) = (
+                self.canvas.frame_draw_start_world.take(),
+                self.canvas.frame_draw_current_world.take(),
+            ) {
+                let (mut pos, mut side) = Self::frame_from_drag(start, current);
+                if side >= 1.0 {
+                    if self.net.ui.snap_to_grid {
+                        pos = self.snap_point_to_grid(pos);
+                        side = self.snap_scalar_to_grid(side);
+                    }
+                    side = side.max(Self::FRAME_MIN_SIDE);
+                    self.push_undo_snapshot();
+                    let id = self.next_frame_id;
+                    self.next_frame_id = self.next_frame_id.saturating_add(1);
+                    self.decorative_frames.push(CanvasFrame { id, pos, side });
+                    self.clear_selection();
+                    self.canvas.selected_frame = Some(id);
+                }
+            }
+        }
+
         if response.drag_started_by(egui::PointerButton::Primary) && self.tool == Tool::Edit {
             if let Some(pointer) = response.interact_pointer_pos() {
-                if let Some(node) = self.node_at(rect, pointer) {
-                    let is_selected = match node {
-                        NodeRef::Place(p) => {
-                            self.canvas.selected_place == Some(p) || self.canvas.selected_places.contains(&p)
+                let mut handled_resize = false;
+                if let Some(frame_id) = self.canvas.selected_frame {
+                    if let Some(idx) = self.frame_idx_by_id(frame_id) {
+                        let handle = self.frame_resize_handle_rect(rect, &self.decorative_frames[idx]);
+                        if handle.expand(4.0).contains(pointer) {
+                            self.push_undo_snapshot();
+                            self.canvas.frame_resize_id = Some(frame_id);
+                            self.canvas.drag_prev_world = None;
+                            self.canvas.move_drag_active = false;
+                            self.canvas.selection_start = None;
+                            self.canvas.selection_rect = None;
+                            handled_resize = true;
                         }
-                        NodeRef::Transition(t) => {
-                            self.canvas.selected_transition == Some(t) || self.canvas.selected_transitions.contains(&t)
-                        }
-                    };
+                    }
+                }
 
-                    if is_selected {
+                if !handled_resize {
+                    if let Some(node) = self.node_at(rect, pointer) {
+                        let is_selected = match node {
+                            NodeRef::Place(p) => {
+                                self.canvas.selected_place == Some(p) || self.canvas.selected_places.contains(&p)
+                            }
+                            NodeRef::Transition(t) => {
+                                self.canvas.selected_transition == Some(t) || self.canvas.selected_transitions.contains(&t)
+                            }
+                        };
+
+                        if is_selected {
+                            self.push_undo_snapshot();
+                            self.canvas.drag_prev_world = Some(self.screen_to_world(rect, pointer));
+                            self.canvas.move_drag_active = true;
+                        } else {
+                            self.clear_selection();
+                            match node {
+                                NodeRef::Place(p) => self.canvas.selected_place = Some(p),
+                                NodeRef::Transition(t) => self.canvas.selected_transition = Some(t),
+                            }
+                            self.canvas.drag_prev_world = None;
+                            self.canvas.move_drag_active = false;
+                        }
+                    } else if let Some(text_id) = self.text_at(rect, pointer) {
+                        if self.canvas.selected_text != Some(text_id) {
+                            self.clear_selection();
+                            self.canvas.selected_text = Some(text_id);
+                        }
+                        self.push_undo_snapshot();
+                        self.canvas.drag_prev_world = Some(self.screen_to_world(rect, pointer));
+                        self.canvas.move_drag_active = true;
+                    } else if let Some(frame_id) = self.frame_at(rect, pointer) {
+                        if self.canvas.selected_frame != Some(frame_id) {
+                            self.clear_selection();
+                            self.canvas.selected_frame = Some(frame_id);
+                        }
                         self.push_undo_snapshot();
                         self.canvas.drag_prev_world = Some(self.screen_to_world(rect, pointer));
                         self.canvas.move_drag_active = true;
                     } else {
                         self.clear_selection();
-                        match node {
-                            NodeRef::Place(p) => self.canvas.selected_place = Some(p),
-                            NodeRef::Transition(t) => self.canvas.selected_transition = Some(t),
-                        }
+                        self.canvas.selection_start = Some(pointer);
+                        self.canvas.selection_rect = Some(Rect::from_two_pos(pointer, pointer));
                         self.canvas.drag_prev_world = None;
                         self.canvas.move_drag_active = false;
                     }
-                } else if let Some(text_id) = self.text_at(rect, pointer) {
-                    if self.canvas.selected_text != Some(text_id) {
-                        self.clear_selection();
-                        self.canvas.selected_text = Some(text_id);
-                    }
-                    self.push_undo_snapshot();
-                    self.canvas.drag_prev_world = Some(self.screen_to_world(rect, pointer));
-                    self.canvas.move_drag_active = true;
-                } else if let Some(frame_id) = self.frame_at(rect, pointer) {
-                    if self.canvas.selected_frame != Some(frame_id) {
-                        self.clear_selection();
-                        self.canvas.selected_frame = Some(frame_id);
-                    }
-                    self.push_undo_snapshot();
-                    self.canvas.drag_prev_world = Some(self.screen_to_world(rect, pointer));
-                    self.canvas.move_drag_active = true;
-                } else {
-                    self.clear_selection();
-                    self.canvas.selection_start = Some(pointer);
-                    self.canvas.selection_rect = Some(Rect::from_two_pos(pointer, pointer));
-                    self.canvas.drag_prev_world = None;
-                    self.canvas.move_drag_active = false;
                 }
             }
         }
 
         if self.tool == Tool::Edit && response.dragged_by(egui::PointerButton::Primary) {
-            if let Some(start) = self.canvas.selection_start {
+            if let Some(frame_id) = self.canvas.frame_resize_id {
+                if let Some(pointer) = response.interact_pointer_pos() {
+                    if let Some(idx) = self.frame_idx_by_id(frame_id) {
+                        let frame_pos = self.decorative_frames[idx].pos;
+                        let world = self.screen_to_world(rect, pointer);
+                        let mut side = (world[0] - frame_pos[0]).max(world[1] - frame_pos[1]);
+                        if self.net.ui.snap_to_grid {
+                            side = self.snap_scalar_to_grid(side);
+                        }
+                        self.decorative_frames[idx].side = side.max(Self::FRAME_MIN_SIDE);
+                    }
+                }
+            } else if let Some(start) = self.canvas.selection_start {
                 if let Some(pointer) = response.interact_pointer_pos() {
                     self.canvas.selection_rect = Some(Rect::from_two_pos(start, pointer));
                 }
@@ -1929,11 +2013,12 @@ impl PetriApp {
                 self.canvas.selected_place = None;
                 self.canvas.selected_transition = None;
                 self.canvas.selected_text = None;
-        self.canvas.selected_frame = None;
+                self.canvas.selected_frame = None;
             }
             self.canvas.selection_start = None;
             self.canvas.drag_prev_world = None;
             self.canvas.move_drag_active = false;
+            self.canvas.frame_resize_id = None;
         }
 
         if response.clicked_by(egui::PointerButton::Secondary) {
@@ -1975,7 +2060,7 @@ impl PetriApp {
 
         for frame in &self.decorative_frames {
             let min = self.world_to_screen(rect, frame.pos);
-            let size = Vec2::splat(frame.side.max(10.0)) * self.canvas.zoom;
+            let size = Vec2::splat(frame.side.max(Self::FRAME_MIN_SIDE)) * self.canvas.zoom;
             let r = Rect::from_min_size(min, size);
             let is_selected = self.canvas.selected_frame == Some(frame.id);
             painter.rect_stroke(
@@ -1990,6 +2075,11 @@ impl PetriApp {
                     },
                 ),
             );
+            if is_selected {
+                let handle = self.frame_resize_handle_rect(rect, frame);
+                painter.rect_filled(handle, 0.0, Color32::from_rgb(255, 140, 0));
+                painter.rect_stroke(handle, 0.0, Stroke::new(1.0, Color32::from_rgb(80, 40, 0)));
+            }
         }
         for arc in &self.net.arcs {
             let (from_center, from_radius, from_rect, to_center, to_radius, to_rect) = match (arc.from, arc.to) {
@@ -2222,9 +2312,32 @@ impl PetriApp {
                     );
                 }
                 Tool::Frame => {
-                    let s = Self::FRAME_DEFAULT_SIDE * self.canvas.zoom;
-                    let r = Rect::from_center_size(preview, Vec2::splat(s));
-                    painter.rect_stroke(r, 0.0, Stroke::new(2.0, Color32::from_rgb(60, 120, 220)));
+                    if let (Some(start), Some(current)) = (
+                        self.canvas.frame_draw_start_world,
+                        self.canvas.frame_draw_current_world,
+                    ) {
+                        let (pos, side) = Self::frame_from_drag(start, current);
+                        if side >= 1.0 {
+                            let min = self.world_to_screen(rect, pos);
+                            let r = Rect::from_min_size(
+                                min,
+                                Vec2::splat(side.max(Self::FRAME_MIN_SIDE) * self.canvas.zoom),
+                            );
+                            painter.rect_stroke(
+                                r,
+                                0.0,
+                                Stroke::new(2.0, Color32::from_rgb(60, 120, 220)),
+                            );
+                        }
+                    } else {
+                        let s = Self::FRAME_DEFAULT_SIDE * self.canvas.zoom;
+                        let r = Rect::from_min_size(preview, Vec2::splat(s));
+                        painter.rect_stroke(
+                            r,
+                            0.0,
+                            Stroke::new(2.0, Color32::from_rgb(60, 120, 220)),
+                        );
+                    }
                 }
                 Tool::Delete => {
                     let s = 8.0 * self.canvas.zoom;
