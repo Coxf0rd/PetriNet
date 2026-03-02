@@ -2591,13 +2591,6 @@ impl PetriApp {
                 ui.separator();
                 ui.label(t("Название", "Name"));
                 ui.text_edit_singleline(&mut self.net.places[place_idx].name);
-                ui.label(t("Текст/Описание", "Text/Description"));
-                if ui
-                    .text_edit_singleline(&mut self.net.places[place_idx].note)
-                    .changed()
-                {
-                    self.net.places[place_idx].name = self.net.places[place_idx].note.clone();
-                }
             });
         open
     }
@@ -2690,14 +2683,6 @@ impl PetriApp {
                 ui.separator();
                 ui.label(t("Название", "Name"));
                 ui.text_edit_singleline(&mut self.net.transitions[transition_idx].name);
-                ui.label(t("Текст/Описание", "Text/Description"));
-                if ui
-                    .text_edit_singleline(&mut self.net.transitions[transition_idx].note)
-                    .changed()
-                {
-                    self.net.transitions[transition_idx].name =
-                        self.net.transitions[transition_idx].note.clone();
-                }
             });
         open
     }
@@ -3094,6 +3079,7 @@ mod tests {
         assert_eq!(copied.places.len(), 1);
     }
 }
+
 
 
 
