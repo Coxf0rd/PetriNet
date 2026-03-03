@@ -41,16 +41,24 @@ impl PetriApp {
                     ..
                 } = e
                 {
-                    if modifiers.ctrl && (*key == egui::Key::C || *physical_key == Some(egui::Key::C)) {
+                    if modifiers.ctrl
+                        && (*key == egui::Key::C || *physical_key == Some(egui::Key::C))
+                    {
                         do_copy = true;
                     }
-                    if modifiers.ctrl && (*key == egui::Key::V || *physical_key == Some(egui::Key::V)) {
+                    if modifiers.ctrl
+                        && (*key == egui::Key::V || *physical_key == Some(egui::Key::V))
+                    {
                         do_paste = true;
                     }
-                    if modifiers.ctrl && (*key == egui::Key::Z || *physical_key == Some(egui::Key::Z)) {
+                    if modifiers.ctrl
+                        && (*key == egui::Key::Z || *physical_key == Some(egui::Key::Z))
+                    {
                         do_undo = true;
                     }
-                    if modifiers.ctrl && (*key == egui::Key::A || *physical_key == Some(egui::Key::A)) {
+                    if modifiers.ctrl
+                        && (*key == egui::Key::A || *physical_key == Some(egui::Key::A))
+                    {
                         do_select_all = true;
                     }
                     if *key == egui::Key::Escape || *physical_key == Some(egui::Key::Escape) {
@@ -83,7 +91,8 @@ impl PetriApp {
             do_paste = do_paste || i.consume_key(egui::Modifiers::CTRL, egui::Key::V);
             do_undo = do_undo || i.consume_key(egui::Modifiers::CTRL, egui::Key::Z);
             do_select_all = do_select_all || i.consume_key(egui::Modifiers::CTRL, egui::Key::A);
-            do_clear_selection = do_clear_selection || i.consume_key(egui::Modifiers::NONE, egui::Key::Escape);
+            do_clear_selection =
+                do_clear_selection || i.consume_key(egui::Modifiers::NONE, egui::Key::Escape);
         });
 
         if do_new {

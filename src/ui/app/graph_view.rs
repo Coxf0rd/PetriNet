@@ -2,7 +2,6 @@ use super::*;
 
 impl PetriApp {
     pub(super) fn draw_graph_view(&mut self, ui: &mut egui::Ui) {
-
         ui.heading("Граф");
         let desired = ui.available_size_before_wrap();
         let (rect, response) = ui.allocate_exact_size(desired, Sense::click_and_drag());
@@ -59,7 +58,9 @@ impl PetriApp {
         if response.hovered() {
             ui.output_mut(|o| {
                 o.cursor_icon = match self.tool {
-                    Tool::Place | Tool::Transition | Tool::Arc | Tool::Frame => egui::CursorIcon::Crosshair,
+                    Tool::Place | Tool::Transition | Tool::Arc | Tool::Frame => {
+                        egui::CursorIcon::Crosshair
+                    }
                     Tool::Text => egui::CursorIcon::Text,
                     Tool::Delete => egui::CursorIcon::NotAllowed,
                     Tool::Edit | Tool::Run => egui::CursorIcon::PointingHand,
@@ -98,11 +99,11 @@ impl PetriApp {
                         // Snap the top-left to the grid (not the center) so the rectangle aligns with the grid.
                         self.push_undo_snapshot();
                         let dims = Self::transition_dimensions(VisualSize::Medium);
-                        let tl = self.snapped_world([world[0] - dims.x * 0.5, world[1] - dims.y * 0.5]);
+                        let tl =
+                            self.snapped_world([world[0] - dims.x * 0.5, world[1] - dims.y * 0.5]);
                         self.net.add_transition(tl);
                     }
-                    Tool::Arc => {
-                    }
+                    Tool::Arc => {}
                     Tool::Text => {
                         self.push_undo_snapshot();
                         let id = self.next_text_id;
@@ -123,13 +124,19 @@ impl PetriApp {
                                 NodeRef::Place(p) => {
                                     if let Some(idx) = self.place_idx_by_id(p) {
                                         self.net.places.remove(idx);
-                                        self.net.set_counts(self.net.places.len(), self.net.transitions.len());
+                                        self.net.set_counts(
+                                            self.net.places.len(),
+                                            self.net.transitions.len(),
+                                        );
                                     }
                                 }
                                 NodeRef::Transition(t) => {
                                     if let Some(idx) = self.transition_idx_by_id(t) {
                                         self.net.transitions.remove(idx);
-                                        self.net.set_counts(self.net.places.len(), self.net.transitions.len());
+                                        self.net.set_counts(
+                                            self.net.places.len(),
+                                            self.net.transitions.len(),
+                                        );
                                     }
                                 }
                             }
@@ -153,10 +160,16 @@ impl PetriApp {
                             if let Some(n) = self.node_at(rect, click) {
                                 match n {
                                     NodeRef::Place(p) => {
-                                        Self::toggle_selected_id(&mut self.canvas.selected_places, p);
+                                        Self::toggle_selected_id(
+                                            &mut self.canvas.selected_places,
+                                            p,
+                                        );
                                     }
                                     NodeRef::Transition(t) => {
-                                        Self::toggle_selected_id(&mut self.canvas.selected_transitions, t);
+                                        Self::toggle_selected_id(
+                                            &mut self.canvas.selected_transitions,
+                                            t,
+                                        );
                                     }
                                 }
                                 self.canvas.selected_text = None;
@@ -186,14 +199,15 @@ impl PetriApp {
                             if let Some(n) = self.node_at(rect, click) {
                                 match n {
                                     NodeRef::Place(p) => self.canvas.selected_place = Some(p),
-                                    NodeRef::Transition(t) => self.canvas.selected_transition = Some(t),
+                                    NodeRef::Transition(t) => {
+                                        self.canvas.selected_transition = Some(t)
+                                    }
                                 }
                             } else if let Some(arc_id) = self.arc_at(rect, click) {
                                 self.canvas.selected_arc = Some(arc_id);
                                 self.canvas.selected_arcs.clear();
                                 self.canvas.selected_arcs.push(arc_id);
                             } else if let Some(text_id) = self.text_at(rect, click) {
-
                                 self.canvas.selected_text = Some(text_id);
                             } else if let Some(frame_id) = self.frame_at(rect, click) {
                                 self.canvas.selected_frame = Some(frame_id);
@@ -215,7 +229,10 @@ impl PetriApp {
         }
         if self.tool == Tool::Arc && response.drag_stopped() {
             if let Some(first) = self.canvas.arc_start.take() {
-                if let Some(pointer) = response.interact_pointer_pos().or_else(|| response.hover_pos()) {
+                if let Some(pointer) = response
+                    .interact_pointer_pos()
+                    .or_else(|| response.hover_pos())
+                {
                     if let Some(last) = self.node_at(rect, pointer) {
                         if first != last {
                             self.push_undo_snapshot();
@@ -237,7 +254,8 @@ impl PetriApp {
 
         if self.tool == Tool::Frame && response.dragged_by(egui::PointerButton::Primary) {
             if let Some(pointer) = response.interact_pointer_pos() {
-                self.canvas.frame_draw_current_world = Some(self.snapped_world(self.screen_to_world(rect, pointer)));
+                self.canvas.frame_draw_current_world =
+                    Some(self.snapped_world(self.screen_to_world(rect, pointer)));
             }
         }
 
@@ -275,7 +293,8 @@ impl PetriApp {
                 let mut handled_resize = false;
                 if let Some(frame_id) = self.canvas.selected_frame {
                     if let Some(idx) = self.frame_idx_by_id(frame_id) {
-                        let handle = self.frame_resize_handle_rect(rect, &self.decorative_frames[idx]);
+                        let handle =
+                            self.frame_resize_handle_rect(rect, &self.decorative_frames[idx]);
                         if handle.expand(4.0).contains(pointer) {
                             self.push_undo_snapshot();
                             self.canvas.frame_resize_id = Some(frame_id);
@@ -299,10 +318,12 @@ impl PetriApp {
                     } else if let Some(node) = self.node_at(rect, pointer) {
                         let is_selected = match node {
                             NodeRef::Place(p) => {
-                                self.canvas.selected_place == Some(p) || self.canvas.selected_places.contains(&p)
+                                self.canvas.selected_place == Some(p)
+                                    || self.canvas.selected_places.contains(&p)
                             }
                             NodeRef::Transition(t) => {
-                                self.canvas.selected_transition == Some(t) || self.canvas.selected_transitions.contains(&t)
+                                self.canvas.selected_transition == Some(t)
+                                    || self.canvas.selected_transitions.contains(&t)
                             }
                         };
 
@@ -374,16 +395,18 @@ impl PetriApp {
                         let dx = world[0] - prev[0];
                         let dy = world[1] - prev[1];
                         if dx.abs() > f32::EPSILON || dy.abs() > f32::EPSILON {
-                            let move_place_ids: Vec<u64> = if self.canvas.selected_places.is_empty() {
+                            let move_place_ids: Vec<u64> = if self.canvas.selected_places.is_empty()
+                            {
                                 self.canvas.selected_place.into_iter().collect()
                             } else {
                                 self.canvas.selected_places.clone()
                             };
-                            let move_transition_ids: Vec<u64> = if self.canvas.selected_transitions.is_empty() {
-                                self.canvas.selected_transition.into_iter().collect()
-                            } else {
-                                self.canvas.selected_transitions.clone()
-                            };
+                            let move_transition_ids: Vec<u64> =
+                                if self.canvas.selected_transitions.is_empty() {
+                                    self.canvas.selected_transition.into_iter().collect()
+                                } else {
+                                    self.canvas.selected_transitions.clone()
+                                };
 
                             for pid in move_place_ids {
                                 if let Some(idx) = self.place_idx_by_id(pid) {
@@ -450,8 +473,10 @@ impl PetriApp {
                 }
                 if let Some(frame_id) = self.canvas.selected_frame {
                     if let Some(idx) = self.frame_idx_by_id(frame_id) {
-                        self.decorative_frames[idx].pos[0] = snap(self.decorative_frames[idx].pos[0]);
-                        self.decorative_frames[idx].pos[1] = snap(self.decorative_frames[idx].pos[1]);
+                        self.decorative_frames[idx].pos[0] =
+                            snap(self.decorative_frames[idx].pos[0]);
+                        self.decorative_frames[idx].pos[1] =
+                            snap(self.decorative_frames[idx].pos[1]);
                     }
                 }
             }
@@ -470,7 +495,10 @@ impl PetriApp {
                     .iter()
                     .filter(|t| {
                         let pos = self.world_to_screen(rect, t.pos);
-                        let tr_rect = Rect::from_min_size(pos, Self::transition_dimensions(t.size) * self.canvas.zoom);
+                        let tr_rect = Rect::from_min_size(
+                            pos,
+                            Self::transition_dimensions(t.size) * self.canvas.zoom,
+                        );
                         norm.intersects(tr_rect)
                     })
                     .map(|t| t.id)
@@ -513,7 +541,10 @@ impl PetriApp {
                         Self::toggle_selected_id(&mut self.canvas.selected_places, place_id);
                     }
                     for transition_id in hit_transitions {
-                        Self::toggle_selected_id(&mut self.canvas.selected_transitions, transition_id);
+                        Self::toggle_selected_id(
+                            &mut self.canvas.selected_transitions,
+                            transition_id,
+                        );
                     }
                     for arc_id in hit_arcs {
                         Self::toggle_selected_id(&mut self.canvas.selected_arcs, arc_id);
@@ -567,11 +598,7 @@ impl PetriApp {
 
         if let Some(sel) = self.canvas.selection_rect {
             painter.rect_stroke(sel, 0.0, Stroke::new(1.0, Color32::from_rgb(70, 120, 210)));
-            painter.rect_filled(
-                sel,
-                0.0,
-                Color32::from_rgba_premultiplied(70, 120, 210, 25),
-            );
+            painter.rect_filled(sel, 0.0, Color32::from_rgba_premultiplied(70, 120, 210, 25));
         }
 
         for frame in &self.decorative_frames {
@@ -604,36 +631,69 @@ impl PetriApp {
             if !self.arc_visible_by_mode(arc.color, arc.visible) {
                 continue;
             }
-            let (from_center, from_radius, from_rect, to_center, to_radius, to_rect) = match (arc.from, arc.to) {
-                (NodeRef::Place(p), NodeRef::Transition(t)) => {
-                    if let (Some(pi), Some(ti)) = (self.place_idx_by_id(p), self.transition_idx_by_id(t)) {
-                        let p_center = self.world_to_screen(rect, self.net.places[pi].pos);
-                        let p_radius = Self::place_radius(self.net.places[pi].size) * self.canvas.zoom;
-                        let t_min = self.world_to_screen(rect, self.net.transitions[ti].pos);
-                        let t_rect = Rect::from_min_size(t_min, Self::transition_dimensions(self.net.transitions[ti].size) * self.canvas.zoom);
-                        (p_center, Some(p_radius), None, t_rect.center(), None, Some(t_rect))
-                    } else {
-                        continue;
+            let (from_center, from_radius, from_rect, to_center, to_radius, to_rect) =
+                match (arc.from, arc.to) {
+                    (NodeRef::Place(p), NodeRef::Transition(t)) => {
+                        if let (Some(pi), Some(ti)) =
+                            (self.place_idx_by_id(p), self.transition_idx_by_id(t))
+                        {
+                            let p_center = self.world_to_screen(rect, self.net.places[pi].pos);
+                            let p_radius =
+                                Self::place_radius(self.net.places[pi].size) * self.canvas.zoom;
+                            let t_min = self.world_to_screen(rect, self.net.transitions[ti].pos);
+                            let t_rect = Rect::from_min_size(
+                                t_min,
+                                Self::transition_dimensions(self.net.transitions[ti].size)
+                                    * self.canvas.zoom,
+                            );
+                            (
+                                p_center,
+                                Some(p_radius),
+                                None,
+                                t_rect.center(),
+                                None,
+                                Some(t_rect),
+                            )
+                        } else {
+                            continue;
+                        }
                     }
-                }
-                (NodeRef::Transition(t), NodeRef::Place(p)) => {
-                    if let (Some(pi), Some(ti)) = (self.place_idx_by_id(p), self.transition_idx_by_id(t)) {
-                        let t_min = self.world_to_screen(rect, self.net.transitions[ti].pos);
-                        let t_rect = Rect::from_min_size(t_min, Self::transition_dimensions(self.net.transitions[ti].size) * self.canvas.zoom);
-                        let p_center = self.world_to_screen(rect, self.net.places[pi].pos);
-                        let p_radius = Self::place_radius(self.net.places[pi].size) * self.canvas.zoom;
-                        (t_rect.center(), None, Some(t_rect), p_center, Some(p_radius), None)
-                    } else {
-                        continue;
+                    (NodeRef::Transition(t), NodeRef::Place(p)) => {
+                        if let (Some(pi), Some(ti)) =
+                            (self.place_idx_by_id(p), self.transition_idx_by_id(t))
+                        {
+                            let t_min = self.world_to_screen(rect, self.net.transitions[ti].pos);
+                            let t_rect = Rect::from_min_size(
+                                t_min,
+                                Self::transition_dimensions(self.net.transitions[ti].size)
+                                    * self.canvas.zoom,
+                            );
+                            let p_center = self.world_to_screen(rect, self.net.places[pi].pos);
+                            let p_radius =
+                                Self::place_radius(self.net.places[pi].size) * self.canvas.zoom;
+                            (
+                                t_rect.center(),
+                                None,
+                                Some(t_rect),
+                                p_center,
+                                Some(p_radius),
+                                None,
+                            )
+                        } else {
+                            continue;
+                        }
                     }
-                }
-                _ => continue,
-            };
+                    _ => continue,
+                };
 
             let mut from = from_center;
             let mut to = to_center;
             let delta = to_center - from_center;
-            let dir = if delta.length_sq() > 0.0 { delta.normalized() } else { Vec2::X };
+            let dir = if delta.length_sq() > 0.0 {
+                delta.normalized()
+            } else {
+                Vec2::X
+            };
 
             if let Some(radius) = from_radius {
                 from += dir * radius;
@@ -648,7 +708,9 @@ impl PetriApp {
             }
 
             let arc_color = Self::color_to_egui(arc.color, Color32::DARK_GRAY);
-            let arc_stroke = if self.canvas.selected_arc == Some(arc.id) || self.canvas.selected_arcs.contains(&arc.id) {
+            let arc_stroke = if self.canvas.selected_arc == Some(arc.id)
+                || self.canvas.selected_arcs.contains(&arc.id)
+            {
                 Stroke::new(3.0, Color32::from_rgb(255, 140, 0))
             } else {
                 Stroke::new(2.0, arc_color)
@@ -677,14 +739,23 @@ impl PetriApp {
                 let p_center = self.world_to_screen(rect, self.net.places[pi].pos);
                 let p_radius = Self::place_radius(self.net.places[pi].size) * self.canvas.zoom;
                 let t_min = self.world_to_screen(rect, self.net.transitions[ti].pos);
-                let t_rect = Rect::from_min_size(t_min, Self::transition_dimensions(self.net.transitions[ti].size) * self.canvas.zoom);
+                let t_rect = Rect::from_min_size(
+                    t_min,
+                    Self::transition_dimensions(self.net.transitions[ti].size) * self.canvas.zoom,
+                );
                 let t_center = t_rect.center();
                 let delta = t_center - p_center;
-                let dir = if delta.length_sq() > 0.0 { delta.normalized() } else { Vec2::X };
+                let dir = if delta.length_sq() > 0.0 {
+                    delta.normalized()
+                } else {
+                    Vec2::X
+                };
                 let from = p_center + dir * p_radius;
                 let to = Self::rect_border_point(t_rect, -dir);
                 let inh_color = Self::color_to_egui(inh.color, Color32::RED);
-                let inh_stroke = if self.canvas.selected_arc == Some(inh.id) || self.canvas.selected_arcs.contains(&inh.id) {
+                let inh_stroke = if self.canvas.selected_arc == Some(inh.id)
+                    || self.canvas.selected_arcs.contains(&inh.id)
+                {
                     Stroke::new(3.0, Color32::from_rgb(255, 140, 0))
                 } else {
                     Stroke::new(1.5, inh_color)
@@ -720,11 +791,19 @@ impl PetriApp {
             let center = self.world_to_screen(rect, place.pos);
             let radius = Self::place_radius(place.size) * self.canvas.zoom;
             let place_color = Self::color_to_egui(place.color, Color32::BLACK);
-            let is_selected = self.canvas.selected_place == Some(place.id) || self.canvas.selected_places.contains(&place.id);
+            let is_selected = self.canvas.selected_place == Some(place.id)
+                || self.canvas.selected_places.contains(&place.id);
             painter.circle_stroke(
                 center,
                 radius,
-                Stroke::new(if is_selected { 3.0 } else { 2.0 }, if is_selected { Color32::from_rgb(255, 140, 0) } else { place_color }),
+                Stroke::new(
+                    if is_selected { 3.0 } else { 2.0 },
+                    if is_selected {
+                        Color32::from_rgb(255, 140, 0)
+                    } else {
+                        place_color
+                    },
+                ),
             );
             let name_offset = Self::keep_label_inside(
                 rect,
@@ -755,7 +834,10 @@ impl PetriApp {
                 && self.show_debug
                 && debug_touched_places.contains(&place_idx)
             {
-                Self::color_to_egui(self.net.places[place_idx].color, Color32::from_rgb(200, 0, 0))
+                Self::color_to_egui(
+                    self.net.places[place_idx].color,
+                    Color32::from_rgb(200, 0, 0),
+                )
             } else {
                 Color32::from_rgb(200, 0, 0)
             };
@@ -763,9 +845,15 @@ impl PetriApp {
                 if tokens <= 4 {
                     let draw_tokens = tokens;
                     for i in 0..draw_tokens {
-                        let angle = (i as f32) * std::f32::consts::TAU / (draw_tokens.max(1) as f32);
-                        let dot_pos = center + Vec2::new(angle.cos(), angle.sin()) * (radius * 0.55);
-                        painter.circle_filled(dot_pos, 3.0 * self.canvas.zoom.clamp(0.7, 1.2), marker_color);
+                        let angle =
+                            (i as f32) * std::f32::consts::TAU / (draw_tokens.max(1) as f32);
+                        let dot_pos =
+                            center + Vec2::new(angle.cos(), angle.sin()) * (radius * 0.55);
+                        painter.circle_filled(
+                            dot_pos,
+                            3.0 * self.canvas.zoom.clamp(0.7, 1.2),
+                            marker_color,
+                        );
                     }
                 } else {
                     painter.text(
@@ -784,12 +872,19 @@ impl PetriApp {
             let dims = Self::transition_dimensions(tr.size) * self.canvas.zoom;
             let r = Rect::from_min_size(p, dims);
             let tr_color = Self::color_to_egui(tr.color, Color32::BLACK);
-            let is_selected =
-                self.canvas.selected_transition == Some(tr.id) || self.canvas.selected_transitions.contains(&tr.id);
+            let is_selected = self.canvas.selected_transition == Some(tr.id)
+                || self.canvas.selected_transitions.contains(&tr.id);
             painter.rect_stroke(
                 r,
                 0.0,
-                Stroke::new(if is_selected { 3.0 } else { 2.0 }, if is_selected { Color32::from_rgb(255, 140, 0) } else { tr_color }),
+                Stroke::new(
+                    if is_selected { 3.0 } else { 2.0 },
+                    if is_selected {
+                        Color32::from_rgb(255, 140, 0)
+                    } else {
+                        tr_color
+                    },
+                ),
             );
             painter.text(
                 r.center() + Self::label_offset(tr.label_position, self.canvas.zoom),
@@ -892,7 +987,12 @@ impl PetriApp {
                     NodeRef::Transition(tid) => {
                         if let Some(ti) = self.transition_idx_by_id(tid) {
                             let min = self.world_to_screen(rect, self.net.transitions[ti].pos);
-                            Rect::from_min_size(min, Self::transition_dimensions(self.net.transitions[ti].size) * self.canvas.zoom).center()
+                            Rect::from_min_size(
+                                min,
+                                Self::transition_dimensions(self.net.transitions[ti].size)
+                                    * self.canvas.zoom,
+                            )
+                            .center()
                         } else {
                             pointer
                         }
@@ -928,7 +1028,6 @@ impl PetriApp {
             }
         }
         if let Some(text_id) = self.canvas.selected_text {
-
             if let Some(idx) = self.text_idx_by_id(text_id) {
                 ui.separator();
                 ui.label("Выбранный текст");
@@ -939,7 +1038,7 @@ impl PetriApp {
             if let Some(idx) = self.frame_idx_by_id(frame_id) {
                 ui.separator();
                 ui.label("Выбранная рамка");
-                                ui.horizontal(|ui| {
+                ui.horizontal(|ui| {
                     ui.label("Ширина");
                     ui.add(
                         egui::DragValue::new(&mut self.decorative_frames[idx].width)
@@ -958,5 +1057,4 @@ impl PetriApp {
             }
         }
     }
-
 }

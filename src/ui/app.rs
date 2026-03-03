@@ -11,8 +11,11 @@ use egui::{Color32, Pos2, Rect, Sense, Stroke, Vec2};
 use serde::{Deserialize, Serialize};
 
 use crate::formats::atf::generate_atf;
-use crate::io::{LegacyExportHints, load_gpn, save_gpn_with_hints};
-use crate::model::{LabelPosition, Language, NodeColor, NodeRef, PetriNet, Place, PlaceStatisticsSelection, StochasticDistribution, Tool, Transition, UiDecorativeFrame, UiTextBlock, VisualSize};
+use crate::io::{load_gpn, save_gpn_with_hints, LegacyExportHints};
+use crate::model::{
+    LabelPosition, Language, NodeColor, NodeRef, PetriNet, Place, PlaceStatisticsSelection,
+    StochasticDistribution, Tool, Transition, UiDecorativeFrame, UiTextBlock, VisualSize,
+};
 use crate::sim::engine::{run_simulation, SimulationParams, SimulationResult};
 
 mod graph_view;
@@ -33,6 +36,26 @@ enum ArcDisplayMode {
     All,
     OnlyColor,
     Hidden,
+}
+
+#[derive(Debug, Clone, Default)]
+struct NetstarExportValidationReport {
+    errors: Vec<String>,
+    warnings: Vec<String>,
+}
+
+impl NetstarExportValidationReport {
+    fn error_count(&self) -> usize {
+        self.errors.len()
+    }
+
+    fn warning_count(&self) -> usize {
+        self.warnings.len()
+    }
+
+    fn is_clean(&self) -> bool {
+        self.errors.is_empty() && self.warnings.is_empty()
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -121,7 +144,8 @@ struct LegacyUiSidecar {
     next_text_id: u64,
     #[serde(default)]
     next_frame_id: u64,
-}#[derive(Debug, Clone, Serialize, Deserialize)]
+}
+#[derive(Debug, Clone, Serialize, Deserialize)]
 struct CopiedPlace {
     place: Place,
     m0: u32,
@@ -228,6 +252,9 @@ pub struct PetriApp {
     place_stats_view_place: usize,
     arc_display_mode: ArcDisplayMode,
     arc_display_color: NodeColor,
+    show_netstar_export_validation: bool,
+    pending_netstar_export_path: Option<PathBuf>,
+    netstar_export_validation: Option<NetstarExportValidationReport>,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -284,7 +311,10 @@ impl PetriApp {
     }
 
     fn snap_point_to_grid(&self, p: [f32; 2]) -> [f32; 2] {
-        [self.snap_scalar_to_grid(p[0]), self.snap_scalar_to_grid(p[1])]
+        [
+            self.snap_scalar_to_grid(p[0]),
+            self.snap_scalar_to_grid(p[1]),
+        ]
     }
 
     #[cfg(test)]
@@ -339,6 +369,9 @@ impl PetriApp {
             place_stats_view_place: 0,
             arc_display_mode: ArcDisplayMode::All,
             arc_display_color: NodeColor::Default,
+            show_netstar_export_validation: false,
+            pending_netstar_export_path: None,
+            netstar_export_validation: None,
         }
     }
 
@@ -384,21 +417,24 @@ impl PetriApp {
                 show_proof: false,
                 text_blocks: Vec::new(),
                 next_text_id: 1,
-            decorative_frames: Vec::new(),
-            next_frame_id: 1,
-            clipboard: None,
+                decorative_frames: Vec::new(),
+                next_frame_id: 1,
+                clipboard: None,
                 paste_serial: 0,
                 undo_stack: Vec::new(),
                 legacy_export_hints: None,
                 status_hint: None,
                 show_help_development: false,
                 show_help_controls: false,
-            place_stats_dialog_place_id: None,
-            place_stats_dialog_backup: None,
-            show_place_stats_window: false,
-            place_stats_view_place: 0,
-            arc_display_mode: ArcDisplayMode::All,
-            arc_display_color: NodeColor::Default,
+                place_stats_dialog_place_id: None,
+                place_stats_dialog_backup: None,
+                show_place_stats_window: false,
+                place_stats_view_place: 0,
+                arc_display_mode: ArcDisplayMode::All,
+                arc_display_color: NodeColor::Default,
+                show_netstar_export_validation: false,
+                pending_netstar_export_path: None,
+                netstar_export_validation: None,
             }
         }
     }
@@ -414,6 +450,9 @@ impl PetriApp {
         self.undo_stack.clear();
         self.legacy_export_hints = None;
         self.status_hint = None;
+        self.show_netstar_export_validation = false;
+        self.pending_netstar_export_path = None;
+        self.netstar_export_validation = None;
         self.canvas.cursor_valid = false;
     }
 
@@ -454,16 +493,22 @@ impl PetriApp {
             })
             .collect();
 
-        self.next_text_id = self
-            .net
-            .ui
-            .next_text_id
-            .max(self.text_blocks.iter().map(|t| t.id).max().unwrap_or(0).saturating_add(1));
-        self.next_frame_id = self
-            .net
-            .ui
-            .next_frame_id
-            .max(self.decorative_frames.iter().map(|f| f.id).max().unwrap_or(0).saturating_add(1));
+        self.next_text_id = self.net.ui.next_text_id.max(
+            self.text_blocks
+                .iter()
+                .map(|t| t.id)
+                .max()
+                .unwrap_or(0)
+                .saturating_add(1),
+        );
+        self.next_frame_id = self.net.ui.next_frame_id.max(
+            self.decorative_frames
+                .iter()
+                .map(|f| f.id)
+                .max()
+                .unwrap_or(0)
+                .saturating_add(1),
+        );
     }
 
     fn sync_model_overlays_from_canvas(&mut self) {
@@ -514,12 +559,22 @@ impl PetriApp {
                 height: frame.side.max(Self::FRAME_MIN_SIDE),
             })
             .collect();
-        self.next_text_id = sidecar
-            .next_text_id
-            .max(self.text_blocks.iter().map(|t| t.id).max().unwrap_or(0).saturating_add(1));
-        self.next_frame_id = sidecar
-            .next_frame_id
-            .max(self.decorative_frames.iter().map(|f| f.id).max().unwrap_or(0).saturating_add(1));
+        self.next_text_id = sidecar.next_text_id.max(
+            self.text_blocks
+                .iter()
+                .map(|t| t.id)
+                .max()
+                .unwrap_or(0)
+                .saturating_add(1),
+        );
+        self.next_frame_id = sidecar.next_frame_id.max(
+            self.decorative_frames
+                .iter()
+                .map(|f| f.id)
+                .max()
+                .unwrap_or(0)
+                .saturating_add(1),
+        );
 
         // Persist migrated overlays to GPN2 on next save.
         self.sync_model_overlays_from_canvas();
@@ -559,7 +614,10 @@ impl PetriApp {
             return None;
         }
         let footer_bytes = None;
-        let arc_header_extra = Some(u16::from_le_bytes([bytes[arcs_off + 4], bytes[arcs_off + 5]]));
+        let arc_header_extra = Some(u16::from_le_bytes([
+            bytes[arcs_off + 4],
+            bytes[arcs_off + 5],
+        ]));
         Some(LegacyExportHints {
             places_count: Some(p),
             transitions_count: Some(t),
@@ -635,7 +693,8 @@ impl PetriApp {
                         None
                     };
                     self.net = result.model;
-                    self.net.set_counts(self.net.places.len(), self.net.transitions.len());
+                    self.net
+                        .set_counts(self.net.places.len(), self.net.transitions.len());
                     self.file_path = Some(path.clone());
                     self.undo_stack.clear();
                     self.sync_canvas_overlays_from_model();
@@ -702,11 +761,404 @@ impl PetriApp {
             .set_file_name("экспорт_netstar.gpn")
             .save_file()
         {
-            if let Err(e) = save_gpn_with_hints(&path, &self.net, self.legacy_export_hints.as_ref()) {
-                self.last_error = Some(e.to_string());
-            }
+            self.start_netstar_export_validation(path);
         }
     }
+    fn duplicate_ids<I>(ids: I) -> Vec<u64>
+    where
+        I: IntoIterator<Item = u64>,
+    {
+        let mut counts: HashMap<u64, usize> = HashMap::new();
+        for id in ids {
+            *counts.entry(id).or_insert(0) += 1;
+        }
+        let mut duplicates: Vec<u64> = counts
+            .into_iter()
+            .filter_map(|(id, count)| (count > 1).then_some(id))
+            .collect();
+        duplicates.sort_unstable();
+        duplicates
+    }
+
+    fn start_netstar_export_validation(&mut self, path: PathBuf) {
+        self.sync_model_overlays_from_canvas();
+        self.pending_netstar_export_path = Some(path);
+        self.netstar_export_validation = Some(self.validate_netstar_export());
+        self.show_netstar_export_validation = true;
+    }
+
+    fn clear_netstar_export_validation(&mut self) {
+        self.show_netstar_export_validation = false;
+        self.pending_netstar_export_path = None;
+        self.netstar_export_validation = None;
+    }
+
+    fn validate_netstar_export(&self) -> NetstarExportValidationReport {
+        let mut report = NetstarExportValidationReport::default();
+
+        let place_ids: HashSet<u64> = self.net.places.iter().map(|p| p.id).collect();
+        let transition_ids: HashSet<u64> = self.net.transitions.iter().map(|t| t.id).collect();
+
+        if self.net.tables.m0.len() != self.net.places.len()
+            || self.net.tables.mo.len() != self.net.places.len()
+            || self.net.tables.mz.len() != self.net.places.len()
+        {
+            report.errors.push(
+                self.tr(
+                    "Таблицы M0/Mo/Mz имеют неверный размер относительно числа мест.",
+                    "M0/Mo/Mz table sizes do not match the places count.",
+                )
+                .to_string(),
+            );
+        }
+        if self.net.tables.mpr.len() != self.net.transitions.len() {
+            report.errors.push(
+                self.tr(
+                    "Таблица приоритетов переходов (Mpr) имеет неверный размер.",
+                    "Mpr table size does not match the transitions count.",
+                )
+                .to_string(),
+            );
+        }
+        for (name, matrix) in [
+            ("Pre", &self.net.tables.pre),
+            ("Post", &self.net.tables.post),
+            ("Inhibitor", &self.net.tables.inhibitor),
+        ] {
+            if matrix.len() != self.net.places.len() {
+                report.errors.push(format!(
+                    "{}: {}",
+                    self.tr(
+                        "Некорректное число строк в матрице",
+                        "Invalid matrix row count"
+                    ),
+                    name
+                ));
+                continue;
+            }
+            if matrix
+                .iter()
+                .any(|row| row.len() != self.net.transitions.len())
+            {
+                report.errors.push(format!(
+                    "{}: {}",
+                    self.tr(
+                        "Некорректное число столбцов в матрице",
+                        "Invalid matrix column count"
+                    ),
+                    name
+                ));
+            }
+        }
+
+        for id in Self::duplicate_ids(self.net.places.iter().map(|p| p.id)) {
+            report.errors.push(format!(
+                "{} P{}",
+                self.tr("Дубликат ID места:", "Duplicate place ID:"),
+                id
+            ));
+        }
+        for id in Self::duplicate_ids(self.net.transitions.iter().map(|t| t.id)) {
+            report.errors.push(format!(
+                "{} T{}",
+                self.tr("Дубликат ID перехода:", "Duplicate transition ID:"),
+                id
+            ));
+        }
+        let mut arc_like_ids: Vec<u64> = self.net.arcs.iter().map(|a| a.id).collect();
+        arc_like_ids.extend(self.net.inhibitor_arcs.iter().map(|a| a.id));
+        for id in Self::duplicate_ids(arc_like_ids) {
+            report.errors.push(format!(
+                "{} A{}",
+                self.tr("Дубликат ID дуги:", "Duplicate arc ID:"),
+                id
+            ));
+        }
+
+        for arc in &self.net.arcs {
+            if arc.weight == 0 {
+                report.errors.push(format!(
+                    "{} A{}",
+                    self.tr(
+                        "Вес дуги должен быть больше 0:",
+                        "Arc weight must be greater than 0:"
+                    ),
+                    arc.id
+                ));
+            }
+            if arc.weight > 1024 {
+                report.warnings.push(format!(
+                    "{} A{} ({} -> 1024)",
+                    self.tr(
+                        "Вес дуги будет ограничен при экспорте:",
+                        "Arc weight will be clamped during export:"
+                    ),
+                    arc.id,
+                    arc.weight
+                ));
+            }
+            match (arc.from, arc.to) {
+                (NodeRef::Place(place_id), NodeRef::Transition(transition_id))
+                | (NodeRef::Transition(transition_id), NodeRef::Place(place_id)) => {
+                    if !place_ids.contains(&place_id) || !transition_ids.contains(&transition_id) {
+                        report.errors.push(format!(
+                            "{} A{}",
+                            self.tr(
+                                "Дуга ссылается на несуществующее место/переход:",
+                                "Arc references a missing place/transition:"
+                            ),
+                            arc.id
+                        ));
+                    }
+                }
+                _ => {
+                    report.errors.push(format!(
+                        "{} A{}",
+                        self.tr(
+                            "Дуга нарушает двудольность графа:",
+                            "Arc breaks graph bipartiteness:"
+                        ),
+                        arc.id
+                    ));
+                }
+            }
+        }
+
+        for inh in &self.net.inhibitor_arcs {
+            if inh.threshold == 0 {
+                report.errors.push(format!(
+                    "{} A{}",
+                    self.tr(
+                        "Порог ингибиторной дуги должен быть больше 0:",
+                        "Inhibitor threshold must be greater than 0:"
+                    ),
+                    inh.id
+                ));
+            }
+            if inh.threshold > 1024 {
+                report.warnings.push(format!(
+                    "{} A{} ({} -> 1024)",
+                    self.tr(
+                        "Порог ингибиторной дуги будет ограничен при экспорте:",
+                        "Inhibitor threshold will be clamped during export:"
+                    ),
+                    inh.id,
+                    inh.threshold
+                ));
+            }
+            if !place_ids.contains(&inh.place_id) || !transition_ids.contains(&inh.transition_id) {
+                report.errors.push(format!(
+                    "{} A{}",
+                    self.tr(
+                        "Ингибиторная дуга ссылается на несуществующее место/переход:",
+                        "Inhibitor arc references a missing place/transition:"
+                    ),
+                    inh.id
+                ));
+            }
+        }
+
+        for (idx, place) in self.net.places.iter().enumerate() {
+            let m0 = self.net.tables.m0.get(idx).copied().unwrap_or(0);
+            let mo = self.net.tables.mo.get(idx).copied().flatten();
+            let mz = self.net.tables.mz.get(idx).copied().unwrap_or(0.0);
+
+            if !place.pos[0].is_finite() || !place.pos[1].is_finite() {
+                report.errors.push(format!(
+                    "{} P{}",
+                    self.tr(
+                        "Некорректные координаты места:",
+                        "Invalid place coordinates:"
+                    ),
+                    idx + 1
+                ));
+            } else if place.pos[0] < 0.0
+                || place.pos[1] < 0.0
+                || place.pos[0] > 65535.0
+                || place.pos[1] > 65535.0
+            {
+                report.warnings.push(format!(
+                    "{} P{}",
+                    self.tr(
+                        "Координаты места могут выйти за диапазон legacy-формата:",
+                        "Place coordinates may exceed legacy format limits:"
+                    ),
+                    idx + 1
+                ));
+            }
+
+            if let Some(cap) = mo {
+                if cap > 1_000_000 {
+                    report.warnings.push(format!(
+                        "{} P{} ({} -> 1000000)",
+                        self.tr(
+                            "Максимальная емкость места будет ограничена при экспорте:",
+                            "Place capacity will be clamped during export:"
+                        ),
+                        idx + 1,
+                        cap
+                    ));
+                }
+            } else {
+                report.warnings.push(format!(
+                    "{} P{}",
+                    self.tr(
+                        "Безлимитная емкость места не поддерживается, будет заменена на 1:",
+                        "Unlimited place capacity is not supported and will be replaced with 1:"
+                    ),
+                    idx + 1
+                ));
+            }
+
+            let cap_for_export = mo.unwrap_or(1).clamp(1, 1_000_000);
+            if m0 > cap_for_export || m0 > 1_000_000 {
+                report.warnings.push(format!(
+                    "{} P{}",
+                    self.tr(
+                        "Число маркеров места будет ограничено при экспорте:",
+                        "Place markers count will be clamped during export:"
+                    ),
+                    idx + 1
+                ));
+            }
+
+            if !mz.is_finite() {
+                report.errors.push(format!(
+                    "{} P{}",
+                    self.tr(
+                        "Задержка места имеет нечисловое значение:",
+                        "Place delay has a non-finite value:"
+                    ),
+                    idx + 1
+                ));
+            } else if !(0.0..=86_400.0).contains(&mz) {
+                report.warnings.push(format!(
+                    "{} P{} ({:.3})",
+                    self.tr(
+                        "Задержка места будет ограничена диапазоном [0; 86400]:",
+                        "Place delay will be clamped to [0; 86400]:"
+                    ),
+                    idx + 1,
+                    mz
+                ));
+            }
+        }
+
+        for (idx, transition) in self.net.transitions.iter().enumerate() {
+            let mpr = self.net.tables.mpr.get(idx).copied().unwrap_or(1);
+
+            if !transition.pos[0].is_finite() || !transition.pos[1].is_finite() {
+                report.errors.push(format!(
+                    "{} T{}",
+                    self.tr(
+                        "Некорректные координаты перехода:",
+                        "Invalid transition coordinates:"
+                    ),
+                    idx + 1
+                ));
+            } else if transition.pos[0] < 0.0
+                || transition.pos[1] < 0.0
+                || transition.pos[0] > 65535.0
+                || transition.pos[1] > 65535.0
+            {
+                report.warnings.push(format!(
+                    "{} T{}",
+                    self.tr(
+                        "Координаты перехода могут выйти за диапазон legacy-формата:",
+                        "Transition coordinates may exceed legacy format limits:"
+                    ),
+                    idx + 1
+                ));
+            }
+
+            if !(1..=1_000_000).contains(&mpr) {
+                report.warnings.push(format!(
+                    "{} T{} ({} -> диапазон 1..1000000)",
+                    self.tr(
+                        "Приоритет перехода будет ограничен при экспорте:",
+                        "Transition priority will be clamped during export:"
+                    ),
+                    idx + 1,
+                    mpr
+                ));
+            }
+
+            if transition.angle_deg < -360 || transition.angle_deg > 360 {
+                report.warnings.push(format!(
+                    "{} T{} ({} -> диапазон -360..360)",
+                    self.tr(
+                        "Угол перехода будет ограничен при экспорте:",
+                        "Transition angle will be clamped during export:"
+                    ),
+                    idx + 1,
+                    transition.angle_deg
+                ));
+            }
+        }
+
+        if !self.text_blocks.is_empty() {
+            report.warnings.push(format!(
+                "{} {}",
+                self.tr(
+                    "Текстовые блоки не поддерживаются NetStar и не будут экспортированы:",
+                    "Text blocks are not supported by NetStar and will not be exported:"
+                ),
+                self.text_blocks.len()
+            ));
+        }
+        if !self.decorative_frames.is_empty() {
+            report.warnings.push(format!(
+                "{} {}",
+                self.tr(
+                    "Декоративные рамки не поддерживаются NetStar и не будут экспортированы:",
+                    "Decorative frames are not supported by NetStar and will not be exported:"
+                ),
+                self.decorative_frames.len()
+            ));
+        }
+
+        let has_arc_style_data = self
+            .net
+            .arcs
+            .iter()
+            .any(|arc| arc.color != NodeColor::Default || !arc.visible)
+            || self
+                .net
+                .inhibitor_arcs
+                .iter()
+                .any(|arc| arc.color != NodeColor::Red || !arc.visible);
+        if has_arc_style_data {
+            report.warnings.push(
+                self.tr(
+                    "Цвет и скрытие дуг не экспортируются в NetStar.",
+                    "Arc color and visibility are not exported to NetStar.",
+                )
+                .to_string(),
+            );
+        }
+
+        report
+    }
+
+    fn confirm_netstar_export_from_validation(&mut self) {
+        let Some(path) = self.pending_netstar_export_path.clone() else {
+            self.clear_netstar_export_validation();
+            return;
+        };
+
+        self.sync_model_overlays_from_canvas();
+        if let Err(e) = save_gpn_with_hints(&path, &self.net, self.legacy_export_hints.as_ref()) {
+            self.last_error = Some(e.to_string());
+        } else {
+            self.last_error = None;
+            self.status_hint = Some(
+                self.tr("Экспорт в NetStar завершен", "NetStar export completed")
+                    .to_string(),
+            );
+        }
+        self.clear_netstar_export_validation();
+    }
+
     fn place_idx_by_id(&self, id: u64) -> Option<usize> {
         self.net.places.iter().position(|p| p.id == id)
     }
@@ -742,7 +1194,6 @@ impl PetriApp {
         }
         rest.parse::<usize>().ok()
     }
-
 
     fn assign_auto_name_for_place(&mut self, place_id: u64) {
         let mut ids: Vec<u64> = self.net.places.iter().map(|p| p.id).collect();
@@ -800,10 +1251,7 @@ impl PetriApp {
         let comma = first_line.matches(',').count();
         let delim = if semi >= comma { ';' } else { ',' };
 
-        let mut lines = text
-            .lines()
-            .map(|l| l.trim())
-            .filter(|l| !l.is_empty());
+        let mut lines = text.lines().map(|l| l.trim()).filter(|l| !l.is_empty());
         let Some(header) = lines.next() else {
             self.last_error = Some("CSV parse error: empty file".to_string());
             return;
@@ -850,7 +1298,8 @@ impl PetriApp {
                 let parsed: i64 = match raw_val.parse() {
                     Ok(v) => v,
                     Err(_) => {
-                        self.last_error = Some(format!("CSV parse error: invalid number '{raw_val}'"));
+                        self.last_error =
+                            Some(format!("CSV parse error: invalid number '{raw_val}'"));
                         return;
                     }
                 };
@@ -861,7 +1310,8 @@ impl PetriApp {
                 let val: u32 = match parsed.try_into() {
                     Ok(v) => v,
                     Err(_) => {
-                        self.last_error = Some(format!("CSV parse error: value too large '{raw_val}'"));
+                        self.last_error =
+                            Some(format!("CSV parse error: value too large '{raw_val}'"));
                         return;
                     }
                 };
@@ -877,7 +1327,8 @@ impl PetriApp {
         let cur_p = self.net.places.len();
         let cur_t = self.net.transitions.len();
         if required_p > cur_p || required_t > cur_t {
-            self.net.set_counts(cur_p.max(required_p), cur_t.max(required_t));
+            self.net
+                .set_counts(cur_p.max(required_p), cur_t.max(required_t));
         }
 
         match target {
@@ -897,7 +1348,8 @@ impl PetriApp {
             }
             MatrixCsvTarget::Inhibitor => {
                 for (p, t, v) in entries {
-                    if p < self.net.tables.inhibitor.len() && t < self.net.tables.inhibitor[p].len() {
+                    if p < self.net.tables.inhibitor.len() && t < self.net.tables.inhibitor[p].len()
+                    {
                         self.net.tables.inhibitor[p][t] = v;
                     }
                 }
@@ -1083,12 +1535,28 @@ impl PetriApp {
 
     fn rect_border_point(rect: Rect, dir: Vec2) -> Pos2 {
         let center = rect.center();
-        let nx = if dir.x.abs() < f32::EPSILON { 0.0 } else { dir.x };
-        let ny = if dir.y.abs() < f32::EPSILON { 0.0 } else { dir.y };
+        let nx = if dir.x.abs() < f32::EPSILON {
+            0.0
+        } else {
+            dir.x
+        };
+        let ny = if dir.y.abs() < f32::EPSILON {
+            0.0
+        } else {
+            dir.y
+        };
         let half_w = rect.width() * 0.5;
         let half_h = rect.height() * 0.5;
-        let tx = if nx.abs() < f32::EPSILON { f32::INFINITY } else { half_w / nx.abs() };
-        let ty = if ny.abs() < f32::EPSILON { f32::INFINITY } else { half_h / ny.abs() };
+        let tx = if nx.abs() < f32::EPSILON {
+            f32::INFINITY
+        } else {
+            half_w / nx.abs()
+        };
+        let ty = if ny.abs() < f32::EPSILON {
+            f32::INFINITY
+        } else {
+            half_h / ny.abs()
+        };
         let t = tx.min(ty);
         center + Vec2::new(nx * t, ny * t)
     }
@@ -1179,9 +1647,10 @@ impl PetriApp {
             .rev()
             .find(|frame| {
                 let min = self.world_to_screen(rect, frame.pos);
-                let size =
-                    Vec2::new(frame.width.max(Self::FRAME_MIN_SIDE), frame.height.max(Self::FRAME_MIN_SIDE))
-                        * self.canvas.zoom;
+                let size = Vec2::new(
+                    frame.width.max(Self::FRAME_MIN_SIDE),
+                    frame.height.max(Self::FRAME_MIN_SIDE),
+                ) * self.canvas.zoom;
                 let r = Rect::from_min_size(min, size);
                 let tolerance = (6.0 * self.canvas.zoom).max(4.0);
                 r.expand(tolerance).contains(pos) && !r.shrink(tolerance).contains(pos)
@@ -1260,7 +1729,9 @@ impl PetriApp {
         self.canvas.selected_places = self.net.places.iter().map(|place| place.id).collect();
         self.canvas.selected_transitions = self.net.transitions.iter().map(|tr| tr.id).collect();
         self.canvas.selected_arcs = self.net.arcs.iter().map(|arc| arc.id).collect();
-        self.canvas.selected_arcs.extend(self.net.inhibitor_arcs.iter().map(|arc| arc.id));
+        self.canvas
+            .selected_arcs
+            .extend(self.net.inhibitor_arcs.iter().map(|arc| arc.id));
         self.canvas.selected_arc = self.canvas.selected_arcs.first().copied();
         self.canvas.selected_text = None;
         self.canvas.selected_frame = None;
@@ -1334,8 +1805,11 @@ impl PetriApp {
         if !place_ids.is_empty() || !transition_ids.is_empty() {
             self.push_undo_snapshot();
             self.net.places.retain(|p| !place_ids.contains(&p.id));
-            self.net.transitions.retain(|t| !transition_ids.contains(&t.id));
-            self.net.set_counts(self.net.places.len(), self.net.transitions.len());
+            self.net
+                .transitions
+                .retain(|t| !transition_ids.contains(&t.id));
+            self.net
+                .set_counts(self.net.places.len(), self.net.transitions.len());
             self.clear_selection();
         }
     }
@@ -1520,8 +1994,11 @@ impl PetriApp {
             min_y = self.canvas.cursor_world[1];
         }
 
-        let copied_count =
-            place_ids.len() + transition_ids.len() + text_ids.len() + copied_arcs.len() + copied_inhibitors.len();
+        let copied_count = place_ids.len()
+            + transition_ids.len()
+            + text_ids.len()
+            + copied_arcs.len()
+            + copied_inhibitors.len();
         let clip = CopyBuffer {
             origin: [min_x, min_y],
             places: copied_places,
@@ -1564,8 +2041,12 @@ impl PetriApp {
         let mut transition_map = HashMap::<u64, u64>::new();
 
         for cp in &buf.places {
-            let rel = [cp.place.pos[0] - buf.origin[0], cp.place.pos[1] - buf.origin[1]];
-            let pos = self.snapped_world([base[0] + rel[0] + offset[0], base[1] + rel[1] + offset[1]]);
+            let rel = [
+                cp.place.pos[0] - buf.origin[0],
+                cp.place.pos[1] - buf.origin[1],
+            ];
+            let pos =
+                self.snapped_world([base[0] + rel[0] + offset[0], base[1] + rel[1] + offset[1]]);
 
             let before_max = self.net.places.iter().map(|p| p.id).max().unwrap_or(0);
             self.net.add_place(pos);
@@ -1585,7 +2066,9 @@ impl PetriApp {
                 self.net.tables.mo[idx] = cp.mo;
                 self.net.tables.mz[idx] = cp.mz;
 
-                if Self::parse_place_auto_index(&cp.place.name).is_some() || cp.place.name.trim().is_empty() {
+                if Self::parse_place_auto_index(&cp.place.name).is_some()
+                    || cp.place.name.trim().is_empty()
+                {
                     self.net.places[idx].name.clear();
                     self.assign_auto_name_for_place(new_id);
                 } else {
@@ -1600,7 +2083,8 @@ impl PetriApp {
                 ct.transition.pos[0] - buf.origin[0],
                 ct.transition.pos[1] - buf.origin[1],
             ];
-            let pos = self.snapped_world([base[0] + rel[0] + offset[0], base[1] + rel[1] + offset[1]]);
+            let pos =
+                self.snapped_world([base[0] + rel[0] + offset[0], base[1] + rel[1] + offset[1]]);
 
             let before_max = self.net.transitions.iter().map(|t| t.id).max().unwrap_or(0);
             self.net.add_transition(pos);
@@ -1617,12 +2101,15 @@ impl PetriApp {
                 self.net.transitions[idx] = tr;
                 self.net.tables.mpr[idx] = ct.mpr;
 
-                if Self::parse_transition_auto_index(&ct.transition.name).is_some() || ct.transition.name.trim().is_empty() {
+                if Self::parse_transition_auto_index(&ct.transition.name).is_some()
+                    || ct.transition.name.trim().is_empty()
+                {
                     self.net.transitions[idx].name.clear();
                     self.assign_auto_name_for_transition(new_id);
                 } else {
                     let desired = self.net.transitions[idx].name.clone();
-                    self.net.transitions[idx].name = self.ensure_unique_transition_name(&desired, new_id);
+                    self.net.transitions[idx].name =
+                        self.ensure_unique_transition_name(&desired, new_id);
                 }
             }
         }
@@ -1630,7 +2117,8 @@ impl PetriApp {
         let mut new_text_ids = Vec::new();
         for tt in &buf.texts {
             let rel = [tt.pos[0] - buf.origin[0], tt.pos[1] - buf.origin[1]];
-            let pos = self.snapped_world([base[0] + rel[0] + offset[0], base[1] + rel[1] + offset[1]]);
+            let pos =
+                self.snapped_world([base[0] + rel[0] + offset[0], base[1] + rel[1] + offset[1]]);
 
             let id = self.next_text_id;
             self.next_text_id = self.next_text_id.saturating_add(1);
@@ -1646,7 +2134,9 @@ impl PetriApp {
             let remap = |n: NodeRef| -> Option<NodeRef> {
                 match n {
                     NodeRef::Place(id) => place_map.get(&id).copied().map(NodeRef::Place),
-                    NodeRef::Transition(id) => transition_map.get(&id).copied().map(NodeRef::Transition),
+                    NodeRef::Transition(id) => {
+                        transition_map.get(&id).copied().map(NodeRef::Transition)
+                    }
                 }
             };
             let (Some(from), Some(to)) = (remap(arc.from), remap(arc.to)) else {
@@ -1659,7 +2149,10 @@ impl PetriApp {
             }
         }
         for inh in &buf.inhibitors {
-            let (Some(&pid), Some(&tid)) = (place_map.get(&inh.place_id), transition_map.get(&inh.transition_id)) else {
+            let (Some(&pid), Some(&tid)) = (
+                place_map.get(&inh.place_id),
+                transition_map.get(&inh.transition_id),
+            ) else {
                 continue;
             };
             self.net.add_inhibitor_arc(pid, tid, inh.threshold);
@@ -1680,34 +2173,65 @@ impl PetriApp {
     }
 
     fn arc_screen_endpoints(&self, rect: Rect, arc: &crate::model::Arc) -> Option<(Pos2, Pos2)> {
-        let (from_center, from_radius, from_rect, to_center, to_radius, to_rect) = match (arc.from, arc.to) {
-            (NodeRef::Place(p), NodeRef::Transition(t)) => {
-                let (Some(pi), Some(ti)) = (self.place_idx_by_id(p), self.transition_idx_by_id(t)) else {
-                    return None;
-                };
-                let p_center = self.world_to_screen(rect, self.net.places[pi].pos);
-                let p_radius = Self::place_radius(self.net.places[pi].size) * self.canvas.zoom;
-                let t_min = self.world_to_screen(rect, self.net.transitions[ti].pos);
-                let t_rect = Rect::from_min_size(t_min, Self::transition_dimensions(self.net.transitions[ti].size) * self.canvas.zoom);
-                (p_center, Some(p_radius), None, t_rect.center(), None, Some(t_rect))
-            }
-            (NodeRef::Transition(t), NodeRef::Place(p)) => {
-                let (Some(pi), Some(ti)) = (self.place_idx_by_id(p), self.transition_idx_by_id(t)) else {
-                    return None;
-                };
-                let t_min = self.world_to_screen(rect, self.net.transitions[ti].pos);
-                let t_rect = Rect::from_min_size(t_min, Self::transition_dimensions(self.net.transitions[ti].size) * self.canvas.zoom);
-                let p_center = self.world_to_screen(rect, self.net.places[pi].pos);
-                let p_radius = Self::place_radius(self.net.places[pi].size) * self.canvas.zoom;
-                (t_rect.center(), None, Some(t_rect), p_center, Some(p_radius), None)
-            }
-            _ => return None,
-        };
+        let (from_center, from_radius, from_rect, to_center, to_radius, to_rect) =
+            match (arc.from, arc.to) {
+                (NodeRef::Place(p), NodeRef::Transition(t)) => {
+                    let (Some(pi), Some(ti)) =
+                        (self.place_idx_by_id(p), self.transition_idx_by_id(t))
+                    else {
+                        return None;
+                    };
+                    let p_center = self.world_to_screen(rect, self.net.places[pi].pos);
+                    let p_radius = Self::place_radius(self.net.places[pi].size) * self.canvas.zoom;
+                    let t_min = self.world_to_screen(rect, self.net.transitions[ti].pos);
+                    let t_rect = Rect::from_min_size(
+                        t_min,
+                        Self::transition_dimensions(self.net.transitions[ti].size)
+                            * self.canvas.zoom,
+                    );
+                    (
+                        p_center,
+                        Some(p_radius),
+                        None,
+                        t_rect.center(),
+                        None,
+                        Some(t_rect),
+                    )
+                }
+                (NodeRef::Transition(t), NodeRef::Place(p)) => {
+                    let (Some(pi), Some(ti)) =
+                        (self.place_idx_by_id(p), self.transition_idx_by_id(t))
+                    else {
+                        return None;
+                    };
+                    let t_min = self.world_to_screen(rect, self.net.transitions[ti].pos);
+                    let t_rect = Rect::from_min_size(
+                        t_min,
+                        Self::transition_dimensions(self.net.transitions[ti].size)
+                            * self.canvas.zoom,
+                    );
+                    let p_center = self.world_to_screen(rect, self.net.places[pi].pos);
+                    let p_radius = Self::place_radius(self.net.places[pi].size) * self.canvas.zoom;
+                    (
+                        t_rect.center(),
+                        None,
+                        Some(t_rect),
+                        p_center,
+                        Some(p_radius),
+                        None,
+                    )
+                }
+                _ => return None,
+            };
 
         let mut from = from_center;
         let mut to = to_center;
         let delta = to_center - from_center;
-        let dir = if delta.length_sq() > 0.0 { delta.normalized() } else { Vec2::X };
+        let dir = if delta.length_sq() > 0.0 {
+            delta.normalized()
+        } else {
+            Vec2::X
+        };
 
         if let Some(radius) = from_radius {
             from += dir * radius;
@@ -1724,7 +2248,11 @@ impl PetriApp {
         Some((from, to))
     }
 
-    fn inhibitor_screen_endpoints(&self, rect: Rect, inh: &crate::model::InhibitorArc) -> Option<(Pos2, Pos2)> {
+    fn inhibitor_screen_endpoints(
+        &self,
+        rect: Rect,
+        inh: &crate::model::InhibitorArc,
+    ) -> Option<(Pos2, Pos2)> {
         let (Some(pi), Some(ti)) = (
             self.place_idx_by_id(inh.place_id),
             self.transition_idx_by_id(inh.transition_id),
@@ -1735,10 +2263,17 @@ impl PetriApp {
         let p_center = self.world_to_screen(rect, self.net.places[pi].pos);
         let p_radius = Self::place_radius(self.net.places[pi].size) * self.canvas.zoom;
         let t_min = self.world_to_screen(rect, self.net.transitions[ti].pos);
-        let t_rect = Rect::from_min_size(t_min, Self::transition_dimensions(self.net.transitions[ti].size) * self.canvas.zoom);
+        let t_rect = Rect::from_min_size(
+            t_min,
+            Self::transition_dimensions(self.net.transitions[ti].size) * self.canvas.zoom,
+        );
         let t_center = t_rect.center();
         let delta = t_center - p_center;
-        let dir = if delta.length_sq() > 0.0 { delta.normalized() } else { Vec2::X };
+        let dir = if delta.length_sq() > 0.0 {
+            delta.normalized()
+        } else {
+            Vec2::X
+        };
         let from = p_center + dir * p_radius;
         let to = Self::rect_border_point(t_rect, -dir);
 
@@ -1806,7 +2341,6 @@ impl PetriApp {
 
         best_id
     }
-
 
     fn draw_menu(&mut self, ctx: &egui::Context) {
         egui::TopBottomPanel::top("menu").show(ctx, |ui| {
@@ -1914,7 +2448,6 @@ impl PetriApp {
         });
     }
 
-
     fn draw_place_props_window(
         &mut self,
         ctx: &egui::Context,
@@ -1935,13 +2468,22 @@ impl PetriApp {
                 ui.separator();
                 ui.horizontal(|ui| {
                     ui.label(t("Число маркеров", "Markers"));
-                    ui.add(egui::DragValue::new(&mut self.net.tables.m0[place_idx]).range(0..=u32::MAX));
+                    ui.add(
+                        egui::DragValue::new(&mut self.net.tables.m0[place_idx])
+                            .range(0..=u32::MAX),
+                    );
                 });
 
                 let mut cap = self.net.tables.mo[place_idx].unwrap_or(0);
                 ui.horizontal(|ui| {
-                    ui.label(t("Макс. емкость (0 = без ограничений)", "Capacity (0 = unlimited)"));
-                    if ui.add(egui::DragValue::new(&mut cap).range(0..=u32::MAX)).changed() {
+                    ui.label(t(
+                        "Макс. емкость (0 = без ограничений)",
+                        "Capacity (0 = unlimited)",
+                    ));
+                    if ui
+                        .add(egui::DragValue::new(&mut cap).range(0..=u32::MAX))
+                        .changed()
+                    {
                         self.net.tables.mo[place_idx] = if cap == 0 { None } else { Some(cap) };
                     }
                 });
@@ -1958,39 +2500,120 @@ impl PetriApp {
                 ui.separator();
                 ui.label(t("Размер позиции", "Place size"));
                 ui.horizontal(|ui| {
-                    ui.radio_value(&mut self.net.places[place_idx].size, VisualSize::Small, t("Малый", "Small"));
-                    ui.radio_value(&mut self.net.places[place_idx].size, VisualSize::Medium, t("Средний", "Medium"));
-                    ui.radio_value(&mut self.net.places[place_idx].size, VisualSize::Large, t("Большой", "Large"));
+                    ui.radio_value(
+                        &mut self.net.places[place_idx].size,
+                        VisualSize::Small,
+                        t("Малый", "Small"),
+                    );
+                    ui.radio_value(
+                        &mut self.net.places[place_idx].size,
+                        VisualSize::Medium,
+                        t("Средний", "Medium"),
+                    );
+                    ui.radio_value(
+                        &mut self.net.places[place_idx].size,
+                        VisualSize::Large,
+                        t("Большой", "Large"),
+                    );
                 });
 
                 egui::ComboBox::from_label(t("Положение метки", "Marker label position"))
-                    .selected_text(Self::label_pos_text(self.net.places[place_idx].marker_label_position, is_ru))
+                    .selected_text(Self::label_pos_text(
+                        self.net.places[place_idx].marker_label_position,
+                        is_ru,
+                    ))
                     .show_ui(ui, |ui| {
-                        ui.selectable_value(&mut self.net.places[place_idx].marker_label_position, LabelPosition::Top, t("Вверху", "Top"));
-                        ui.selectable_value(&mut self.net.places[place_idx].marker_label_position, LabelPosition::Bottom, t("Внизу", "Bottom"));
-                        ui.selectable_value(&mut self.net.places[place_idx].marker_label_position, LabelPosition::Left, t("Слева", "Left"));
-                        ui.selectable_value(&mut self.net.places[place_idx].marker_label_position, LabelPosition::Right, t("Справа", "Right"));
-                        ui.selectable_value(&mut self.net.places[place_idx].marker_label_position, LabelPosition::Center, t("По центру", "Center"));
+                        ui.selectable_value(
+                            &mut self.net.places[place_idx].marker_label_position,
+                            LabelPosition::Top,
+                            t("Вверху", "Top"),
+                        );
+                        ui.selectable_value(
+                            &mut self.net.places[place_idx].marker_label_position,
+                            LabelPosition::Bottom,
+                            t("Внизу", "Bottom"),
+                        );
+                        ui.selectable_value(
+                            &mut self.net.places[place_idx].marker_label_position,
+                            LabelPosition::Left,
+                            t("Слева", "Left"),
+                        );
+                        ui.selectable_value(
+                            &mut self.net.places[place_idx].marker_label_position,
+                            LabelPosition::Right,
+                            t("Справа", "Right"),
+                        );
+                        ui.selectable_value(
+                            &mut self.net.places[place_idx].marker_label_position,
+                            LabelPosition::Center,
+                            t("По центру", "Center"),
+                        );
                     });
 
                 egui::ComboBox::from_label(t("Положение текста", "Text position"))
-                    .selected_text(Self::label_pos_text(self.net.places[place_idx].text_position, is_ru))
+                    .selected_text(Self::label_pos_text(
+                        self.net.places[place_idx].text_position,
+                        is_ru,
+                    ))
                     .show_ui(ui, |ui| {
-                        ui.selectable_value(&mut self.net.places[place_idx].text_position, LabelPosition::Top, t("Вверху", "Top"));
-                        ui.selectable_value(&mut self.net.places[place_idx].text_position, LabelPosition::Bottom, t("Внизу", "Bottom"));
-                        ui.selectable_value(&mut self.net.places[place_idx].text_position, LabelPosition::Left, t("Слева", "Left"));
-                        ui.selectable_value(&mut self.net.places[place_idx].text_position, LabelPosition::Right, t("Справа", "Right"));
-                        ui.selectable_value(&mut self.net.places[place_idx].text_position, LabelPosition::Center, t("По центру", "Center"));
+                        ui.selectable_value(
+                            &mut self.net.places[place_idx].text_position,
+                            LabelPosition::Top,
+                            t("Вверху", "Top"),
+                        );
+                        ui.selectable_value(
+                            &mut self.net.places[place_idx].text_position,
+                            LabelPosition::Bottom,
+                            t("Внизу", "Bottom"),
+                        );
+                        ui.selectable_value(
+                            &mut self.net.places[place_idx].text_position,
+                            LabelPosition::Left,
+                            t("Слева", "Left"),
+                        );
+                        ui.selectable_value(
+                            &mut self.net.places[place_idx].text_position,
+                            LabelPosition::Right,
+                            t("Справа", "Right"),
+                        );
+                        ui.selectable_value(
+                            &mut self.net.places[place_idx].text_position,
+                            LabelPosition::Center,
+                            t("По центру", "Center"),
+                        );
                     });
 
                 egui::ComboBox::from_label(t("Цвет", "Color"))
-                    .selected_text(Self::node_color_text(self.net.places[place_idx].color, is_ru))
+                    .selected_text(Self::node_color_text(
+                        self.net.places[place_idx].color,
+                        is_ru,
+                    ))
                     .show_ui(ui, |ui| {
-                        ui.selectable_value(&mut self.net.places[place_idx].color, NodeColor::Default, t("По умолчанию", "Default"));
-                        ui.selectable_value(&mut self.net.places[place_idx].color, NodeColor::Blue, t("Синий", "Blue"));
-                        ui.selectable_value(&mut self.net.places[place_idx].color, NodeColor::Red, t("Красный", "Red"));
-                        ui.selectable_value(&mut self.net.places[place_idx].color, NodeColor::Green, t("Зеленый", "Green"));
-                        ui.selectable_value(&mut self.net.places[place_idx].color, NodeColor::Yellow, t("Желтый", "Yellow"));
+                        ui.selectable_value(
+                            &mut self.net.places[place_idx].color,
+                            NodeColor::Default,
+                            t("По умолчанию", "Default"),
+                        );
+                        ui.selectable_value(
+                            &mut self.net.places[place_idx].color,
+                            NodeColor::Blue,
+                            t("Синий", "Blue"),
+                        );
+                        ui.selectable_value(
+                            &mut self.net.places[place_idx].color,
+                            NodeColor::Red,
+                            t("Красный", "Red"),
+                        );
+                        ui.selectable_value(
+                            &mut self.net.places[place_idx].color,
+                            NodeColor::Green,
+                            t("Зеленый", "Green"),
+                        );
+                        ui.selectable_value(
+                            &mut self.net.places[place_idx].color,
+                            NodeColor::Yellow,
+                            t("Желтый", "Yellow"),
+                        );
                     });
 
                 ui.separator();
@@ -2003,7 +2626,10 @@ impl PetriApp {
                 );
                 ui.checkbox(
                     &mut self.net.places[place_idx].input_module,
-                    t("Определить позицию как вход модуля", "Define place as module input"),
+                    t(
+                        "Определить позицию как вход модуля",
+                        "Define place as module input",
+                    ),
                 );
                 if self.net.places[place_idx].input_module {
                     ui.horizontal(|ui| {
@@ -2022,7 +2648,10 @@ impl PetriApp {
                     ui.label(t("Стохастичестие процессы", "Stochastic processes"));
                     let stats_enabled = self.net.ui.marker_count_stats;
                     if ui
-                        .add_enabled(stats_enabled, egui::Button::new(t("Сбор статистики", "Collect statistics")))
+                        .add_enabled(
+                            stats_enabled,
+                            egui::Button::new(t("Сбор статистики", "Collect statistics")),
+                        )
                         .clicked()
                     {
                         self.place_stats_dialog_place_id = Some(place_id);
@@ -2031,7 +2660,10 @@ impl PetriApp {
                     }
                 });
                 egui::ComboBox::from_label(t("Распределение", "Distribution"))
-                    .selected_text(Self::stochastic_text(&self.net.places[place_idx].stochastic, is_ru))
+                    .selected_text(Self::stochastic_text(
+                        &self.net.places[place_idx].stochastic,
+                        is_ru,
+                    ))
                     .show_ui(ui, |ui| {
                         ui.selectable_value(
                             &mut self.net.places[place_idx].stochastic,
@@ -2041,27 +2673,48 @@ impl PetriApp {
                         ui.selectable_value(
                             &mut self.net.places[place_idx].stochastic,
                             StochasticDistribution::Uniform { min: 0.0, max: 1.0 },
-                            Self::stochastic_text(&StochasticDistribution::Uniform { min: 0.0, max: 1.0 }, is_ru),
+                            Self::stochastic_text(
+                                &StochasticDistribution::Uniform { min: 0.0, max: 1.0 },
+                                is_ru,
+                            ),
                         );
                         ui.selectable_value(
                             &mut self.net.places[place_idx].stochastic,
-                            StochasticDistribution::Normal { mean: 1.0, std_dev: 0.2 },
-                            Self::stochastic_text(&StochasticDistribution::Normal { mean: 1.0, std_dev: 0.2 }, is_ru),
+                            StochasticDistribution::Normal {
+                                mean: 1.0,
+                                std_dev: 0.2,
+                            },
+                            Self::stochastic_text(
+                                &StochasticDistribution::Normal {
+                                    mean: 1.0,
+                                    std_dev: 0.2,
+                                },
+                                is_ru,
+                            ),
                         );
                         ui.selectable_value(
                             &mut self.net.places[place_idx].stochastic,
                             StochasticDistribution::Exponential { lambda: 1.0 },
-                            Self::stochastic_text(&StochasticDistribution::Exponential { lambda: 1.0 }, is_ru),
+                            Self::stochastic_text(
+                                &StochasticDistribution::Exponential { lambda: 1.0 },
+                                is_ru,
+                            ),
                         );
                         ui.selectable_value(
                             &mut self.net.places[place_idx].stochastic,
                             StochasticDistribution::Poisson { lambda: 1.0 },
-                            Self::stochastic_text(&StochasticDistribution::Poisson { lambda: 1.0 }, is_ru),
+                            Self::stochastic_text(
+                                &StochasticDistribution::Poisson { lambda: 1.0 },
+                                is_ru,
+                            ),
                         );
                         ui.selectable_value(
                             &mut self.net.places[place_idx].stochastic,
                             StochasticDistribution::CustomValue { value: 1.0 },
-                            Self::stochastic_text(&StochasticDistribution::CustomValue { value: 1.0 }, is_ru),
+                            Self::stochastic_text(
+                                &StochasticDistribution::CustomValue { value: 1.0 },
+                                is_ru,
+                            ),
                         );
                     });
 
@@ -2080,13 +2733,22 @@ impl PetriApp {
                             ui.label(t("mean", "mean"));
                             ui.add(egui::DragValue::new(mean).speed(0.1).range(0.0..=10_000.0));
                             ui.label(t("std", "std"));
-                            ui.add(egui::DragValue::new(std_dev).speed(0.1).range(0.0..=10_000.0));
+                            ui.add(
+                                egui::DragValue::new(std_dev)
+                                    .speed(0.1)
+                                    .range(0.0..=10_000.0),
+                            );
                         });
                     }
-                    StochasticDistribution::Exponential { lambda } | StochasticDistribution::Poisson { lambda } => {
+                    StochasticDistribution::Exponential { lambda }
+                    | StochasticDistribution::Poisson { lambda } => {
                         ui.horizontal(|ui| {
                             ui.label(t("lambda", "lambda"));
-                            ui.add(egui::DragValue::new(lambda).speed(0.1).range(0.0001..=10_000.0));
+                            ui.add(
+                                egui::DragValue::new(lambda)
+                                    .speed(0.1)
+                                    .range(0.0001..=10_000.0),
+                            );
                         });
                     }
                     StochasticDistribution::CustomValue { value } => {
@@ -2145,48 +2807,134 @@ impl PetriApp {
                 ui.separator();
                 ui.horizontal(|ui| {
                     ui.label(t("Приоритет", "Priority"));
-                    ui.add(egui::DragValue::new(&mut self.net.tables.mpr[transition_idx]));
+                    ui.add(egui::DragValue::new(
+                        &mut self.net.tables.mpr[transition_idx],
+                    ));
                 });
                 ui.horizontal(|ui| {
                     ui.label(t("Угол наклона", "Angle"));
-                    ui.add(egui::DragValue::new(&mut self.net.transitions[transition_idx].angle_deg).range(-180..=180));
+                    ui.add(
+                        egui::DragValue::new(&mut self.net.transitions[transition_idx].angle_deg)
+                            .range(-180..=180),
+                    );
                 });
 
                 ui.label(t("Размер перехода", "Transition size"));
                 ui.horizontal(|ui| {
-                    ui.radio_value(&mut self.net.transitions[transition_idx].size, VisualSize::Small, t("Малый", "Small"));
-                    ui.radio_value(&mut self.net.transitions[transition_idx].size, VisualSize::Medium, t("Средний", "Medium"));
-                    ui.radio_value(&mut self.net.transitions[transition_idx].size, VisualSize::Large, t("Большой", "Large"));
+                    ui.radio_value(
+                        &mut self.net.transitions[transition_idx].size,
+                        VisualSize::Small,
+                        t("Малый", "Small"),
+                    );
+                    ui.radio_value(
+                        &mut self.net.transitions[transition_idx].size,
+                        VisualSize::Medium,
+                        t("Средний", "Medium"),
+                    );
+                    ui.radio_value(
+                        &mut self.net.transitions[transition_idx].size,
+                        VisualSize::Large,
+                        t("Большой", "Large"),
+                    );
                 });
 
                 egui::ComboBox::from_label(t("Положение метки", "Label position"))
-                    .selected_text(Self::label_pos_text(self.net.transitions[transition_idx].label_position, is_ru))
+                    .selected_text(Self::label_pos_text(
+                        self.net.transitions[transition_idx].label_position,
+                        is_ru,
+                    ))
                     .show_ui(ui, |ui| {
-                        ui.selectable_value(&mut self.net.transitions[transition_idx].label_position, LabelPosition::Top, t("Вверху", "Top"));
-                        ui.selectable_value(&mut self.net.transitions[transition_idx].label_position, LabelPosition::Bottom, t("Внизу", "Bottom"));
-                        ui.selectable_value(&mut self.net.transitions[transition_idx].label_position, LabelPosition::Left, t("Слева", "Left"));
-                        ui.selectable_value(&mut self.net.transitions[transition_idx].label_position, LabelPosition::Right, t("Справа", "Right"));
-                        ui.selectable_value(&mut self.net.transitions[transition_idx].label_position, LabelPosition::Center, t("По центру", "Center"));
+                        ui.selectable_value(
+                            &mut self.net.transitions[transition_idx].label_position,
+                            LabelPosition::Top,
+                            t("Вверху", "Top"),
+                        );
+                        ui.selectable_value(
+                            &mut self.net.transitions[transition_idx].label_position,
+                            LabelPosition::Bottom,
+                            t("Внизу", "Bottom"),
+                        );
+                        ui.selectable_value(
+                            &mut self.net.transitions[transition_idx].label_position,
+                            LabelPosition::Left,
+                            t("Слева", "Left"),
+                        );
+                        ui.selectable_value(
+                            &mut self.net.transitions[transition_idx].label_position,
+                            LabelPosition::Right,
+                            t("Справа", "Right"),
+                        );
+                        ui.selectable_value(
+                            &mut self.net.transitions[transition_idx].label_position,
+                            LabelPosition::Center,
+                            t("По центру", "Center"),
+                        );
                     });
 
                 egui::ComboBox::from_label(t("Положение текста", "Text position"))
-                    .selected_text(Self::label_pos_text(self.net.transitions[transition_idx].text_position, is_ru))
+                    .selected_text(Self::label_pos_text(
+                        self.net.transitions[transition_idx].text_position,
+                        is_ru,
+                    ))
                     .show_ui(ui, |ui| {
-                        ui.selectable_value(&mut self.net.transitions[transition_idx].text_position, LabelPosition::Top, t("Вверху", "Top"));
-                        ui.selectable_value(&mut self.net.transitions[transition_idx].text_position, LabelPosition::Bottom, t("Внизу", "Bottom"));
-                        ui.selectable_value(&mut self.net.transitions[transition_idx].text_position, LabelPosition::Left, t("Слева", "Left"));
-                        ui.selectable_value(&mut self.net.transitions[transition_idx].text_position, LabelPosition::Right, t("Справа", "Right"));
-                        ui.selectable_value(&mut self.net.transitions[transition_idx].text_position, LabelPosition::Center, t("По центру", "Center"));
+                        ui.selectable_value(
+                            &mut self.net.transitions[transition_idx].text_position,
+                            LabelPosition::Top,
+                            t("Вверху", "Top"),
+                        );
+                        ui.selectable_value(
+                            &mut self.net.transitions[transition_idx].text_position,
+                            LabelPosition::Bottom,
+                            t("Внизу", "Bottom"),
+                        );
+                        ui.selectable_value(
+                            &mut self.net.transitions[transition_idx].text_position,
+                            LabelPosition::Left,
+                            t("Слева", "Left"),
+                        );
+                        ui.selectable_value(
+                            &mut self.net.transitions[transition_idx].text_position,
+                            LabelPosition::Right,
+                            t("Справа", "Right"),
+                        );
+                        ui.selectable_value(
+                            &mut self.net.transitions[transition_idx].text_position,
+                            LabelPosition::Center,
+                            t("По центру", "Center"),
+                        );
                     });
 
                 egui::ComboBox::from_label(t("Цвет", "Color"))
-                    .selected_text(Self::node_color_text(self.net.transitions[transition_idx].color, is_ru))
+                    .selected_text(Self::node_color_text(
+                        self.net.transitions[transition_idx].color,
+                        is_ru,
+                    ))
                     .show_ui(ui, |ui| {
-                        ui.selectable_value(&mut self.net.transitions[transition_idx].color, NodeColor::Default, t("По умолчанию", "Default"));
-                        ui.selectable_value(&mut self.net.transitions[transition_idx].color, NodeColor::Blue, t("Синий", "Blue"));
-                        ui.selectable_value(&mut self.net.transitions[transition_idx].color, NodeColor::Red, t("Красный", "Red"));
-                        ui.selectable_value(&mut self.net.transitions[transition_idx].color, NodeColor::Green, t("Зеленый", "Green"));
-                        ui.selectable_value(&mut self.net.transitions[transition_idx].color, NodeColor::Yellow, t("Желтый", "Yellow"));
+                        ui.selectable_value(
+                            &mut self.net.transitions[transition_idx].color,
+                            NodeColor::Default,
+                            t("По умолчанию", "Default"),
+                        );
+                        ui.selectable_value(
+                            &mut self.net.transitions[transition_idx].color,
+                            NodeColor::Blue,
+                            t("Синий", "Blue"),
+                        );
+                        ui.selectable_value(
+                            &mut self.net.transitions[transition_idx].color,
+                            NodeColor::Red,
+                            t("Красный", "Red"),
+                        );
+                        ui.selectable_value(
+                            &mut self.net.transitions[transition_idx].color,
+                            NodeColor::Green,
+                            t("Зеленый", "Green"),
+                        );
+                        ui.selectable_value(
+                            &mut self.net.transitions[transition_idx].color,
+                            NodeColor::Yellow,
+                            t("Желтый", "Yellow"),
+                        );
                     });
 
                 ui.separator();
@@ -2246,7 +2994,10 @@ impl PetriApp {
                     let now = Instant::now();
                     let should_tick = self
                         .last_debug_tick
-                        .map(|tick| now.duration_since(tick) >= Duration::from_millis(self.debug_interval_ms))
+                        .map(|tick| {
+                            now.duration_since(tick)
+                                >= Duration::from_millis(self.debug_interval_ms)
+                        })
                         .unwrap_or(true);
                     if should_tick {
                         if self.debug_step + 1 < steps {
@@ -2265,7 +3016,14 @@ impl PetriApp {
                     if ui.button("<<").clicked() {
                         self.debug_step = self.debug_step.saturating_sub(1);
                     }
-                    if ui.button(if self.debug_playing { t("Пауза", "Pause") } else { t("Пуск", "Play") }).clicked() {
+                    if ui
+                        .button(if self.debug_playing {
+                            t("Пауза", "Pause")
+                        } else {
+                            t("Пуск", "Play")
+                        })
+                        .clicked()
+                    {
                         self.debug_playing = !self.debug_playing;
                         self.last_debug_tick = Some(Instant::now());
                     }
@@ -2276,26 +3034,30 @@ impl PetriApp {
                     ui.add(egui::DragValue::new(&mut self.debug_interval_ms).range(50..=5_000));
                 });
 
-                ui.add(egui::Slider::new(&mut self.debug_step, 0..=steps - 1).text(t("Шаг", "Step")));
+                ui.add(
+                    egui::Slider::new(&mut self.debug_step, 0..=steps - 1).text(t("Шаг", "Step")),
+                );
                 if let Some(&log_idx) = visible_steps.get(self.debug_step) {
                     if let Some(entry) = result.logs.get(log_idx) {
-                    ui.separator();
-                    ui.label(format!("t = {:.3}", entry.time));
-                    ui.label(format!(
-                        "{}: {}",
-                        t("Переход", "Transition"),
-                        entry
-                            .fired_transition
-                            .map(|i| format!("T{}", i + 1))
-                            .unwrap_or_else(|| "-".to_string())
-                    ));
-                    egui::Grid::new("debug_marking_grid").striped(true).show(ui, |ui| {
-                        for (idx, marking) in entry.marking.iter().enumerate() {
-                            ui.label(format!("P{}", idx + 1));
-                            ui.label(marking.to_string());
-                            ui.end_row();
-                        }
-                    });
+                        ui.separator();
+                        ui.label(format!("t = {:.3}", entry.time));
+                        ui.label(format!(
+                            "{}: {}",
+                            t("Переход", "Transition"),
+                            entry
+                                .fired_transition
+                                .map(|i| format!("T{}", i + 1))
+                                .unwrap_or_else(|| "-".to_string())
+                        ));
+                        egui::Grid::new("debug_marking_grid")
+                            .striped(true)
+                            .show(ui, |ui| {
+                                for (idx, marking) in entry.marking.iter().enumerate() {
+                                    ui.label(format!("P{}", idx + 1));
+                                    ui.label(marking.to_string());
+                                    ui.end_row();
+                                }
+                            });
                     }
                 }
             });
@@ -2344,39 +3106,48 @@ impl PetriApp {
 
     fn draw_atf_window(&mut self, ctx: &egui::Context) {
         let mut open = self.show_atf;
-        egui::Window::new("ATF")
-            .open(&mut open)
-            .show(ctx, |ui| {
-                ui.horizontal(|ui| {
-                    ui.vertical(|ui| {
-                        ui.label("Левая область");
-                        ui.horizontal(|ui| {
-                            ui.label("P:");
-                            ui.add(egui::DragValue::new(&mut self.atf_selected_place).range(0..=10000));
-                            if ui.button("OK").clicked() {
-                                self.atf_text = generate_atf(&self.net, self.atf_selected_place.min(self.net.places.len().saturating_sub(1)));
-                            }
-                        });
-                        if ui.button("Сгенерировать ATF").clicked() {
-                            self.atf_text = generate_atf(&self.net, self.atf_selected_place.min(self.net.places.len().saturating_sub(1)));
-                        }
-                        if ui.button("Открыть ATF файл").clicked() {
-                            if let Some(path) = rfd::FileDialog::new().add_filter("ATF", &["atf", "txt"]).pick_file() {
-                                match fs::read_to_string(&path) {
-                                    Ok(text) => self.atf_text = text,
-                                    Err(e) => self.last_error = Some(e.to_string()),
-                                }
-                            }
+        egui::Window::new("ATF").open(&mut open).show(ctx, |ui| {
+            ui.horizontal(|ui| {
+                ui.vertical(|ui| {
+                    ui.label("Левая область");
+                    ui.horizontal(|ui| {
+                        ui.label("P:");
+                        ui.add(egui::DragValue::new(&mut self.atf_selected_place).range(0..=10000));
+                        if ui.button("OK").clicked() {
+                            self.atf_text = generate_atf(
+                                &self.net,
+                                self.atf_selected_place
+                                    .min(self.net.places.len().saturating_sub(1)),
+                            );
                         }
                     });
-                    ui.separator();
-                    ui.add(
-                        egui::TextEdit::multiline(&mut self.atf_text)
-                            .desired_rows(30)
-                            .desired_width(700.0),
-                    );
+                    if ui.button("Сгенерировать ATF").clicked() {
+                        self.atf_text = generate_atf(
+                            &self.net,
+                            self.atf_selected_place
+                                .min(self.net.places.len().saturating_sub(1)),
+                        );
+                    }
+                    if ui.button("Открыть ATF файл").clicked() {
+                        if let Some(path) = rfd::FileDialog::new()
+                            .add_filter("ATF", &["atf", "txt"])
+                            .pick_file()
+                        {
+                            match fs::read_to_string(&path) {
+                                Ok(text) => self.atf_text = text,
+                                Err(e) => self.last_error = Some(e.to_string()),
+                            }
+                        }
+                    }
                 });
+                ui.separator();
+                ui.add(
+                    egui::TextEdit::multiline(&mut self.atf_text)
+                        .desired_rows(30)
+                        .desired_width(700.0),
+                );
             });
+        });
         self.show_atf = open;
     }
 
@@ -2417,6 +3188,110 @@ impl PetriApp {
                 ui.label("Ctrl+Q: выход");
             });
         self.show_help_controls = open;
+    }
+
+    fn draw_netstar_export_validation(&mut self, ctx: &egui::Context) {
+        if !self.show_netstar_export_validation {
+            return;
+        }
+
+        let Some(report) = self.netstar_export_validation.clone() else {
+            self.clear_netstar_export_validation();
+            return;
+        };
+
+        let mut open = self.show_netstar_export_validation;
+        let target_path = self.pending_netstar_export_path.clone();
+        let errors = report.error_count();
+        let warnings = report.warning_count();
+        let mut do_export = false;
+        let mut do_cancel = false;
+
+        egui::Window::new(self.tr("Проверка экспорта", "Export validation"))
+            .id(egui::Id::new("netstar_export_validation_window"))
+            .open(&mut open)
+            .collapsible(false)
+            .resizable(true)
+            .default_width(620.0)
+            .show(ctx, |ui| {
+                if let Some(path) = &target_path {
+                    ui.label(format!("{} {}", self.tr("Файл:", "File:"), path.display()));
+                }
+                ui.separator();
+                ui.label(format!(
+                    "{}: {}    {}: {}",
+                    self.tr("Ошибки", "Errors"),
+                    errors,
+                    self.tr("Предупреждения", "Warnings"),
+                    warnings
+                ));
+
+                if report.is_clean() {
+                    ui.colored_label(
+                        Color32::from_rgb(0, 128, 0),
+                        self.tr("Проблем не найдено.", "No issues found."),
+                    );
+                } else {
+                    egui::ScrollArea::vertical()
+                        .max_height(260.0)
+                        .show(ui, |ui| {
+                            for issue in &report.errors {
+                                ui.colored_label(
+                                    Color32::RED,
+                                    format!("[{}] {}", self.tr("Ошибка", "Error"), issue),
+                                );
+                            }
+                            for issue in &report.warnings {
+                                ui.colored_label(
+                                    Color32::from_rgb(160, 110, 0),
+                                    format!("[{}] {}", self.tr("Предупреждение", "Warning"), issue),
+                                );
+                            }
+                        });
+                }
+
+                if errors > 0 {
+                    ui.separator();
+                    ui.colored_label(
+                        Color32::RED,
+                        self.tr(
+                            "Экспорт заблокирован: исправьте ошибки в модели.",
+                            "Export blocked: fix model errors first.",
+                        ),
+                    );
+                }
+
+                ui.separator();
+                ui.horizontal(|ui| {
+                    if ui.button(self.tr("Отмена", "Cancel")).clicked() {
+                        do_cancel = true;
+                    }
+                    let export_label = if warnings > 0 {
+                        self.tr(
+                            "Экспортировать с предупреждениями",
+                            "Export despite warnings",
+                        )
+                    } else {
+                        self.tr("Экспортировать", "Export")
+                    };
+                    if ui
+                        .add_enabled(errors == 0, egui::Button::new(export_label))
+                        .clicked()
+                    {
+                        do_export = true;
+                    }
+                });
+            });
+
+        if !open {
+            do_cancel = true;
+        }
+        if do_cancel {
+            self.clear_netstar_export_validation();
+        }
+        if do_export {
+            self.confirm_netstar_export_from_validation();
+        }
     }
 
     fn draw_status(&mut self, ctx: &egui::Context) {
@@ -2532,7 +3407,7 @@ impl PetriApp {
             LayoutMode::Minimized => {}
         });
     }
-fn draw_place_stats_dialog(&mut self, ctx: &egui::Context) {
+    fn draw_place_stats_dialog(&mut self, ctx: &egui::Context) {
         let Some(place_id) = self.place_stats_dialog_place_id else {
             self.place_stats_dialog_backup = None;
             return;
@@ -2562,7 +3437,8 @@ fn draw_place_stats_dialog(&mut self, ctx: &egui::Context) {
                     ui.label(format!("ID: P{}", place_id));
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         if ui.button("Cancel").clicked() {
-                            if let Some((backup_id, backup)) = self.place_stats_dialog_backup.take() {
+                            if let Some((backup_id, backup)) = self.place_stats_dialog_backup.take()
+                            {
                                 if backup_id == place_id {
                                     self.net.places[place_idx].stats = backup;
                                 }
@@ -2580,15 +3456,33 @@ fn draw_place_stats_dialog(&mut self, ctx: &egui::Context) {
                 ui.columns(2, |cols| {
                     cols[0].group(|ui| {
                         ui.label(t("Число маркеров", "Tokens"));
-                        ui.checkbox(&mut self.net.places[place_idx].stats.markers_total, t("Общая", "Total"));
-                        ui.checkbox(&mut self.net.places[place_idx].stats.markers_input, t("На входе", "On input"));
-                        ui.checkbox(&mut self.net.places[place_idx].stats.markers_output, t("На выходе", "On output"));
+                        ui.checkbox(
+                            &mut self.net.places[place_idx].stats.markers_total,
+                            t("Общая", "Total"),
+                        );
+                        ui.checkbox(
+                            &mut self.net.places[place_idx].stats.markers_input,
+                            t("На входе", "On input"),
+                        );
+                        ui.checkbox(
+                            &mut self.net.places[place_idx].stats.markers_output,
+                            t("На выходе", "On output"),
+                        );
                     });
                     cols[1].group(|ui| {
                         ui.label(t("Загруженность", "Load"));
-                        ui.checkbox(&mut self.net.places[place_idx].stats.load_total, t("Общая", "Total"));
-                        ui.checkbox(&mut self.net.places[place_idx].stats.load_input, t("Вход", "Input"));
-                        ui.checkbox(&mut self.net.places[place_idx].stats.load_output, t("Выход", "Output"));
+                        ui.checkbox(
+                            &mut self.net.places[place_idx].stats.load_total,
+                            t("Общая", "Total"),
+                        );
+                        ui.checkbox(
+                            &mut self.net.places[place_idx].stats.load_input,
+                            t("Вход", "Input"),
+                        );
+                        ui.checkbox(
+                            &mut self.net.places[place_idx].stats.load_output,
+                            t("Выход", "Output"),
+                        );
                     });
                 });
             });
@@ -2603,11 +3497,9 @@ fn draw_place_stats_dialog(&mut self, ctx: &egui::Context) {
             self.place_stats_dialog_place_id = None;
         }
     }
-
 }
 
-
-    impl eframe::App for PetriApp {
+impl eframe::App for PetriApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         ctx.set_visuals(egui::Visuals::light());
         self.draw_menu(ctx);
@@ -2644,6 +3536,7 @@ fn draw_place_stats_dialog(&mut self, ctx: &egui::Context) {
         if self.show_help_controls {
             self.draw_help_controls(ctx);
         }
+        self.draw_netstar_export_validation(ctx);
         self.handle_shortcuts(ctx);
     }
 }
@@ -2675,7 +3568,10 @@ mod tests {
         app.handle_shortcuts(&ctx);
         let _ = ctx.end_frame();
 
-        assert!(app.clipboard.is_some(), "clipboard should be populated by Ctrl+C");
+        assert!(
+            app.clipboard.is_some(),
+            "clipboard should be populated by Ctrl+C"
+        );
         let copied = app.clipboard.as_ref().unwrap();
         assert_eq!(copied.places.len(), 1);
     }
@@ -2706,5 +3602,46 @@ mod tests {
         );
         let copied = app.clipboard.as_ref().unwrap();
         assert_eq!(copied.places.len(), 1);
+    }
+
+    #[test]
+    fn netstar_export_validation_has_error_for_broken_arc_link() {
+        let mut app = PetriApp::new_for_tests();
+        app.net.arcs.push(crate::model::Arc {
+            id: 999,
+            from: NodeRef::Place(999_999),
+            to: NodeRef::Transition(app.net.transitions[0].id),
+            weight: 1,
+            color: NodeColor::Default,
+            visible: true,
+        });
+
+        let report = app.validate_netstar_export();
+        assert!(
+            report.error_count() > 0,
+            "broken arc link must produce a blocking export error"
+        );
+    }
+
+    #[test]
+    fn netstar_export_validation_warns_for_non_exportable_ui_elements() {
+        let mut app = PetriApp::new_for_tests();
+        app.text_blocks.push(CanvasTextBlock {
+            id: 1,
+            pos: [10.0, 10.0],
+            text: "x".to_string(),
+        });
+        app.decorative_frames.push(CanvasFrame {
+            id: 1,
+            pos: [20.0, 20.0],
+            width: 120.0,
+            height: 80.0,
+        });
+
+        let report = app.validate_netstar_export();
+        assert!(
+            report.warning_count() >= 2,
+            "text blocks and frames should be reported as export warnings"
+        );
     }
 }
