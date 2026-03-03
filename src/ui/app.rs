@@ -251,6 +251,8 @@ pub struct PetriApp {
     place_stats_dialog_backup: Option<(u64, PlaceStatisticsSelection)>,
     show_place_stats_window: bool,
     place_stats_view_place: usize,
+    place_stats_zoom_x: f32,
+    place_stats_pan_x: f32,
     arc_display_mode: ArcDisplayMode,
     arc_display_color: NodeColor,
     show_netstar_export_validation: bool,
@@ -369,6 +371,8 @@ impl PetriApp {
             place_stats_dialog_backup: None,
             show_place_stats_window: false,
             place_stats_view_place: 0,
+            place_stats_zoom_x: 1.0,
+            place_stats_pan_x: 1.0,
             arc_display_mode: ArcDisplayMode::All,
             arc_display_color: NodeColor::Default,
             show_netstar_export_validation: false,
@@ -432,6 +436,8 @@ impl PetriApp {
                 place_stats_dialog_backup: None,
                 show_place_stats_window: false,
                 place_stats_view_place: 0,
+                place_stats_zoom_x: 1.0,
+                place_stats_pan_x: 1.0,
                 arc_display_mode: ArcDisplayMode::All,
                 arc_display_color: NodeColor::Default,
                 show_netstar_export_validation: false,
@@ -2459,7 +2465,11 @@ impl PetriApp {
                     .button(self.tr("Результаты имитации", "Simulation Results"))
                     .clicked()
                 {
-                    self.show_results = self.sim_result.is_some();
+                    if self.sim_result.is_some() {
+                        self.show_results = !self.show_results;
+                    } else {
+                        self.show_results = false;
+                    }
                 }
                 if ui.button("Proof").clicked() && self.sim_result.is_some() {
                     self.show_proof = true;

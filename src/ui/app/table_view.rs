@@ -622,36 +622,66 @@ impl PetriApp {
         if !available_places.contains(&self.place_stats_view_place) {
             self.place_stats_view_place = available_places[0];
         }
-        let place_idx = self.place_stats_view_place;
-
         let mut open = self.show_place_stats_window;
         egui::Window::new(self.tr("Статистика", "Statistics"))
             .id(egui::Id::new("results_place_stats_window"))
             .open(&mut open)
             .vscroll(true)
             .show(ctx, |ui| {
-                let place_name = self
-                    .net
-                    .places
-                    .get(place_idx)
-                    .map(|p| p.name.clone())
-                    .unwrap_or_else(|| format!("P{}", place_idx + 1));
-
                 ui.horizontal(|ui| {
                     ui.label(self.tr("Позиция", "Place"));
-                    let mut selected_ordinal = available_places
-                        .iter()
-                        .position(|&idx| idx == place_idx)
-                        .unwrap_or(0);
-                    ui.add(
-                        egui::DragValue::new(&mut selected_ordinal)
-                            .range(0..=available_places.len().saturating_sub(1)),
-                    );
-                    self.place_stats_view_place = available_places[selected_ordinal];
+                    let selected_place_text = self
+                        .net
+                        .places
+                        .get(self.place_stats_view_place)
+                        .map(|p| {
+                            format!(
+                                "P{} | {}",
+                                self.place_stats_view_place + 1,
+                                if p.name.is_empty() {
+                                    format!("P{}", self.place_stats_view_place + 1)
+                                } else {
+                                    p.name.clone()
+                                }
+                            )
+                        })
+                        .unwrap_or_else(|| format!("P{}", self.place_stats_view_place + 1));
+                    egui::ComboBox::from_id_source("results_stats_place_combo")
+                        .selected_text(selected_place_text)
+                        .width(420.0)
+                        .show_ui(ui, |ui| {
+                            for idx in &available_places {
+                                let label = self
+                                    .net
+                                    .places
+                                    .get(*idx)
+                                    .map(|p| {
+                                        format!(
+                                            "P{} | {}",
+                                            *idx + 1,
+                                            if p.name.is_empty() {
+                                                format!("P{}", *idx + 1)
+                                            } else {
+                                                p.name.clone()
+                                            }
+                                        )
+                                    })
+                                    .unwrap_or_else(|| format!("P{}", *idx + 1));
+                                ui.selectable_value(&mut self.place_stats_view_place, *idx, label);
+                            }
+                        });
                     ui.label(format!("P{}", self.place_stats_view_place + 1));
                     ui.separator();
-                    ui.label(place_name);
+                    let selected_name = self
+                        .net
+                        .places
+                        .get(self.place_stats_view_place)
+                        .map(|p| p.name.clone())
+                        .unwrap_or_else(|| format!("P{}", self.place_stats_view_place + 1));
+                    ui.label(selected_name);
                 });
+
+                let place_idx = self.place_stats_view_place;
 
                 let sampled = Self::sampled_indices(result.logs.len(), Self::MAX_PLOT_POINTS);
                 let mut values = Vec::<f64>::with_capacity(sampled.len());
@@ -666,6 +696,20 @@ impl PetriApp {
                             idx as f64
                         };
                         times.push(t);
+                    }
+                }
+                if values.len() >= 2 {
+                    let mut has_increasing_x = false;
+                    for i in 1..times.len() {
+                        if times[i] > times[i - 1] {
+                            has_increasing_x = true;
+                            break;
+                        }
+                    }
+                    if !has_increasing_x {
+                        for (i, t) in times.iter_mut().enumerate() {
+                            *t = i as f64;
+                        }
                     }
                 }
                 if values.is_empty() {
@@ -720,6 +764,15 @@ impl PetriApp {
                         utilization
                     ));
                 });
+                ui.horizontal(|ui| {
+                    ui.label(self.tr("Масштаб X", "X zoom"));
+                    ui.add(
+                        egui::Slider::new(&mut self.place_stats_zoom_x, 1.0..=20.0)
+                            .logarithmic(true),
+                    );
+                    ui.label(self.tr("Сдвиг X", "X pan"));
+                    ui.add(egui::Slider::new(&mut self.place_stats_pan_x, 0.0..=1.0));
+                });
 
                 if let Some(place) = self.net.places.get(place_idx) {
                     ui.horizontal(|ui| {
@@ -747,26 +800,63 @@ impl PetriApp {
                     });
                 }
 
-                let desired_size = egui::Vec2::new(ui.available_width(), 320.0);
+                let total = values.len();
+                let visible = (((total as f32) / self.place_stats_zoom_x).round() as usize)
+                    .clamp(2, total.max(2));
+                let max_start = total.saturating_sub(visible);
+                let start = ((max_start as f32) * self.place_stats_pan_x)
+                    .round()
+                    .clamp(0.0, max_start as f32) as usize;
+                let end = (start + visible).min(total);
+                let values_window = &values[start..end];
+                let times_window = &times[start..end];
+
+                let desired_size = egui::Vec2::new(ui.available_width(), 360.0);
                 let (rect, _) = ui.allocate_exact_size(desired_size, Sense::hover());
                 let painter = ui.painter_at(rect);
                 painter.rect_stroke(rect, 0.0, Stroke::new(1.0, Color32::GRAY));
+                let left_pad = 50.0;
+                let right_pad = 14.0;
+                let top_pad = 14.0;
+                let bottom_pad = 28.0;
+                let plot_rect = Rect::from_min_max(
+                    Pos2::new(rect.left() + left_pad, rect.top() + top_pad),
+                    Pos2::new(rect.right() - right_pad, rect.bottom() - bottom_pad),
+                );
+                painter.rect_stroke(plot_rect, 0.0, Stroke::new(1.0, Color32::GRAY));
 
-                let x_min = times.first().copied().unwrap_or(0.0);
-                let mut x_max = times.last().copied().unwrap_or(1.0);
+                let x_min = times_window.first().copied().unwrap_or(0.0);
+                let mut x_max = times_window.last().copied().unwrap_or(1.0);
                 if x_max <= x_min {
-                    x_max = x_min + (values.len().max(1) as f64);
+                    x_max = x_min + (times_window.len().max(1) as f64);
                 }
                 let y_min = 0.0;
-                let mut y_max = max_v.max(1.0);
+                let mut y_max = values_window
+                    .iter()
+                    .copied()
+                    .fold(0.0_f64, |acc, v| if v > acc { v } else { acc })
+                    .max(1.0);
                 if y_max <= y_min {
                     y_max = y_min + 1.0;
                 }
 
                 for i in 1..10 {
-                    let x = rect.left() + rect.width() * (i as f32 / 10.0);
+                    let x = plot_rect.left() + plot_rect.width() * (i as f32 / 10.0);
                     painter.line_segment(
-                        [Pos2::new(x, rect.top()), Pos2::new(x, rect.bottom())],
+                        [
+                            Pos2::new(x, plot_rect.top()),
+                            Pos2::new(x, plot_rect.bottom()),
+                        ],
+                        Stroke::new(0.5, Color32::LIGHT_GRAY),
+                    );
+                }
+                for i in 1..4 {
+                    let y = plot_rect.bottom() - plot_rect.height() * (i as f32 / 4.0);
+                    painter.line_segment(
+                        [
+                            Pos2::new(plot_rect.left(), y),
+                            Pos2::new(plot_rect.right(), y),
+                        ],
                         Stroke::new(0.5, Color32::LIGHT_GRAY),
                     );
                 }
@@ -775,30 +865,51 @@ impl PetriApp {
                     let xr = ((x - x_min) / (x_max - x_min)).clamp(0.0, 1.0) as f32;
                     let yr = ((y - y_min) / (y_max - y_min)).clamp(0.0, 1.0) as f32;
                     Pos2::new(
-                        rect.left() + xr * rect.width(),
-                        rect.bottom() - yr * rect.height(),
+                        plot_rect.left() + xr * plot_rect.width(),
+                        plot_rect.bottom() - yr * plot_rect.height(),
                     )
                 };
 
-                let mut points = Vec::with_capacity(values.len());
-                for (x, y) in times.iter().zip(values.iter()) {
+                let mut points = Vec::with_capacity(values_window.len());
+                for (x, y) in times_window.iter().zip(values_window.iter()) {
                     points.push(to_screen(*x, *y));
                 }
                 if points.len() >= 2 {
-                    painter.add(egui::Shape::line(points, Stroke::new(1.5, Color32::BLUE)));
+                    painter.add(egui::Shape::line(points, Stroke::new(1.6, Color32::BLUE)));
                 }
 
                 painter.text(
-                    Pos2::new(rect.left() + 4.0, rect.top() + 4.0),
+                    Pos2::new(rect.left() + 4.0, plot_rect.top()),
                     egui::Align2::LEFT_TOP,
-                    format!("{:.0}", y_max),
+                    format!("{:.3}", y_max),
                     egui::FontId::default(),
                     Color32::DARK_GRAY,
                 );
                 painter.text(
-                    Pos2::new(rect.left() + 4.0, rect.bottom() - 4.0),
+                    Pos2::new(rect.left() + 4.0, plot_rect.bottom()),
                     egui::Align2::LEFT_BOTTOM,
                     "0",
+                    egui::FontId::default(),
+                    Color32::DARK_GRAY,
+                );
+                painter.text(
+                    Pos2::new(plot_rect.left(), plot_rect.bottom() + 6.0),
+                    egui::Align2::LEFT_TOP,
+                    format!("{:.3}", x_min),
+                    egui::FontId::default(),
+                    Color32::DARK_GRAY,
+                );
+                painter.text(
+                    Pos2::new(plot_rect.right(), plot_rect.bottom() + 6.0),
+                    egui::Align2::RIGHT_TOP,
+                    format!("{:.3}", x_max),
+                    egui::FontId::default(),
+                    Color32::DARK_GRAY,
+                );
+                painter.text(
+                    Pos2::new(plot_rect.center().x, rect.bottom() - 2.0),
+                    egui::Align2::CENTER_BOTTOM,
+                    self.tr("Ось X: время/шаги", "X axis: time/steps"),
                     egui::FontId::default(),
                     Color32::DARK_GRAY,
                 );
