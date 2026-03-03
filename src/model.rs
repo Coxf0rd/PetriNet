@@ -131,6 +131,14 @@ impl Default for UiSettings {
     }
 }
 
+fn default_visible_true() -> bool {
+    true
+}
+
+fn default_inhibitor_color() -> NodeColor {
+    NodeColor::Red
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 #[serde(default)]
 pub struct Place {
@@ -205,19 +213,54 @@ pub enum NodeRef {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(default)]
 pub struct Arc {
     pub id: u64,
     pub from: NodeRef,
     pub to: NodeRef,
     pub weight: u32,
+    pub color: NodeColor,
+    #[serde(default = "default_visible_true")]
+    pub visible: bool,
+}
+
+impl Default for Arc {
+    fn default() -> Self {
+        Self {
+            id: 0,
+            from: NodeRef::Place(0),
+            to: NodeRef::Transition(0),
+            weight: 1,
+            color: NodeColor::Default,
+            visible: true,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(default)]
 pub struct InhibitorArc {
     pub id: u64,
     pub place_id: u64,
     pub transition_id: u64,
     pub threshold: u32,
+    #[serde(default = "default_inhibitor_color")]
+    pub color: NodeColor,
+    #[serde(default = "default_visible_true")]
+    pub visible: bool,
+}
+
+impl Default for InhibitorArc {
+    fn default() -> Self {
+        Self {
+            id: 0,
+            place_id: 0,
+            transition_id: 0,
+            threshold: 1,
+            color: NodeColor::Red,
+            visible: true,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
@@ -311,27 +354,58 @@ impl PetriNetModel {
     }
 
     fn next_arc_id(&self) -> u64 {
-        self.arcs.iter().map(|a| a.id).max().unwrap_or(0) + 1
+        let max_arc = self.arcs.iter().map(|a| a.id).max().unwrap_or(0);
+        let max_inh = self.inhibitor_arcs.iter().map(|a| a.id).max().unwrap_or(0);
+        max_arc.max(max_inh) + 1
     }
 
     fn next_inhibitor_id(&self) -> u64 {
-        self.inhibitor_arcs.iter().map(|a| a.id).max().unwrap_or(0) + 1
+        let max_arc = self.arcs.iter().map(|a| a.id).max().unwrap_or(0);
+        let max_inh = self.inhibitor_arcs.iter().map(|a| a.id).max().unwrap_or(0);
+        max_arc.max(max_inh) + 1
+    }
+
+    fn default_place_pos(index: usize) -> [f32; 2] {
+        let col = (index % 8) as f32;
+        let row = (index / 8) as f32;
+        [40.0 + col * 140.0, 40.0 + row * 140.0]
+    }
+
+    fn default_transition_pos(index: usize) -> [f32; 2] {
+        let col = (index % 8) as f32;
+        let row = (index / 8) as f32;
+        [110.0 + col * 140.0, 40.0 + row * 140.0]
     }
 
     pub fn set_counts(&mut self, places: usize, transitions: usize) {
-        self.places.resize_with(places, || Place {
-            id: 0,
-            name: String::new(),
-            pos: [40.0, 40.0],
-            ..Default::default()
-        });
-        self.transitions.resize_with(transitions, || Transition {
-            id: 0,
-            name: String::new(),
-            pos: [160.0, 40.0],
-            size: VisualSize::Medium,
-            ..Default::default()
-        });
+        let old_places = self.places.len();
+        if places >= old_places {
+            for index in old_places..places {
+                self.places.push(Place {
+                    id: 0,
+                    name: String::new(),
+                    pos: Self::default_place_pos(index),
+                    ..Default::default()
+                });
+            }
+        } else {
+            self.places.truncate(places);
+        }
+
+        let old_transitions = self.transitions.len();
+        if transitions >= old_transitions {
+            for index in old_transitions..transitions {
+                self.transitions.push(Transition {
+                    id: 0,
+                    name: String::new(),
+                    pos: Self::default_transition_pos(index),
+                    size: VisualSize::Medium,
+                    ..Default::default()
+                });
+            }
+        } else {
+            self.transitions.truncate(transitions);
+        }
 
         let mut used_place_ids = HashSet::new();
         for (i, place) in self.places.iter_mut().enumerate() {
@@ -404,6 +478,8 @@ impl PetriNetModel {
                 from,
                 to,
                 weight: weight.max(1),
+                color: NodeColor::Default,
+                visible: true,
             });
             self.rebuild_matrices_from_arcs();
         }
@@ -416,6 +492,8 @@ impl PetriNetModel {
                 place_id,
                 transition_id,
                 threshold: threshold.max(1),
+                color: NodeColor::Red,
+                visible: true,
             });
             self.rebuild_matrices_from_arcs();
         }
@@ -486,8 +564,7 @@ impl PetriNetModel {
     pub fn rebuild_arcs_from_matrices(&mut self) {
         self.arcs.clear();
         self.inhibitor_arcs.clear();
-        let mut next_arc_id = 1_u64;
-        let mut next_inh_id = 1_u64;
+        let mut next_id = 1_u64;
 
         let place_ids: Vec<u64> = self.places.iter().map(|p| p.id).collect();
         let transition_ids: Vec<u64> = self.transitions.iter().map(|t| t.id).collect();
@@ -500,30 +577,36 @@ impl PetriNetModel {
 
                 if pre > 0 {
                     self.arcs.push(Arc {
-                        id: next_arc_id,
+                        id: next_id,
                         from: NodeRef::Place(*place_id),
                         to: NodeRef::Transition(*tr_id),
                         weight: pre,
+                        color: NodeColor::Default,
+                        visible: true,
                     });
-                    next_arc_id = next_arc_id.saturating_add(1);
+                    next_id = next_id.saturating_add(1);
                 }
                 if post > 0 {
                     self.arcs.push(Arc {
-                        id: next_arc_id,
+                        id: next_id,
                         from: NodeRef::Transition(*tr_id),
                         to: NodeRef::Place(*place_id),
                         weight: post,
+                        color: NodeColor::Default,
+                        visible: true,
                     });
-                    next_arc_id = next_arc_id.saturating_add(1);
+                    next_id = next_id.saturating_add(1);
                 }
                 if inh > 0 {
                     self.inhibitor_arcs.push(InhibitorArc {
-                        id: next_inh_id,
+                        id: next_id,
                         place_id: *place_id,
                         transition_id: *tr_id,
                         threshold: inh.max(1),
+                        color: NodeColor::Red,
+                        visible: true,
                     });
-                    next_inh_id = next_inh_id.saturating_add(1);
+                    next_id = next_id.saturating_add(1);
                 }
             }
         }
