@@ -919,6 +919,8 @@ fn apply_legacy_arcs(model: &mut PetriNetModel, arcs: &[LegacyArcRecord]) {
                 place_id,
                 transition_id,
                 threshold: arc.weight.max(1),
+                color: crate::model::NodeColor::Red,
+                visible: true,
             });
             next_inh_id = next_inh_id.saturating_add(1);
         } else {
@@ -932,6 +934,8 @@ fn apply_legacy_arcs(model: &mut PetriNetModel, arcs: &[LegacyArcRecord]) {
                 from,
                 to,
                 weight: arc.weight.max(1),
+                color: crate::model::NodeColor::Default,
+                visible: true,
             });
             next_arc_id = next_arc_id.saturating_add(1);
         }
