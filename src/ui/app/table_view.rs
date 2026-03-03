@@ -881,8 +881,23 @@ impl PetriApp {
                         egui::Slider::new(&mut self.place_stats_zoom_x, 1.0..=20.0)
                             .logarithmic(true),
                     );
+                    ui.add(
+                        egui::DragValue::new(&mut self.place_stats_zoom_x)
+                            .range(1.0..=20.0)
+                            .speed(0.01)
+                            .fixed_decimals(3),
+                    );
                     ui.label(self.tr("РЎРґРІРёРі X", "X pan"));
                     ui.add(egui::Slider::new(&mut self.place_stats_pan_x, 0.0..=1.0));
+                    ui.add(
+                        egui::DragValue::new(&mut self.place_stats_pan_x)
+                            .range(0.0..=1.0)
+                            .speed(0.001)
+                            .fixed_decimals(3),
+                    );
+                    ui.separator();
+                    let grid_label = self.tr("Показать сетку", "Show grid");
+                    ui.checkbox(&mut self.place_stats_show_grid, grid_label);
                 });
 
                 let total = values.len();
@@ -925,25 +940,37 @@ impl PetriApp {
                     y_max = y_min + 1.0;
                 }
 
-                for i in 1..10 {
-                    let x = plot_rect.left() + plot_rect.width() * (i as f32 / 10.0);
-                    painter.line_segment(
-                        [
-                            Pos2::new(x, plot_rect.top()),
-                            Pos2::new(x, plot_rect.bottom()),
-                        ],
-                        Stroke::new(0.5, Color32::LIGHT_GRAY),
-                    );
-                }
-                for i in 1..4 {
-                    let y = plot_rect.bottom() - plot_rect.height() * (i as f32 / 4.0);
-                    painter.line_segment(
-                        [
-                            Pos2::new(plot_rect.left(), y),
-                            Pos2::new(plot_rect.right(), y),
-                        ],
-                        Stroke::new(0.5, Color32::LIGHT_GRAY),
-                    );
+                ui.label(format!(
+                    "{}: [{:.3} .. {:.3}] | {}: {} / {}",
+                    self.tr("Диапазон X", "X range"),
+                    x_min,
+                    x_max,
+                    self.tr("Точки", "Points"),
+                    values_window.len(),
+                    values.len()
+                ));
+
+                if self.place_stats_show_grid {
+                    for i in 1..10 {
+                        let x = plot_rect.left() + plot_rect.width() * (i as f32 / 10.0);
+                        painter.line_segment(
+                            [
+                                Pos2::new(x, plot_rect.top()),
+                                Pos2::new(x, plot_rect.bottom()),
+                            ],
+                            Stroke::new(0.5, Color32::LIGHT_GRAY),
+                        );
+                    }
+                    for i in 1..4 {
+                        let y = plot_rect.bottom() - plot_rect.height() * (i as f32 / 4.0);
+                        painter.line_segment(
+                            [
+                                Pos2::new(plot_rect.left(), y),
+                                Pos2::new(plot_rect.right(), y),
+                            ],
+                            Stroke::new(0.5, Color32::LIGHT_GRAY),
+                        );
+                    }
                 }
 
                 let to_screen = |x: f64, y: f64| -> Pos2 {
