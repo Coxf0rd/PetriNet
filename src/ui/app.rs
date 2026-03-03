@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::fs;
 
 use std::collections::{HashMap, HashSet};
@@ -1332,10 +1333,19 @@ impl PetriApp {
         }
     }
 
-    fn tr<'a>(&self, ru: &'a str, en: &'a str) -> &'a str {
+    fn tr<'a>(&self, ru: &'a str, en: &'a str) -> Cow<'a, str> {
         match self.net.ui.language {
-            Language::Ru => ru,
-            Language::En => en,
+            Language::Ru => {
+                let (bytes, _, had_errors) = encoding_rs::WINDOWS_1251.encode(ru);
+                if had_errors {
+                    return Cow::Borrowed(ru);
+                }
+                match String::from_utf8(bytes.into_owned()) {
+                    Ok(decoded) => Cow::Owned(decoded),
+                    Err(_) => Cow::Borrowed(ru),
+                }
+            }
+            Language::En => Cow::Borrowed(en),
         }
     }
 
@@ -2933,7 +2943,7 @@ impl PetriApp {
             self.place_props_id = Some(id);
         }
         if let Some(place_id) = self.place_props_id {
-            let title = self.tr("Свойства позиции", "Place Properties").to_owned();
+            let title = self.tr("Свойства позиции", "Place Properties").to_string();
             self.show_place_props = self.draw_place_props_window(ctx, place_id, title);
         } else {
             self.show_place_props = false;
@@ -3113,7 +3123,7 @@ impl PetriApp {
         if let Some(transition_id) = self.transition_props_id {
             let title = self
                 .tr("Свойства перехода", "Transition Properties")
-                .to_owned();
+                .to_string();
             self.show_transition_props =
                 self.draw_transition_props_window(ctx, transition_id, title);
         } else {

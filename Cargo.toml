@@ -1,6 +1,6 @@
 [package]
 name = "petri_net_legacy_editor"
-version = "0.6.26"
+version = "0.6.27"
 edition = "2021"
 license = "MIT"
 build = "build.rs"
@@ -15,6 +15,7 @@ rfd = "0.14"
 rand = { version = "0.8", features = ["small_rng"] }
 arboard = "3.6"
 image = { version = "0.25", default-features = false, features = ["ico"] }
+encoding_rs = "0.8"
 
 [dev-dependencies]
 tempfile = "3.10"

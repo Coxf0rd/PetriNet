@@ -313,6 +313,10 @@ impl PetriApp {
                 .resizable(true)
                 .default_size(egui::vec2(1120.0, 760.0))
                 .show(ctx, |ui| {
+                    egui::ScrollArea::vertical()
+                        .id_source("results_window_scroll")
+                        .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysHidden)
+                        .show(ui, |ui| {
                             ui.label(match result.cycle_time {
                                 Some(t) => format!(
                                     "{}: {:.6} {}",
@@ -600,6 +604,7 @@ impl PetriApp {
                                         });
                                 }
                             }
+                        });
                 });
             self.show_results = open;
         }
