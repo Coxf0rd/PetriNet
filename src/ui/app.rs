@@ -736,6 +736,15 @@ impl PetriApp {
 
     fn save_file(&mut self) {
         if let Some(path) = self.file_path.clone() {
+            let is_gpn2 = path
+                .extension()
+                .and_then(|ext| ext.to_str())
+                .map(|ext| ext.eq_ignore_ascii_case("gpn2"))
+                .unwrap_or(false);
+            if !is_gpn2 {
+                self.save_file_as();
+                return;
+            }
             self.sync_model_overlays_from_canvas();
             if let Err(e) = crate::io::gpn2::save_gpn2(&path, &self.net) {
                 self.last_error = Some(e.to_string());
@@ -749,7 +758,7 @@ impl PetriApp {
 
     fn save_file_as(&mut self) {
         if let Some(path) = rfd::FileDialog::new()
-            .add_filter("Файлы PetriNet", &["gpn2", "pn", "gpn"])
+            .add_filter("Файлы PetriNet (gpn2)", &["gpn2"])
             .set_file_name("модель.gpn2")
             .save_file()
         {
@@ -765,13 +774,49 @@ impl PetriApp {
 
     fn export_netstar_file(&mut self) {
         if let Some(path) = rfd::FileDialog::new()
-            .add_filter("Файлы NetStar", &["gpn"])
+            .add_filter("Файлы NetStar (gpn)", &["gpn"])
             .set_file_name("экспорт_netstar.gpn")
             .save_file()
         {
             self.start_netstar_export_validation(path);
         }
     }
+
+    fn netstar_non_exportable_items(&self) -> Vec<String> {
+        let mut items = Vec::new();
+        if !self.text_blocks.is_empty() {
+            items.push(format!(
+                "{}: {}",
+                self.tr("Текстовые блоки", "Text blocks"),
+                self.text_blocks.len()
+            ));
+        }
+        if !self.decorative_frames.is_empty() {
+            items.push(format!(
+                "{}: {}",
+                self.tr("Декоративные рамки", "Decorative frames"),
+                self.decorative_frames.len()
+            ));
+        }
+        let has_arc_style_data = self
+            .net
+            .arcs
+            .iter()
+            .any(|arc| arc.color != NodeColor::Default || !arc.visible)
+            || self
+                .net
+                .inhibitor_arcs
+                .iter()
+                .any(|arc| arc.color != NodeColor::Red || !arc.visible);
+        if has_arc_style_data {
+            items.push(
+                self.tr("Цвет/скрытие дуг", "Arc color/visibility")
+                    .to_string(),
+            );
+        }
+        items
+    }
+
     fn duplicate_ids<I>(ids: I) -> Vec<u64>
     where
         I: IntoIterator<Item = u64>,
@@ -1104,45 +1149,18 @@ impl PetriApp {
             }
         }
 
-        if !self.text_blocks.is_empty() {
-            report.warnings.push(format!(
-                "{} {}",
-                self.tr(
-                    "Текстовые блоки не поддерживаются NetStar и не будут экспортированы:",
-                    "Text blocks are not supported by NetStar and will not be exported:"
-                ),
-                self.text_blocks.len()
-            ));
-        }
-        if !self.decorative_frames.is_empty() {
-            report.warnings.push(format!(
-                "{} {}",
-                self.tr(
-                    "Декоративные рамки не поддерживаются NetStar и не будут экспортированы:",
-                    "Decorative frames are not supported by NetStar and will not be exported:"
-                ),
-                self.decorative_frames.len()
-            ));
-        }
-
-        let has_arc_style_data = self
-            .net
-            .arcs
-            .iter()
-            .any(|arc| arc.color != NodeColor::Default || !arc.visible)
-            || self
-                .net
-                .inhibitor_arcs
-                .iter()
-                .any(|arc| arc.color != NodeColor::Red || !arc.visible);
-        if has_arc_style_data {
+        let non_exportable_items = self.netstar_non_exportable_items();
+        if !non_exportable_items.is_empty() {
             report.warnings.push(
                 self.tr(
-                    "Цвет и скрытие дуг не экспортируются в NetStar.",
-                    "Arc color and visibility are not exported to NetStar.",
+                    "Есть элементы, которые не экспортируются в NetStar.",
+                    "There are elements that are not exported to NetStar.",
                 )
                 .to_string(),
             );
+            for item in non_exportable_items {
+                report.warnings.push(format!("• {}", item));
+            }
         }
 
         report
@@ -2392,16 +2410,16 @@ impl PetriApp {
                         ui.label("Импорт PeSim: TODO");
                     });
                     ui.menu_button("Экспорт", |ui| {
-                        if ui.button("Экспортировать в NetStar").clicked() {
+                        if ui.button("Экспорт в NetStar (gpn)").clicked() {
                             self.export_netstar_file();
                             ui.close_menu();
                         }
                     });
-                    if ui.button("Сохранить (Ctrl+S)").clicked() {
+                    if ui.button("Сохранить (gpn2) (Ctrl+S)").clicked() {
                         self.save_file();
                         ui.close_menu();
                     }
-                    if ui.button("Сохранить как").clicked() {
+                    if ui.button("Сохранить как (gpn2)").clicked() {
                         self.save_file_as();
                         ui.close_menu();
                     }
@@ -2431,6 +2449,22 @@ impl PetriApp {
                         }
                     });
                 });
+                let non_exportable_items = self.netstar_non_exportable_items();
+                if !non_exportable_items.is_empty() {
+                    ui.menu_button(
+                        self.tr("Совместимость NetStar ⚠", "NetStar Compatibility ⚠"),
+                        |ui| {
+                            ui.label(self.tr(
+                                "Есть элементы, которые не экспортируются в NetStar:",
+                                "There are elements not exported to NetStar:",
+                            ));
+                            ui.separator();
+                            for item in non_exportable_items {
+                                ui.label(format!("• {}", item));
+                            }
+                        },
+                    );
+                }
 
                 ui.menu_button("Окно", |ui| {
                     if ui.button("Каскад").clicked() {
