@@ -268,12 +268,12 @@ impl PetriApp {
 
                 if ui.button("СТАРТ").clicked() {
                     self.net.rebuild_matrices_from_arcs();
-                    self.sim_result = Some(run_simulation(
+                    self.sim_result = Some(std::sync::Arc::new(run_simulation(
                         &self.net,
                         &self.sim_params,
                         false,
                         self.net.ui.marker_count_stats,
-                    ));
+                    )));
                     self.debug_step = 0;
                     self.debug_playing = false;
                     self.last_debug_tick = None;
@@ -309,6 +309,20 @@ impl PetriApp {
                         self.tr("Сработало переходов", "Fired transitions"),
                         result.fired_count
                     ));
+                    if result.log_entries_total > result.logs.len() {
+                        ui.label(format!(
+                            "{}: {} / {} ({})",
+                            self.tr("Журнал сэмплирован", "Log sampled"),
+                            result.logs.len(),
+                            result.log_entries_total,
+                            self.tr("шаг сэмплирования", "sampling stride"),
+                        ));
+                        ui.label(format!(
+                            "{} {}",
+                            self.tr("Текущий шаг:", "Current stride:"),
+                            result.log_sampling_stride,
+                        ));
+                    }
 
                     let stats_places: Vec<usize> = self
                         .net
@@ -385,29 +399,53 @@ impl PetriApp {
                             "Статистика маркеров (min/max/avg)",
                             "Token statistics (min/max/avg)",
                         ));
-                        egui::Grid::new("stats_grid").striped(true).show(ui, |ui| {
-                            ui.label(self.tr("Позиция", "Place"));
-                            ui.label("Min");
-                            ui.label("Max");
-                            ui.label("Avg");
-                            ui.end_row();
-                            for (p, st) in stats.iter().enumerate() {
+                        let rows: Vec<usize> = stats
+                            .iter()
+                            .enumerate()
+                            .filter_map(|(p, _)| {
                                 let selected = self
                                     .net
                                     .places
                                     .get(p)
                                     .map(|pl| pl.stats.markers_total)
                                     .unwrap_or(false);
-                                if !show_all_places_in_stats && !selected {
-                                    continue;
+                                if show_all_places_in_stats || selected {
+                                    Some(p)
+                                } else {
+                                    None
                                 }
-                                ui.label(format!("P{}", p + 1));
-                                ui.label(st.min.to_string());
-                                ui.label(st.max.to_string());
-                                ui.label(format!("{:.3}", st.avg));
+                            })
+                            .collect();
+                        let row_h = ui.text_style_height(&egui::TextStyle::Body) + 4.0;
+                        egui::Grid::new("stats_grid_header")
+                            .striped(true)
+                            .show(ui, |ui| {
+                                ui.label(self.tr("Позиция", "Place"));
+                                ui.label("Min");
+                                ui.label("Max");
+                                ui.label("Avg");
                                 ui.end_row();
-                            }
-                        });
+                            });
+                        egui::ScrollArea::vertical().max_height(180.0).show_rows(
+                            ui,
+                            row_h,
+                            rows.len(),
+                            |ui, range| {
+                                egui::Grid::new("stats_grid_rows")
+                                    .striped(true)
+                                    .show(ui, |ui| {
+                                        for row_idx in range {
+                                            let p = rows[row_idx];
+                                            let st = &stats[p];
+                                            ui.label(format!("P{}", p + 1));
+                                            ui.label(st.min.to_string());
+                                            ui.label(st.max.to_string());
+                                            ui.label(format!("{:.3}", st.avg));
+                                            ui.end_row();
+                                        }
+                                    });
+                            },
+                        );
                     }
 
                     if let Some(flow) = &result.place_flow {
@@ -420,27 +458,52 @@ impl PetriApp {
                         if want_flow {
                             ui.separator();
                             ui.label(self.tr("Потоки (вход/выход)", "Flows (in/out)"));
-                            egui::Grid::new("flow_grid").striped(true).show(ui, |ui| {
-                                ui.label(self.tr("Позиция", "Place"));
-                                ui.label(self.tr("Вход", "In"));
-                                ui.label(self.tr("Выход", "Out"));
-                                ui.end_row();
-                                for (p, st) in flow.iter().enumerate() {
+                            let rows: Vec<usize> = flow
+                                .iter()
+                                .enumerate()
+                                .filter_map(|(p, _)| {
                                     let selected = self
                                         .net
                                         .places
                                         .get(p)
                                         .map(|pl| pl.stats.markers_input || pl.stats.markers_output)
                                         .unwrap_or(false);
-                                    if !show_all_places_in_stats && !selected {
-                                        continue;
+                                    if show_all_places_in_stats || selected {
+                                        Some(p)
+                                    } else {
+                                        None
                                     }
-                                    ui.label(format!("P{}", p + 1));
-                                    ui.label(st.in_tokens.to_string());
-                                    ui.label(st.out_tokens.to_string());
+                                })
+                                .collect();
+                            let row_h = ui.text_style_height(&egui::TextStyle::Body) + 4.0;
+                            egui::Grid::new("flow_grid_header")
+                                .striped(true)
+                                .show(ui, |ui| {
+                                    ui.label(self.tr("Позиция", "Place"));
+                                    ui.label(self.tr("Вход", "In"));
+                                    ui.label(self.tr("Выход", "Out"));
                                     ui.end_row();
-                                }
-                            });
+                                });
+                            egui::ScrollArea::vertical().max_height(180.0).show_rows(
+                                ui,
+                                row_h,
+                                rows.len(),
+                                |ui, range| {
+                                    egui::Grid::new("flow_grid_rows").striped(true).show(
+                                        ui,
+                                        |ui| {
+                                            for row_idx in range {
+                                                let p = rows[row_idx];
+                                                let st = &flow[p];
+                                                ui.label(format!("P{}", p + 1));
+                                                ui.label(st.in_tokens.to_string());
+                                                ui.label(st.out_tokens.to_string());
+                                                ui.end_row();
+                                            }
+                                        },
+                                    );
+                                },
+                            );
                         }
                     }
 
@@ -452,13 +515,10 @@ impl PetriApp {
                         if want_load {
                             ui.separator();
                             ui.label(self.tr("Загруженность", "Load"));
-                            egui::Grid::new("load_grid").striped(true).show(ui, |ui| {
-                                ui.label(self.tr("Позиция", "Place"));
-                                ui.label(self.tr("Общая", "Total"));
-                                ui.label(self.tr("Вход", "Input"));
-                                ui.label(self.tr("Выход", "Output"));
-                                ui.end_row();
-                                for (p, st) in load.iter().enumerate() {
+                            let rows: Vec<usize> = load
+                                .iter()
+                                .enumerate()
+                                .filter_map(|(p, _)| {
                                     let selected = self
                                         .net
                                         .places
@@ -469,25 +529,53 @@ impl PetriApp {
                                                 || pl.stats.load_output
                                         })
                                         .unwrap_or(false);
-                                    if !show_all_places_in_stats && !selected {
-                                        continue;
+                                    if show_all_places_in_stats || selected {
+                                        Some(p)
+                                    } else {
+                                        None
                                     }
-                                    ui.label(format!("P{}", p + 1));
-                                    ui.label(match st.avg_over_capacity {
-                                        Some(v) => format!("{:.3}", v),
-                                        None => "N/A".to_string(),
-                                    });
-                                    ui.label(match st.in_rate {
-                                        Some(v) => format!("{:.3}", v),
-                                        None => "N/A".to_string(),
-                                    });
-                                    ui.label(match st.out_rate {
-                                        Some(v) => format!("{:.3}", v),
-                                        None => "N/A".to_string(),
-                                    });
+                                })
+                                .collect();
+                            let row_h = ui.text_style_height(&egui::TextStyle::Body) + 4.0;
+                            egui::Grid::new("load_grid_header")
+                                .striped(true)
+                                .show(ui, |ui| {
+                                    ui.label(self.tr("Позиция", "Place"));
+                                    ui.label(self.tr("Общая", "Total"));
+                                    ui.label(self.tr("Вход", "Input"));
+                                    ui.label(self.tr("Выход", "Output"));
                                     ui.end_row();
-                                }
-                            });
+                                });
+                            egui::ScrollArea::vertical().max_height(180.0).show_rows(
+                                ui,
+                                row_h,
+                                rows.len(),
+                                |ui, range| {
+                                    egui::Grid::new("load_grid_rows").striped(true).show(
+                                        ui,
+                                        |ui| {
+                                            for row_idx in range {
+                                                let p = rows[row_idx];
+                                                let st = &load[p];
+                                                ui.label(format!("P{}", p + 1));
+                                                ui.label(match st.avg_over_capacity {
+                                                    Some(v) => format!("{:.3}", v),
+                                                    None => "N/A".to_string(),
+                                                });
+                                                ui.label(match st.in_rate {
+                                                    Some(v) => format!("{:.3}", v),
+                                                    None => "N/A".to_string(),
+                                                });
+                                                ui.label(match st.out_rate {
+                                                    Some(v) => format!("{:.3}", v),
+                                                    None => "N/A".to_string(),
+                                                });
+                                                ui.end_row();
+                                            }
+                                        },
+                                    );
+                                },
+                            );
                         }
                     }
                 });
@@ -555,9 +643,11 @@ impl PetriApp {
                     ui.label(place_name);
                 });
 
-                let mut values = Vec::<f64>::new();
-                let mut times = Vec::<f64>::new();
-                for (idx, entry) in result.logs.iter().enumerate() {
+                let sampled = Self::sampled_indices(result.logs.len(), Self::MAX_PLOT_POINTS);
+                let mut values = Vec::<f64>::with_capacity(sampled.len());
+                let mut times = Vec::<f64>::with_capacity(sampled.len());
+                for idx in sampled {
+                    let entry = &result.logs[idx];
                     if let Some(value) = entry.marking.get(place_idx) {
                         values.push(*value as f64);
                         let t = if entry.time.is_finite() {
@@ -571,6 +661,14 @@ impl PetriApp {
                 if values.is_empty() {
                     ui.label(self.tr("Нет данных для отображения", "No data to display"));
                     return;
+                }
+                if result.logs.len() > values.len() {
+                    ui.label(format!(
+                        "{}: {} / {}",
+                        self.tr("График сэмплирован", "Plot sampled"),
+                        values.len(),
+                        result.logs.len()
+                    ));
                 }
 
                 let mut max_v = values[0];

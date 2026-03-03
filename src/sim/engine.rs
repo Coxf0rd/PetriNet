@@ -1,10 +1,12 @@
 use std::collections::HashMap;
 
-use rand::{Rng, SeedableRng};
 use rand::rngs::SmallRng;
+use rand::{Rng, SeedableRng};
 use serde::{Deserialize, Serialize};
 
 use crate::model::{PetriNet, StochasticDistribution};
+
+const MAX_SIM_LOG_ENTRIES: usize = 20_000;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct StopConditions {
@@ -71,6 +73,8 @@ pub struct PlaceLoadStats {
 pub struct SimulationResult {
     pub cycle_time: Option<f64>,
     pub logs: Vec<LogEntry>,
+    pub log_entries_total: usize,
+    pub log_sampling_stride: usize,
     pub place_stats: Option<Vec<PlaceStats>>,
     pub place_flow: Option<Vec<PlaceFlowStats>>,
     pub place_load: Option<Vec<PlaceLoadStats>>,
@@ -119,7 +123,35 @@ impl SimState {
     }
 }
 
-pub fn run_simulation(net: &PetriNet, params: &SimulationParams, _fixed_step: bool, collect_stats: bool) -> SimulationResult {
+fn push_log_entry_sampled(
+    logs: &mut Vec<LogEntry>,
+    entry: LogEntry,
+    raw_log_total: &mut usize,
+    sample_stride: &mut usize,
+) {
+    if *raw_log_total % *sample_stride == 0 {
+        logs.push(entry);
+    }
+    *raw_log_total = raw_log_total.saturating_add(1);
+
+    while logs.len() > MAX_SIM_LOG_ENTRIES {
+        let mut reduced = Vec::with_capacity((logs.len() + 1) / 2);
+        for (idx, item) in logs.drain(..).enumerate() {
+            if idx % 2 == 0 {
+                reduced.push(item);
+            }
+        }
+        *logs = reduced;
+        *sample_stride = sample_stride.saturating_mul(2).max(1);
+    }
+}
+
+pub fn run_simulation(
+    net: &PetriNet,
+    params: &SimulationParams,
+    _fixed_step: bool,
+    collect_stats: bool,
+) -> SimulationResult {
     let places = net.places.len();
     let mut state = SimState {
         available: net.tables.m0.clone(),
@@ -132,6 +164,8 @@ pub fn run_simulation(net: &PetriNet, params: &SimulationParams, _fixed_step: bo
     let mut now = 0.0;
     let mut passes = 0_u64;
     let mut logs = Vec::new();
+    let mut raw_log_total = 0usize;
+    let mut log_sampling_stride = 1usize;
     // Deterministic by default: makes tests and bug reports reproducible.
     let mut rng = SmallRng::seed_from_u64(0x5EED_5EED);
     let mut seen_markings: HashMap<Vec<u32>, f64> = HashMap::new();
@@ -140,6 +174,7 @@ pub fn run_simulation(net: &PetriNet, params: &SimulationParams, _fixed_step: bo
     let mut stats_acc = vec![0_f64; places];
     let mut stats_min = vec![u32::MAX; places];
     let mut stats_max = vec![0_u32; places];
+    let mut stats_observations = 0usize;
 
     loop {
         state.process_releases(now);
@@ -158,16 +193,22 @@ pub fn run_simulation(net: &PetriNet, params: &SimulationParams, _fixed_step: bo
                 stats_max[p] = stats_max[p].max(m);
                 stats_acc[p] += m as f64;
             }
+            stats_observations = stats_observations.saturating_add(1);
         }
 
         let enabled = enabled_transitions(net, &state);
         if enabled.is_empty() {
-            logs.push(LogEntry {
-                time: now,
-                fired_transition: None,
-                marking,
-                touched_places: Vec::new(),
-            });
+            push_log_entry_sampled(
+                &mut logs,
+                LogEntry {
+                    time: now,
+                    fired_transition: None,
+                    marking,
+                    touched_places: Vec::new(),
+                },
+                &mut raw_log_total,
+                &mut log_sampling_stride,
+            );
             if let Some(next_release) = state.next_release_time() {
                 let next_time = next_release;
                 if next_time > now {
@@ -185,24 +226,56 @@ pub fn run_simulation(net: &PetriNet, params: &SimulationParams, _fixed_step: bo
         let touched_places = fire_transition(net, &mut state, fired, now, &mut rng);
         passes = passes.saturating_add(1);
 
-        logs.push(LogEntry {
-            time: now,
-            fired_transition: Some(fired),
-            marking: state.total_marking(),
-            touched_places,
-        });
+        push_log_entry_sampled(
+            &mut logs,
+            LogEntry {
+                time: now,
+                fired_transition: Some(fired),
+                marking: state.total_marking(),
+                touched_places,
+            },
+            &mut raw_log_total,
+            &mut log_sampling_stride,
+        );
 
         if should_stop(net, &state, params, now, passes) {
             break;
         }
     }
 
-    let place_stats = if collect_stats && !logs.is_empty() {
-        let n = logs.len() as f64;
+    let final_marking = state.total_marking();
+    let need_final_snapshot = logs
+        .last()
+        .map(|entry| {
+            entry.time != now
+                || entry.marking.as_slice() != final_marking.as_slice()
+                || entry.fired_transition.is_some()
+        })
+        .unwrap_or(true);
+    if need_final_snapshot {
+        logs.push(LogEntry {
+            time: now,
+            fired_transition: None,
+            marking: final_marking.clone(),
+            touched_places: Vec::new(),
+        });
+        raw_log_total = raw_log_total.saturating_add(1);
+        if logs.len() > MAX_SIM_LOG_ENTRIES {
+            let overflow = logs.len() - MAX_SIM_LOG_ENTRIES;
+            logs.drain(0..overflow);
+        }
+    }
+
+    let place_stats = if collect_stats && stats_observations > 0 {
+        let n = stats_observations as f64;
         Some(
             (0..places)
                 .map(|p| PlaceStats {
-                    min: if stats_min[p] == u32::MAX { 0 } else { stats_min[p] },
+                    min: if stats_min[p] == u32::MAX {
+                        0
+                    } else {
+                        stats_min[p]
+                    },
                     max: stats_max[p],
                     avg: stats_acc[p] / n,
                 })
@@ -226,8 +299,8 @@ pub fn run_simulation(net: &PetriNet, params: &SimulationParams, _fixed_step: bo
     };
 
     let sim_time = now.max(0.0);
-    let place_load = if collect_stats && !logs.is_empty() {
-        let n = logs.len() as f64;
+    let place_load = if collect_stats && stats_observations > 0 {
+        let n = stats_observations as f64;
         Some(
             (0..places)
                 .map(|p| {
@@ -262,12 +335,14 @@ pub fn run_simulation(net: &PetriNet, params: &SimulationParams, _fixed_step: bo
     SimulationResult {
         cycle_time,
         logs,
+        log_entries_total: raw_log_total,
+        log_sampling_stride,
         place_stats,
         place_flow,
         place_load,
         sim_time,
         fired_count: passes,
-        final_marking: state.total_marking(),
+        final_marking,
     }
 }
 
@@ -278,7 +353,10 @@ fn enabled_transitions(net: &PetriNet, state: &SimState) -> Vec<usize> {
     for t in 0..net.transitions.len() {
         let mut has_incident_arc = false;
         for p in 0..places {
-            if net.tables.pre[p][t] > 0 || net.tables.post[p][t] > 0 || net.tables.inhibitor[p][t] > 0 {
+            if net.tables.pre[p][t] > 0
+                || net.tables.post[p][t] > 0
+                || net.tables.inhibitor[p][t] > 0
+            {
                 has_incident_arc = true;
                 break;
             }
@@ -393,7 +471,12 @@ fn fire_transition(
     touched_places
 }
 
-fn sample_place_delay(net: &PetriNet, place_index: usize, base_delay: f64, rng: &mut SmallRng) -> f64 {
+fn sample_place_delay(
+    net: &PetriNet,
+    place_index: usize,
+    base_delay: f64,
+    rng: &mut SmallRng,
+) -> f64 {
     let Some(place) = net.places.get(place_index) else {
         return base_delay.max(0.0);
     };
@@ -444,10 +527,20 @@ fn sample_place_delay(net: &PetriNet, place_index: usize, base_delay: f64, rng: 
         }
         StochasticDistribution::CustomValue { value } => value,
     };
-    if value.is_finite() { value.max(0.0) } else { 0.0 }
+    if value.is_finite() {
+        value.max(0.0)
+    } else {
+        0.0
+    }
 }
 
-fn should_stop(net: &PetriNet, state: &SimState, params: &SimulationParams, now: f64, passes: u64) -> bool {
+fn should_stop(
+    net: &PetriNet,
+    state: &SimState,
+    params: &SimulationParams,
+    now: f64,
+    passes: u64,
+) -> bool {
     if params.use_time_limit && now >= params.time_limit_sec.max(0.0) {
         return true;
     }
@@ -583,6 +676,30 @@ mod tests {
 
         let res = run_simulation(&net, &p, false, false);
         assert_eq!(res.fired_count, 3);
-        assert!(res.logs.iter().all(|entry| (entry.time - 0.0).abs() < f64::EPSILON));
+        assert!(res
+            .logs
+            .iter()
+            .all(|entry| (entry.time - 0.0).abs() < f64::EPSILON));
+    }
+
+    #[test]
+    fn long_run_log_is_sampled_and_bounded() {
+        let mut net = PetriNet::new();
+        net.set_counts(1, 1);
+        net.tables.m0[0] = 1;
+        net.tables.pre[0][0] = 1;
+        net.tables.post[0][0] = 1;
+        net.rebuild_arcs_from_matrices();
+
+        let p = SimulationParams {
+            use_pass_limit: true,
+            pass_limit: 200_000,
+            ..SimulationParams::default()
+        };
+        let res = run_simulation(&net, &p, false, false);
+
+        assert!(res.log_entries_total > MAX_SIM_LOG_ENTRIES);
+        assert!(res.logs.len() <= MAX_SIM_LOG_ENTRIES);
+        assert!(res.log_sampling_stride >= 1);
     }
 }

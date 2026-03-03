@@ -4,6 +4,7 @@ use std::collections::{HashMap, HashSet};
 use std::hash::{Hash, Hasher};
 
 use std::path::PathBuf;
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use eframe::egui;
@@ -213,7 +214,7 @@ pub struct PetriApp {
     tool: Tool,
     canvas: CanvasState,
     sim_params: SimulationParams,
-    sim_result: Option<SimulationResult>,
+    sim_result: Option<Arc<SimulationResult>>,
     show_sim_params: bool,
     show_results: bool,
     show_atf: bool,
@@ -270,6 +271,7 @@ impl PetriApp {
     const CLIPBOARD_PREFIX: &'static str = "PETRINET_COPY_V1:";
     const FRAME_MIN_SIDE: f32 = 10.0;
     const FRAME_RESIZE_HANDLE_PX: f32 = 10.0;
+    const MAX_PLOT_POINTS: usize = 2_000;
 
     fn grid_step_world(&self) -> f32 {
         if self.net.ui.snap_to_grid {
@@ -1388,6 +1390,32 @@ impl PetriApp {
             previous_marking = entry.marking.as_slice();
         }
         indices
+    }
+
+    fn sampled_indices(total: usize, max_points: usize) -> Vec<usize> {
+        if total == 0 {
+            return Vec::new();
+        }
+        if max_points <= 1 || total <= max_points {
+            return (0..total).collect();
+        }
+
+        let mut out = Vec::with_capacity(max_points);
+        let last_idx = total - 1;
+        let step = last_idx as f64 / (max_points - 1) as f64;
+        for i in 0..max_points {
+            let mut idx = (i as f64 * step).round() as usize;
+            if idx > last_idx {
+                idx = last_idx;
+            }
+            if out.last().copied() != Some(idx) {
+                out.push(idx);
+            }
+        }
+        if out.last().copied() != Some(last_idx) {
+            out.push(last_idx);
+        }
+        out
     }
 
     fn label_pos_text(pos: LabelPosition, is_ru: bool) -> &'static str {
@@ -3081,25 +3109,40 @@ impl PetriApp {
                     "Proof is generated from simulation trace.",
                 ));
                 ui.separator();
-                egui::Grid::new("proof_grid").striped(true).show(ui, |ui| {
-                    ui.label(self.tr("Шаг", "Step"));
-                    ui.label(self.tr("Время", "Time"));
-                    ui.label(self.tr("Сработал переход", "Fired transition"));
-                    ui.label(self.tr("Маркировка", "Marking"));
-                    ui.end_row();
-                    for (step, entry) in result.logs.iter().enumerate() {
-                        ui.label(step.to_string());
-                        ui.label(format!("{:.3}", entry.time));
-                        ui.label(
-                            entry
-                                .fired_transition
-                                .map(|i| format!("T{}", i + 1))
-                                .unwrap_or_else(|| "-".to_string()),
-                        );
-                        ui.label(format!("{:?}", entry.marking));
+                let row_h = ui.text_style_height(&egui::TextStyle::Body) + 4.0;
+                egui::Grid::new("proof_grid_header")
+                    .striped(true)
+                    .show(ui, |ui| {
+                        ui.label(self.tr("Шаг", "Step"));
+                        ui.label(self.tr("Время", "Time"));
+                        ui.label(self.tr("Сработал переход", "Fired transition"));
+                        ui.label(self.tr("Маркировка", "Marking"));
                         ui.end_row();
-                    }
-                });
+                    });
+                egui::ScrollArea::vertical().max_height(420.0).show_rows(
+                    ui,
+                    row_h,
+                    result.logs.len(),
+                    |ui, range| {
+                        egui::Grid::new("proof_grid_rows")
+                            .striped(true)
+                            .show(ui, |ui| {
+                                for step in range {
+                                    let entry = &result.logs[step];
+                                    ui.label(step.to_string());
+                                    ui.label(format!("{:.3}", entry.time));
+                                    ui.label(
+                                        entry
+                                            .fired_transition
+                                            .map(|i| format!("T{}", i + 1))
+                                            .unwrap_or_else(|| "-".to_string()),
+                                    );
+                                    ui.label(format!("{:?}", entry.marking));
+                                    ui.end_row();
+                                }
+                            });
+                    },
+                );
             });
         self.show_proof = open;
     }
