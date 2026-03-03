@@ -182,7 +182,11 @@ pub fn import_legacy_gpn(path: &Path) -> Result<LegacyImportResult, LegacyImport
         }
         if arcs_applied {
             prune_legacy_ghost_nodes(&mut model);
-            apply_legacy_read_arc_heuristics(&mut model);
+            // Read-arc heuristic is useful mostly for old files without explicit inhibitor arcs.
+            // When inhibitor arcs are present, forcing extra Post edges may distort dynamics.
+            if model.inhibitor_arcs.is_empty() {
+                apply_legacy_read_arc_heuristics(&mut model);
+            }
         }
     } else {
         used_fallback = true;
