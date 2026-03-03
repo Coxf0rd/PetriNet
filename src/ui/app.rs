@@ -2021,7 +2021,6 @@ impl PetriApp {
             let selected_arc_ids = self.collect_selected_arc_ids();
             if !selected_arc_ids.is_empty() {
                 ui.separator();
-                let visible_label = self.tr("Отображать", "Visible");
                 let color_label = self.tr("Цвет", "Color");
 
                 if selected_arc_ids.len() == 1 {
@@ -2029,7 +2028,6 @@ impl PetriApp {
                     ui.label(self.tr("Выбранная связь", "Selected link"));
 
                     if let Some(arc) = self.net.arcs.iter_mut().find(|a| a.id == arc_id) {
-                        ui.checkbox(&mut arc.visible, visible_label);
                         egui::ComboBox::from_label(color_label)
                             .selected_text(Self::node_color_text(arc.color, is_ru))
                             .show_ui(ui, |ui| {
@@ -2060,7 +2058,6 @@ impl PetriApp {
                                 );
                             });
                     } else if let Some(inh) = self.net.inhibitor_arcs.iter_mut().find(|a| a.id == arc_id) {
-                        ui.checkbox(&mut inh.visible, visible_label);
                         egui::ComboBox::from_label(color_label)
                             .selected_text(Self::node_color_text(inh.color, is_ru))
                             .show_ui(ui, |ui| {
@@ -2116,8 +2113,9 @@ impl PetriApp {
                                 })
                         })
                         .unwrap_or(NodeColor::Default);
+                    let previous_color = bulk_color;
 
-                    let response = egui::ComboBox::from_label(color_label)
+                    egui::ComboBox::from_label(color_label)
                         .selected_text(Self::node_color_text(bulk_color, is_ru))
                         .show_ui(ui, |ui| {
                             ui.selectable_value(
@@ -2147,7 +2145,7 @@ impl PetriApp {
                             );
                         });
 
-                    if response.response.changed() {
+                    if bulk_color != previous_color {
                         self.push_undo_snapshot();
                         let ids: HashSet<u64> = selected_arc_ids.iter().copied().collect();
                         for arc in &mut self.net.arcs {
@@ -2161,39 +2159,6 @@ impl PetriApp {
                             }
                         }
                     }
-
-                    ui.horizontal(|ui| {
-                        let show_all = if is_ru { "Показать все" } else { "Show all" };
-                        let hide_all = if is_ru { "Скрыть все" } else { "Hide all" };
-                        if ui.button(show_all).clicked() {
-                            self.push_undo_snapshot();
-                            let ids: HashSet<u64> = selected_arc_ids.iter().copied().collect();
-                            for arc in &mut self.net.arcs {
-                                if ids.contains(&arc.id) {
-                                    arc.visible = true;
-                                }
-                            }
-                            for inh in &mut self.net.inhibitor_arcs {
-                                if ids.contains(&inh.id) {
-                                    inh.visible = true;
-                                }
-                            }
-                        }
-                        if ui.button(hide_all).clicked() {
-                            self.push_undo_snapshot();
-                            let ids: HashSet<u64> = selected_arc_ids.iter().copied().collect();
-                            for arc in &mut self.net.arcs {
-                                if ids.contains(&arc.id) {
-                                    arc.visible = false;
-                                }
-                            }
-                            for inh in &mut self.net.inhibitor_arcs {
-                                if ids.contains(&inh.id) {
-                                    inh.visible = false;
-                                }
-                            }
-                        }
-                    });
                 }
             }
         });
