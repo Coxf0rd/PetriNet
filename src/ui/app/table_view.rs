@@ -924,7 +924,7 @@ impl PetriApp {
                 let left_pad = 50.0;
                 let right_pad = 14.0;
                 let top_pad = 14.0;
-                let bottom_pad = 28.0;
+                let bottom_pad = 36.0;
                 let plot_rect = Rect::from_min_max(
                     Pos2::new(rect.left() + left_pad, rect.top() + top_pad),
                     Pos2::new(rect.right() - right_pad, rect.bottom() - bottom_pad),
@@ -987,6 +987,32 @@ impl PetriApp {
                             Stroke::new(0.5, Color32::LIGHT_GRAY),
                         );
                     }
+
+                    for i in 0..=10 {
+                        let t = i as f32 / 10.0;
+                        let x = plot_rect.left() + plot_rect.width() * t;
+                        let xv = x_min + x_step * i as f64;
+                        painter.text(
+                            Pos2::new(x, plot_rect.bottom() + 6.0),
+                            egui::Align2::CENTER_TOP,
+                            format!("{:.1}", xv),
+                            egui::FontId::default(),
+                            Color32::DARK_GRAY,
+                        );
+                    }
+
+                    for i in 0..=10 {
+                        let t = i as f32 / 10.0;
+                        let y = plot_rect.bottom() - plot_rect.height() * t;
+                        let yv = y_min + y_step * i as f64;
+                        painter.text(
+                            Pos2::new(rect.left() + 4.0, y),
+                            egui::Align2::LEFT_CENTER,
+                            format!("{:.1}", yv),
+                            egui::FontId::default(),
+                            Color32::DARK_GRAY,
+                        );
+                    }
                 }
 
                 let to_screen = |x: f64, y: f64| -> Pos2 {
@@ -1006,34 +1032,36 @@ impl PetriApp {
                     painter.add(egui::Shape::line(points, Stroke::new(1.6, Color32::BLUE)));
                 }
 
-                painter.text(
-                    Pos2::new(rect.left() + 4.0, plot_rect.top()),
-                    egui::Align2::LEFT_TOP,
-                    format!("{:.3}", y_max),
-                    egui::FontId::default(),
-                    Color32::DARK_GRAY,
-                );
-                painter.text(
-                    Pos2::new(rect.left() + 4.0, plot_rect.bottom()),
-                    egui::Align2::LEFT_BOTTOM,
-                    "0",
-                    egui::FontId::default(),
-                    Color32::DARK_GRAY,
-                );
-                painter.text(
-                    Pos2::new(plot_rect.left(), plot_rect.bottom() + 6.0),
-                    egui::Align2::LEFT_TOP,
-                    format!("{:.3}", x_min),
-                    egui::FontId::default(),
-                    Color32::DARK_GRAY,
-                );
-                painter.text(
-                    Pos2::new(plot_rect.right(), plot_rect.bottom() + 6.0),
-                    egui::Align2::RIGHT_TOP,
-                    format!("{:.3}", x_max),
-                    egui::FontId::default(),
-                    Color32::DARK_GRAY,
-                );
+                if !self.place_stats_show_grid {
+                    painter.text(
+                        Pos2::new(rect.left() + 4.0, plot_rect.top()),
+                        egui::Align2::LEFT_TOP,
+                        format!("{:.3}", y_max),
+                        egui::FontId::default(),
+                        Color32::DARK_GRAY,
+                    );
+                    painter.text(
+                        Pos2::new(rect.left() + 4.0, plot_rect.bottom()),
+                        egui::Align2::LEFT_BOTTOM,
+                        "0",
+                        egui::FontId::default(),
+                        Color32::DARK_GRAY,
+                    );
+                    painter.text(
+                        Pos2::new(plot_rect.left(), plot_rect.bottom() + 6.0),
+                        egui::Align2::LEFT_TOP,
+                        format!("{:.3}", x_min),
+                        egui::FontId::default(),
+                        Color32::DARK_GRAY,
+                    );
+                    painter.text(
+                        Pos2::new(plot_rect.right(), plot_rect.bottom() + 6.0),
+                        egui::Align2::RIGHT_TOP,
+                        format!("{:.3}", x_max),
+                        egui::FontId::default(),
+                        Color32::DARK_GRAY,
+                    );
+                }
                 painter.text(
                     Pos2::new(plot_rect.center().x, rect.bottom() - 2.0),
                     egui::Align2::CENTER_BOTTOM,

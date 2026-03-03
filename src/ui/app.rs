@@ -1343,19 +1343,34 @@ impl PetriApp {
                 let Ok(decoded) = String::from_utf8(bytes.into_owned()) else {
                     return Cow::Borrowed(ru);
                 };
-                let mojibake_score = |s: &str| -> usize {
-                    const BAD: [&str; 7] = [
-                        "Р В Р’В¤",
-                        "РІР‚Сћ",
-                        "Р В РІР‚",
-                        "Р РЋРІР‚",
-                        "РІС™",
-                        "Р Р’",
-                        "РІвЂћ",
-                    ];
-                    BAD.iter().map(|m| s.matches(m).count()).sum()
+                let readability_score = |s: &str| -> i32 {
+                    let cyrillic = s
+                        .chars()
+                        .filter(|c| matches!(*c, 'А'..='я' | 'Ё' | 'ё'))
+                        .count() as i32;
+                    let rs_noise = s.matches('Р').count() as i32 + s.matches('С').count() as i32;
+                    let high_noise = s
+                        .chars()
+                        .filter(|c| "ЂЃ‚ѓ„…†‡€‰Љ‹ЊЌЋЏђ‘’“”•–—™љ›њќћџ".contains(*c))
+                        .count() as i32;
+                    (cyrillic * 3) - rs_noise - (high_noise * 4)
                 };
-                if mojibake_score(&decoded) < mojibake_score(ru) {
+                let has_known_bad_marker = [
+                    "Р В Р’В¤",
+                    "РІР‚Сћ",
+                    "Р В РІР‚",
+                    "Р РЋРІР‚",
+                    "РІС™",
+                    "Р Р’",
+                    "РІвЂћ",
+                    "РџР°СЂ",
+                    "РЎС‚Р°С‚",
+                    "Р РµР·Сѓ",
+                ]
+                .iter()
+                .any(|m| ru.contains(m));
+
+                if has_known_bad_marker || readability_score(&decoded) > readability_score(ru) {
                     Cow::Owned(decoded)
                 } else {
                     Cow::Borrowed(ru)
