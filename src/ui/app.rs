@@ -1340,9 +1340,25 @@ impl PetriApp {
                 if had_errors {
                     return Cow::Borrowed(ru);
                 }
-                match String::from_utf8(bytes.into_owned()) {
-                    Ok(decoded) => Cow::Owned(decoded),
-                    Err(_) => Cow::Borrowed(ru),
+                let Ok(decoded) = String::from_utf8(bytes.into_owned()) else {
+                    return Cow::Borrowed(ru);
+                };
+                let mojibake_score = |s: &str| -> usize {
+                    const BAD: [&str; 7] = [
+                        "Р В Р’В¤",
+                        "РІР‚Сћ",
+                        "Р В РІР‚",
+                        "Р РЋРІР‚",
+                        "РІС™",
+                        "Р Р’",
+                        "РІвЂћ",
+                    ];
+                    BAD.iter().map(|m| s.matches(m).count()).sum()
+                };
+                if mojibake_score(&decoded) < mojibake_score(ru) {
+                    Cow::Owned(decoded)
+                } else {
+                    Cow::Borrowed(ru)
                 }
             }
             Language::En => Cow::Borrowed(en),

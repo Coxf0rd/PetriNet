@@ -210,13 +210,11 @@ impl PetriApp {
     pub(super) fn draw_sim_dialog(&mut self, ctx: &egui::Context) {
         let mut open = self.show_sim_params;
         let mut close_now = false;
-        egui::Window::new("РџР°СЂР°РјРµС‚СЂС‹ СЃРёРјСѓР»СЏС†РёРё")
+        egui::Window::new(self.tr("Параметры симуляции", "Simulation Parameters"))
             .open(&mut open)
             .show(ctx, |ui| {
-                ui.checkbox(
-                    &mut self.sim_params.use_time_limit,
-                    "Р›РёРјРёС‚ РІСЂРµРјРµРЅРё (СЃРµРє)",
-                );
+                let time_limit_label = self.tr("Лимит времени (сек)", "Time limit (sec)");
+                ui.checkbox(&mut self.sim_params.use_time_limit, time_limit_label);
                 ui.add_enabled(
                     self.sim_params.use_time_limit,
                     egui::DragValue::new(&mut self.sim_params.time_limit_sec)
@@ -224,17 +222,18 @@ impl PetriApp {
                         .range(0.0..=1_000_000.0),
                 );
 
-                ui.checkbox(
-                    &mut self.sim_params.use_pass_limit,
-                    "Р›РёРјРёС‚ СЃСЂР°Р±Р°С‚С‹РІР°РЅРёР№",
-                );
+                let pass_limit_label = self.tr("Лимит срабатываний", "Fire count limit");
+                ui.checkbox(&mut self.sim_params.use_pass_limit, pass_limit_label);
                 ui.add_enabled(
                     self.sim_params.use_pass_limit,
                     egui::DragValue::new(&mut self.sim_params.pass_limit).range(0..=u64::MAX),
                 );
 
                 ui.horizontal(|ui| {
-                    ui.label("Р”РёР°РїР°Р·РѕРЅ РјРµСЃС‚ РґР»СЏ РІС‹РІРѕРґР° РјР°СЂРєРёСЂРѕРІРєРё");
+                    ui.label(self.tr(
+                        "Диапазон мест для вывода маркировки",
+                        "Place range for marking output",
+                    ));
                     ui.add(
                         egui::DragValue::new(&mut self.sim_params.display_range_start)
                             .range(0..=10000),
@@ -246,12 +245,13 @@ impl PetriApp {
                 });
 
                 ui.separator();
-                ui.label("РЈСЃР»РѕРІРёСЏ РѕСЃС‚Р°РЅРѕРІРєРё");
+                ui.label(self.tr("Условия остановки", "Stop conditions"));
                 let mut stop_place_enabled = self.sim_params.stop.through_place.is_some();
-                ui.checkbox(
-                    &mut stop_place_enabled,
-                    "Р§РµСЂРµР· РјРµСЃС‚Рѕ Pk РїСЂРѕС€Р»Рѕ N РјР°СЂРєРµСЂРѕРІ",
+                let stop_place_label = self.tr(
+                    "Через место Pk прошло N маркеров",
+                    "N tokens passed through place Pk",
                 );
+                ui.checkbox(&mut stop_place_enabled, stop_place_label);
                 if stop_place_enabled {
                     let (mut p, mut n) = self.sim_params.stop.through_place.unwrap_or((0, 1));
                     ui.horizontal(|ui| {
@@ -266,10 +266,11 @@ impl PetriApp {
                 }
 
                 let mut stop_time_enabled = self.sim_params.stop.sim_time.is_some();
-                ui.checkbox(
-                    &mut stop_time_enabled,
-                    "Р’СЂРµРјСЏ СЃРёРјСѓР»СЏС†РёРё РґРѕСЃС‚РёРіР»Рѕ T СЃРµРєСѓРЅРґ",
+                let stop_time_label = self.tr(
+                    "Время симуляции достигло T секунд",
+                    "Simulation time reached T seconds",
                 );
+                ui.checkbox(&mut stop_time_enabled, stop_time_label);
                 if stop_time_enabled {
                     let mut t = self.sim_params.stop.sim_time.unwrap_or(1.0);
                     ui.add(
@@ -282,7 +283,7 @@ impl PetriApp {
                     self.sim_params.stop.sim_time = None;
                 }
 
-                if ui.button("РЎРўРђР Рў").clicked() {
+                if ui.button(self.tr("СТАРТ", "START")).clicked() {
                     self.net.rebuild_matrices_from_arcs();
                     self.sim_result = Some(std::sync::Arc::new(run_simulation(
                         &self.net,
@@ -955,7 +956,17 @@ impl PetriApp {
                     values.len()
                 ));
 
+                let x_step = ((x_max - x_min) / 10.0).max(0.000_001);
+                let y_step = ((y_max - y_min) / 10.0).max(0.000_001);
+
                 if self.place_stats_show_grid {
+                    ui.label(format!(
+                        "{}: {:.3} | {}: {:.3}",
+                        self.tr("Шаг сетки X", "Grid step X"),
+                        x_step,
+                        self.tr("Шаг сетки Y", "Grid step Y"),
+                        y_step
+                    ));
                     for i in 1..10 {
                         let x = plot_rect.left() + plot_rect.width() * (i as f32 / 10.0);
                         painter.line_segment(
@@ -966,8 +977,8 @@ impl PetriApp {
                             Stroke::new(0.5, Color32::LIGHT_GRAY),
                         );
                     }
-                    for i in 1..4 {
-                        let y = plot_rect.bottom() - plot_rect.height() * (i as f32 / 4.0);
+                    for i in 1..10 {
+                        let y = plot_rect.bottom() - plot_rect.height() * (i as f32 / 10.0);
                         painter.line_segment(
                             [
                                 Pos2::new(plot_rect.left(), y),
