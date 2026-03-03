@@ -294,6 +294,9 @@ impl PetriApp {
             let mut open = self.show_results;
             egui::Window::new(self.tr("Результаты/Статистика", "Results/Statistics"))
                 .open(&mut open)
+                .resizable(true)
+                .default_size(egui::vec2(1120.0, 760.0))
+                .vscroll(true)
                 .show(ctx, |ui| {
                     ui.label(match result.cycle_time {
                         Some(t) => format!(
