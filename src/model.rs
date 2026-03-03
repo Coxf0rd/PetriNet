@@ -377,6 +377,18 @@ impl PetriNetModel {
         max_arc.max(max_inh) + 1
     }
 
+    pub fn normalize_arc_ids(&mut self) {
+        let mut next_id = 1_u64;
+        for arc in &mut self.arcs {
+            arc.id = next_id;
+            next_id = next_id.saturating_add(1);
+        }
+        for arc in &mut self.inhibitor_arcs {
+            arc.id = next_id;
+            next_id = next_id.saturating_add(1);
+        }
+    }
+
     fn default_place_pos(index: usize) -> [f32; 2] {
         let col = (index % 8) as f32;
         let row = (index / 8) as f32;

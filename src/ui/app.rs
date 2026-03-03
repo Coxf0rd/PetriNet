@@ -711,6 +711,7 @@ impl PetriApp {
                         None
                     };
                     self.net = result.model;
+                    self.net.normalize_arc_ids();
                     self.net
                         .set_counts(self.net.places.len(), self.net.transitions.len());
                     self.file_path = Some(path.clone());

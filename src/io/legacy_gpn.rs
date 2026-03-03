@@ -923,8 +923,7 @@ fn apply_legacy_arcs(model: &mut PetriNetModel, arcs: &[LegacyArcRecord]) {
     model.arcs.clear();
     model.inhibitor_arcs.clear();
 
-    let mut next_arc_id = 1_u64;
-    let mut next_inh_id = 1_u64;
+    let mut next_arc_like_id = 1_u64;
     for arc in arcs {
         if arc.place_idx >= model.places.len() || arc.transition_idx >= model.transitions.len() {
             continue;
@@ -933,14 +932,14 @@ fn apply_legacy_arcs(model: &mut PetriNetModel, arcs: &[LegacyArcRecord]) {
         let transition_id = model.transitions[arc.transition_idx].id;
         if arc.inhibitor {
             model.inhibitor_arcs.push(crate::model::InhibitorArc {
-                id: next_inh_id,
+                id: next_arc_like_id,
                 place_id,
                 transition_id,
                 threshold: arc.weight.max(1),
                 color: crate::model::NodeColor::Red,
                 visible: true,
             });
-            next_inh_id = next_inh_id.saturating_add(1);
+            next_arc_like_id = next_arc_like_id.saturating_add(1);
         } else {
             let (from, to) = if arc.place_to_transition {
                 (NodeRef::Place(place_id), NodeRef::Transition(transition_id))
@@ -948,14 +947,14 @@ fn apply_legacy_arcs(model: &mut PetriNetModel, arcs: &[LegacyArcRecord]) {
                 (NodeRef::Transition(transition_id), NodeRef::Place(place_id))
             };
             model.arcs.push(crate::model::Arc {
-                id: next_arc_id,
+                id: next_arc_like_id,
                 from,
                 to,
                 weight: arc.weight.max(1),
                 color: crate::model::NodeColor::Default,
                 visible: true,
             });
-            next_arc_id = next_arc_id.saturating_add(1);
+            next_arc_like_id = next_arc_like_id.saturating_add(1);
         }
     }
     model.rebuild_matrices_from_arcs();
