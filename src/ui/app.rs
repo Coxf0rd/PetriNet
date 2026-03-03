@@ -51,6 +51,7 @@ struct CanvasState {
     cursor_world: [f32; 2],
     selection_start: Option<Pos2>,
     selection_rect: Option<Rect>,
+    selection_toggle_mode: bool,
     drag_prev_world: Option<[f32; 2]>,
     move_drag_active: bool,
     frame_draw_start_world: Option<[f32; 2]>,
@@ -76,6 +77,7 @@ impl Default for CanvasState {
             cursor_world: [0.0, 0.0],
             selection_start: None,
             selection_rect: None,
+            selection_toggle_mode: false,
             drag_prev_world: None,
             move_drag_active: false,
             frame_draw_start_world: None,
@@ -1215,6 +1217,53 @@ impl PetriApp {
         self.canvas.frame_draw_start_world = None;
         self.canvas.frame_draw_current_world = None;
         self.canvas.frame_resize_id = None;
+        self.canvas.selection_toggle_mode = false;
+    }
+
+    fn promote_single_selection_to_multi(&mut self) {
+        if let Some(place_id) = self.canvas.selected_place.take() {
+            if !self.canvas.selected_places.contains(&place_id) {
+                self.canvas.selected_places.push(place_id);
+            }
+        }
+        if let Some(transition_id) = self.canvas.selected_transition.take() {
+            if !self.canvas.selected_transitions.contains(&transition_id) {
+                self.canvas.selected_transitions.push(transition_id);
+            }
+        }
+        if let Some(arc_id) = self.canvas.selected_arc.take() {
+            if !self.canvas.selected_arcs.contains(&arc_id) {
+                self.canvas.selected_arcs.push(arc_id);
+            }
+        }
+    }
+
+    fn sync_primary_selection_from_multi(&mut self) {
+        self.canvas.selected_place = self.canvas.selected_places.last().copied();
+        self.canvas.selected_transition = self.canvas.selected_transitions.last().copied();
+        self.canvas.selected_arc = self.canvas.selected_arcs.last().copied();
+    }
+
+    fn toggle_selected_id(ids: &mut Vec<u64>, id: u64) -> bool {
+        if let Some(idx) = ids.iter().position(|&value| value == id) {
+            ids.remove(idx);
+            false
+        } else {
+            ids.push(id);
+            true
+        }
+    }
+
+    fn select_all_objects(&mut self) {
+        self.canvas.selected_place = None;
+        self.canvas.selected_transition = None;
+        self.canvas.selected_places = self.net.places.iter().map(|place| place.id).collect();
+        self.canvas.selected_transitions = self.net.transitions.iter().map(|tr| tr.id).collect();
+        self.canvas.selected_arcs = self.net.arcs.iter().map(|arc| arc.id).collect();
+        self.canvas.selected_arcs.extend(self.net.inhibitor_arcs.iter().map(|arc| arc.id));
+        self.canvas.selected_arc = self.canvas.selected_arcs.first().copied();
+        self.canvas.selected_text = None;
+        self.canvas.selected_frame = None;
     }
 
     fn push_undo_snapshot(&mut self) {

@@ -147,21 +147,57 @@ impl PetriApp {
                         }
                     }
                     Tool::Edit => {
-                        self.clear_selection();
-                        if let Some(n) = self.node_at(rect, click) {
-                            match n {
-                                NodeRef::Place(p) => self.canvas.selected_place = Some(p),
-                                NodeRef::Transition(t) => self.canvas.selected_transition = Some(t),
+                        let shift_pressed = ui.ctx().input(|i| i.modifiers.shift);
+                        if shift_pressed {
+                            self.promote_single_selection_to_multi();
+                            if let Some(n) = self.node_at(rect, click) {
+                                match n {
+                                    NodeRef::Place(p) => {
+                                        Self::toggle_selected_id(&mut self.canvas.selected_places, p);
+                                    }
+                                    NodeRef::Transition(t) => {
+                                        Self::toggle_selected_id(&mut self.canvas.selected_transitions, t);
+                                    }
+                                }
+                                self.canvas.selected_text = None;
+                                self.canvas.selected_frame = None;
+                            } else if let Some(arc_id) = self.arc_at(rect, click) {
+                                Self::toggle_selected_id(&mut self.canvas.selected_arcs, arc_id);
+                                self.canvas.selected_text = None;
+                                self.canvas.selected_frame = None;
+                            } else if let Some(text_id) = self.text_at(rect, click) {
+                                if self.canvas.selected_text == Some(text_id) {
+                                    self.canvas.selected_text = None;
+                                } else {
+                                    self.canvas.selected_text = Some(text_id);
+                                    self.canvas.selected_frame = None;
+                                }
+                            } else if let Some(frame_id) = self.frame_at(rect, click) {
+                                if self.canvas.selected_frame == Some(frame_id) {
+                                    self.canvas.selected_frame = None;
+                                } else {
+                                    self.canvas.selected_frame = Some(frame_id);
+                                    self.canvas.selected_text = None;
+                                }
                             }
-                        } else if let Some(arc_id) = self.arc_at(rect, click) {
-                            self.canvas.selected_arc = Some(arc_id);
-                            self.canvas.selected_arcs.clear();
-                            self.canvas.selected_arcs.push(arc_id);
-                        } else if let Some(text_id) = self.text_at(rect, click) {
+                            self.sync_primary_selection_from_multi();
+                        } else {
+                            self.clear_selection();
+                            if let Some(n) = self.node_at(rect, click) {
+                                match n {
+                                    NodeRef::Place(p) => self.canvas.selected_place = Some(p),
+                                    NodeRef::Transition(t) => self.canvas.selected_transition = Some(t),
+                                }
+                            } else if let Some(arc_id) = self.arc_at(rect, click) {
+                                self.canvas.selected_arc = Some(arc_id);
+                                self.canvas.selected_arcs.clear();
+                                self.canvas.selected_arcs.push(arc_id);
+                            } else if let Some(text_id) = self.text_at(rect, click) {
 
-                            self.canvas.selected_text = Some(text_id);
-                        } else if let Some(frame_id) = self.frame_at(rect, click) {
-                            self.canvas.selected_frame = Some(frame_id);
+                                self.canvas.selected_text = Some(text_id);
+                            } else if let Some(frame_id) = self.frame_at(rect, click) {
+                                self.canvas.selected_frame = Some(frame_id);
+                            }
                         }
                     }
                     Tool::Run => {
@@ -251,9 +287,16 @@ impl PetriApp {
                         }
                     }
                 }
-
                 if !handled_resize {
-                    if let Some(node) = self.node_at(rect, pointer) {
+                    let shift_pressed = ui.ctx().input(|i| i.modifiers.shift);
+                    if shift_pressed {
+                        self.promote_single_selection_to_multi();
+                        self.canvas.selection_toggle_mode = true;
+                        self.canvas.selection_start = Some(pointer);
+                        self.canvas.selection_rect = Some(Rect::from_two_pos(pointer, pointer));
+                        self.canvas.drag_prev_world = None;
+                        self.canvas.move_drag_active = false;
+                    } else if let Some(node) = self.node_at(rect, pointer) {
                         let is_selected = match node {
                             NodeRef::Place(p) => {
                                 self.canvas.selected_place == Some(p) || self.canvas.selected_places.contains(&p)
@@ -294,6 +337,7 @@ impl PetriApp {
                         self.canvas.move_drag_active = true;
                     } else {
                         self.clear_selection();
+                        self.canvas.selection_toggle_mode = false;
                         self.canvas.selection_start = Some(pointer);
                         self.canvas.selection_rect = Some(Rect::from_two_pos(pointer, pointer));
                         self.canvas.drag_prev_world = None;
@@ -413,14 +457,14 @@ impl PetriApp {
             }
             if let Some(sel_rect) = self.canvas.selection_rect.take() {
                 let norm = sel_rect.expand2(Vec2::ZERO);
-                self.canvas.selected_places = self
+                let hit_places: Vec<u64> = self
                     .net
                     .places
                     .iter()
                     .filter(|p| norm.contains(self.world_to_screen(rect, p.pos)))
                     .map(|p| p.id)
                     .collect();
-                self.canvas.selected_transitions = self
+                let hit_transitions: Vec<u64> = self
                     .net
                     .transitions
                     .iter()
@@ -431,7 +475,7 @@ impl PetriApp {
                     })
                     .map(|t| t.id)
                     .collect();
-                self.canvas.selected_arcs = self
+                let mut hit_arcs: Vec<u64> = self
                     .net
                     .arcs
                     .iter()
@@ -461,12 +505,31 @@ impl PetriApp {
                     })
                     .map(|inh| inh.id)
                     .collect();
-                self.canvas.selected_arcs.extend(selected_inhibitor_ids);
-                self.canvas.selected_arc = self.canvas.selected_arcs.first().copied();
-                self.canvas.selected_place = None;
-                self.canvas.selected_transition = None;
+                hit_arcs.extend(selected_inhibitor_ids);
+
+                if self.canvas.selection_toggle_mode {
+                    self.promote_single_selection_to_multi();
+                    for place_id in hit_places {
+                        Self::toggle_selected_id(&mut self.canvas.selected_places, place_id);
+                    }
+                    for transition_id in hit_transitions {
+                        Self::toggle_selected_id(&mut self.canvas.selected_transitions, transition_id);
+                    }
+                    for arc_id in hit_arcs {
+                        Self::toggle_selected_id(&mut self.canvas.selected_arcs, arc_id);
+                    }
+                    self.sync_primary_selection_from_multi();
+                } else {
+                    self.canvas.selected_places = hit_places;
+                    self.canvas.selected_transitions = hit_transitions;
+                    self.canvas.selected_arcs = hit_arcs;
+                    self.canvas.selected_place = None;
+                    self.canvas.selected_transition = None;
+                    self.canvas.selected_arc = self.canvas.selected_arcs.first().copied();
+                }
                 self.canvas.selected_text = None;
                 self.canvas.selected_frame = None;
+                self.canvas.selection_toggle_mode = false;
             }
             self.canvas.selection_start = None;
             self.canvas.drag_prev_world = None;

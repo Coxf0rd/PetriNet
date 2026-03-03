@@ -10,6 +10,8 @@ impl PetriApp {
         let mut do_copy = false;
         let mut do_paste = false;
         let mut do_undo = false;
+        let mut do_select_all = false;
+        let mut do_clear_selection = false;
 
         ctx.input(|i| {
             do_new = i.modifiers.command && i.key_pressed(egui::Key::N);
@@ -21,6 +23,8 @@ impl PetriApp {
             do_copy = i.modifiers.ctrl && i.key_pressed(egui::Key::C);
             do_paste = i.modifiers.ctrl && i.key_pressed(egui::Key::V);
             do_undo = i.modifiers.ctrl && i.key_pressed(egui::Key::Z);
+            do_select_all = i.modifiers.ctrl && i.key_pressed(egui::Key::A);
+            do_clear_selection = i.key_pressed(egui::Key::Escape);
 
             // Layout fallback (RU keyboard), still requiring Ctrl held.
             for e in &i.events {
@@ -45,6 +49,12 @@ impl PetriApp {
                     }
                     if modifiers.ctrl && (*key == egui::Key::Z || *physical_key == Some(egui::Key::Z)) {
                         do_undo = true;
+                    }
+                    if modifiers.ctrl && (*key == egui::Key::A || *physical_key == Some(egui::Key::A)) {
+                        do_select_all = true;
+                    }
+                    if *key == egui::Key::Escape || *physical_key == Some(egui::Key::Escape) {
+                        do_clear_selection = true;
                     }
                 }
                 if let egui::Event::Text(text) = e {
@@ -72,6 +82,8 @@ impl PetriApp {
             do_copy = do_copy || i.consume_key(egui::Modifiers::CTRL, egui::Key::C);
             do_paste = do_paste || i.consume_key(egui::Modifiers::CTRL, egui::Key::V);
             do_undo = do_undo || i.consume_key(egui::Modifiers::CTRL, egui::Key::Z);
+            do_select_all = do_select_all || i.consume_key(egui::Modifiers::CTRL, egui::Key::A);
+            do_clear_selection = do_clear_selection || i.consume_key(egui::Modifiers::NONE, egui::Key::Escape);
         });
 
         if do_new {
@@ -97,6 +109,13 @@ impl PetriApp {
         }
         if do_undo {
             self.undo_last_action();
+        }
+        if do_select_all {
+            self.select_all_objects();
+        }
+        if do_clear_selection {
+            self.clear_selection();
+            self.canvas.arc_start = None;
         }
     }
 }
