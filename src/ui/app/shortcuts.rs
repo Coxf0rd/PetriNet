@@ -59,13 +59,13 @@ impl PetriApp {
                 }
                 if let egui::Event::Text(text) = e {
                     if i.modifiers.ctrl {
-                        if text.eq_ignore_ascii_case("c") || text == "СЃ" || text == "РЎ" {
+                        if text.eq_ignore_ascii_case("c") || text == "с" || text == "С" {
                             do_copy = true;
                         }
-                        if text.eq_ignore_ascii_case("v") || text == "Рј" || text == "Рњ" {
+                        if text.eq_ignore_ascii_case("v") || text == "м" || text == "М" {
                             do_paste = true;
                         }
-                        if text.eq_ignore_ascii_case("z") || text == "СЏ" || text == "РЇ" {
+                        if text.eq_ignore_ascii_case("z") || text == "я" || text == "Я" {
                             do_undo = true;
                         }
                     }

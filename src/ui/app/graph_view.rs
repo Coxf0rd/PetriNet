@@ -3,7 +3,7 @@ use super::*;
 impl PetriApp {
     pub(super) fn draw_graph_view(&mut self, ui: &mut egui::Ui) {
 
-        ui.heading("Р“СЂР°С„");
+        ui.heading("Граф");
         let desired = ui.available_size_before_wrap();
         let (rect, response) = ui.allocate_exact_size(desired, Sense::click_and_drag());
         let painter = ui.painter_at(rect);
@@ -110,7 +110,7 @@ impl PetriApp {
                         self.text_blocks.push(CanvasTextBlock {
                             id,
                             pos: snapped,
-                            text: self.tr("РўРµРєСЃС‚", "Text").to_string(),
+                            text: self.tr("Текст", "Text").to_string(),
                         });
                         self.clear_selection();
                         self.canvas.selected_text = Some(id);
@@ -838,7 +838,7 @@ impl PetriApp {
                     painter.text(
                         preview,
                         egui::Align2::CENTER_CENTER,
-                        self.tr("РўРµРєСЃС‚", "Text"),
+                        self.tr("Текст", "Text"),
                         egui::TextStyle::Body.resolve(ui.style()),
                         Color32::from_rgb(60, 120, 220),
                     );
@@ -915,7 +915,7 @@ impl PetriApp {
             if let Some(idx) = self.place_idx_by_id(p) {
                 let place = &mut self.net.places[idx];
                 ui.separator();
-                ui.label("Р’С‹Р±СЂР°РЅРЅРѕРµ РјРµСЃС‚Рѕ");
+                ui.label("Выбранное место");
                 ui.text_edit_singleline(&mut place.name);
             }
         }
@@ -923,7 +923,7 @@ impl PetriApp {
             if let Some(idx) = self.transition_idx_by_id(t) {
                 let tr = &mut self.net.transitions[idx];
                 ui.separator();
-                ui.label("Р’С‹Р±СЂР°РЅРЅС‹Р№ РїРµСЂРµС…РѕРґ");
+                ui.label("Выбранный переход");
                 ui.text_edit_singleline(&mut tr.name);
             }
         }
@@ -931,16 +931,16 @@ impl PetriApp {
 
             if let Some(idx) = self.text_idx_by_id(text_id) {
                 ui.separator();
-                ui.label("Р’С‹Р±СЂР°РЅРЅС‹Р№ С‚РµРєСЃС‚");
+                ui.label("Выбранный текст");
                 ui.text_edit_singleline(&mut self.text_blocks[idx].text);
             }
         }
         if let Some(frame_id) = self.canvas.selected_frame {
             if let Some(idx) = self.frame_idx_by_id(frame_id) {
                 ui.separator();
-                ui.label("Р’С‹Р±СЂР°РЅРЅР°СЏ СЂР°РјРєР°");
+                ui.label("Выбранная рамка");
                                 ui.horizontal(|ui| {
-                    ui.label("РЁРёСЂРёРЅР°");
+                    ui.label("Ширина");
                     ui.add(
                         egui::DragValue::new(&mut self.decorative_frames[idx].width)
                             .speed(1.0)
@@ -948,7 +948,7 @@ impl PetriApp {
                     );
                 });
                 ui.horizontal(|ui| {
-                    ui.label("Р’С‹СЃРѕС‚Р°");
+                    ui.label("Высота");
                     ui.add(
                         egui::DragValue::new(&mut self.decorative_frames[idx].height)
                             .speed(1.0)

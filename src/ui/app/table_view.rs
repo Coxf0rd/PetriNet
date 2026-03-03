@@ -2,17 +2,17 @@ use super::*;
 
 impl PetriApp {
     pub(super) fn draw_table_view(&mut self, ui: &mut egui::Ui) {
-        ui.heading("РЎС‚СЂСѓРєС‚СѓСЂР° СЃРµС‚Рё");
+        ui.heading("Структура сети");
         ui.horizontal(|ui| {
-            if ui.button("РЎРєСЂС‹С‚СЊ СЃС‚СЂСѓРєС‚СѓСЂСѓ").clicked() {
+            if ui.button("Скрыть структуру").clicked() {
                 self.show_table_view = false;
                 self.table_fullscreen = false;
             }
             if ui
                 .button(if self.table_fullscreen {
-                    "РћР±С‹С‡РЅС‹Р№ СЂРµР¶РёРј"
+                    "Обычный режим"
                 } else {
-                    "РџРѕР»РЅС‹Р№ СЌРєСЂР°РЅ"
+                    "Полный экран"
                 })
                 .clicked()
             {
@@ -27,11 +27,11 @@ impl PetriApp {
         let mut p_count = self.net.places.len() as i32;
         let mut t_count = self.net.transitions.len() as i32;
         ui.horizontal(|ui| {
-            ui.label("РњРµСЃС‚Р°:");
+            ui.label("Места:");
             ui.add(egui::DragValue::new(&mut p_count).range(0..=200));
-            ui.label("РџРµСЂРµС…РѕРґС‹:");
+            ui.label("Переходы:");
             ui.add(egui::DragValue::new(&mut t_count).range(0..=200));
-            if ui.button("РџСЂРёРјРµРЅРёС‚СЊ РєРѕР»РёС‡РµСЃС‚РІРѕ").clicked() {
+            if ui.button("Применить количество").clicked() {
                 self.net.set_counts(p_count.max(0) as usize, t_count.max(0) as usize);
             }
         });
@@ -40,7 +40,7 @@ impl PetriApp {
         let cell_w = 42.0;
         egui::ScrollArea::both().show(ui, |ui| {
             ui.separator();
-            ui.label("Р’РµРєС‚РѕСЂ РЅР°С‡Р°Р»СЊРЅРѕР№ РјР°СЂРєРёСЂРѕРІРєРё (M0)");
+            ui.label("Вектор начальной маркировки (M0)");
             egui::Grid::new("m0_grid").striped(true).show(ui, |ui| {
                 for i in 0..self.net.places.len() {
                     ui.add_sized([row_label_w, 0.0], egui::Label::new(format!("P{}", i + 1)));
@@ -53,7 +53,7 @@ impl PetriApp {
             });
 
             ui.separator();
-            ui.label("Р’РµРєС‚РѕСЂ РјР°РєСЃРёРјР°Р»СЊРЅС‹С… РµРјРєРѕСЃС‚РµР№ (Mo)");
+            ui.label("Вектор максимальных емкостей (Mo)");
             egui::Grid::new("mo_grid").striped(true).show(ui, |ui| {
                 for i in 0..self.net.places.len() {
                     let mut cap = self.net.tables.mo[i].unwrap_or(0);
@@ -72,7 +72,7 @@ impl PetriApp {
             });
 
             ui.separator();
-            ui.label("Р’РµРєС‚РѕСЂ РІСЂРµРјРµРЅРЅС‹С… Р·Р°РґРµСЂР¶РµРє РІ РїРѕР·РёС†РёСЏС… (Mz)");
+            ui.label("Вектор временных задержек в позициях (Mz)");
             egui::Grid::new("mz_grid").striped(true).show(ui, |ui| {
                 for i in 0..self.net.places.len() {
                     ui.add_sized([row_label_w, 0.0], egui::Label::new(format!("P{}", i + 1)));
@@ -85,7 +85,7 @@ impl PetriApp {
             });
 
             ui.separator();
-            ui.label("Р’РµРєС‚РѕСЂ РїСЂРёРѕСЂРёС‚РµС‚РѕРІ РїРµСЂРµС…РѕРґРѕРІ (Mpr)");
+            ui.label("Вектор приоритетов переходов (Mpr)");
             egui::Grid::new("mpr_grid").striped(true).show(ui, |ui| {
                 for t in 0..self.net.transitions.len() {
                     ui.add_sized([row_label_w, 0.0], egui::Label::new(format!("T{}", t + 1)));
@@ -99,8 +99,8 @@ impl PetriApp {
 
             ui.separator();
             ui.horizontal(|ui| {
-                ui.label("РњР°С‚СЂРёС†Р° РёРЅС†РёРґРµРЅС†РёР№ Pre");
-                if ui.small_button(self.tr("РРјРїРѕСЂС‚ CSV", "Import CSV")).clicked() {
+                ui.label("Матрица инциденций Pre");
+                if ui.small_button(self.tr("Импорт CSV", "Import CSV")).clicked() {
                     self.import_matrix_csv(MatrixCsvTarget::Pre);
                 }
             });
@@ -127,8 +127,8 @@ impl PetriApp {
 
             ui.separator();
             ui.horizontal(|ui| {
-                ui.label("РњР°С‚СЂРёС†Р° РёРЅС†РёРґРµРЅС†РёР№ Post");
-                if ui.small_button(self.tr("РРјРїРѕСЂС‚ CSV", "Import CSV")).clicked() {
+                ui.label("Матрица инциденций Post");
+                if ui.small_button(self.tr("Импорт CSV", "Import CSV")).clicked() {
                     self.import_matrix_csv(MatrixCsvTarget::Post);
                 }
             });
@@ -154,8 +154,8 @@ impl PetriApp {
 
             ui.separator();
             ui.horizontal(|ui| {
-                ui.label("РњР°С‚СЂРёС†Р° РёРЅРіРёР±РёС‚РѕСЂРЅС‹С… РґСѓРі");
-                if ui.small_button(self.tr("РРјРїРѕСЂС‚ CSV", "Import CSV")).clicked() {
+                ui.label("Матрица ингибиторных дуг");
+                if ui.small_button(self.tr("Импорт CSV", "Import CSV")).clicked() {
                     self.import_matrix_csv(MatrixCsvTarget::Inhibitor);
                 }
             });
@@ -188,16 +188,16 @@ impl PetriApp {
     pub(super) fn draw_sim_dialog(&mut self, ctx: &egui::Context) {
         let mut open = self.show_sim_params;
         let mut close_now = false;
-        egui::Window::new("РџР°СЂР°РјРµС‚СЂС‹ СЃРёРјСѓР»СЏС†РёРё")
+        egui::Window::new("Параметры симуляции")
             .open(&mut open)
             .show(ctx, |ui| {
-                ui.checkbox(&mut self.sim_params.use_time_limit, "Р›РёРјРёС‚ РІСЂРµРјРµРЅРё (СЃРµРє)");
+                ui.checkbox(&mut self.sim_params.use_time_limit, "Лимит времени (сек)");
                 ui.add_enabled(
                     self.sim_params.use_time_limit,
                     egui::DragValue::new(&mut self.sim_params.time_limit_sec).speed(0.1).range(0.0..=1_000_000.0),
                 );
 
-                ui.checkbox(&mut self.sim_params.use_pass_limit, "Р›РёРјРёС‚ СЃСЂР°Р±Р°С‚С‹РІР°РЅРёР№");
+                ui.checkbox(&mut self.sim_params.use_pass_limit, "Лимит срабатываний");
                 ui.add_enabled(
                     self.sim_params.use_pass_limit,
                     egui::DragValue::new(&mut self.sim_params.pass_limit).range(0..=u64::MAX),
@@ -205,15 +205,15 @@ impl PetriApp {
 
 
                 ui.horizontal(|ui| {
-                    ui.label("Р”РёР°РїР°Р·РѕРЅ РјРµСЃС‚ РґР»СЏ РІС‹РІРѕРґР° РјР°СЂРєРёСЂРѕРІРєРё");
+                    ui.label("Диапазон мест для вывода маркировки");
                     ui.add(egui::DragValue::new(&mut self.sim_params.display_range_start).range(0..=10000));
                     ui.add(egui::DragValue::new(&mut self.sim_params.display_range_end).range(0..=10000));
                 });
 
                 ui.separator();
-                ui.label("РЈСЃР»РѕРІРёСЏ РѕСЃС‚Р°РЅРѕРІРєРё");
+                ui.label("Условия остановки");
                 let mut stop_place_enabled = self.sim_params.stop.through_place.is_some();
-                ui.checkbox(&mut stop_place_enabled, "Р§РµСЂРµР· РјРµСЃС‚Рѕ Pk РїСЂРѕС€Р»Рѕ N РјР°СЂРєРµСЂРѕРІ");
+                ui.checkbox(&mut stop_place_enabled, "Через место Pk прошло N маркеров");
                 if stop_place_enabled {
                     let (mut p, mut n) = self.sim_params.stop.through_place.unwrap_or((0, 1));
                     ui.horizontal(|ui| {
@@ -228,7 +228,7 @@ impl PetriApp {
                 }
 
                 let mut stop_time_enabled = self.sim_params.stop.sim_time.is_some();
-                ui.checkbox(&mut stop_time_enabled, "Р’СЂРµРјСЏ СЃРёРјСѓР»СЏС†РёРё РґРѕСЃС‚РёРіР»Рѕ T СЃРµРєСѓРЅРґ");
+                ui.checkbox(&mut stop_time_enabled, "Время симуляции достигло T секунд");
                 if stop_time_enabled {
                     let mut t = self.sim_params.stop.sim_time.unwrap_or(1.0);
                     ui.add(egui::DragValue::new(&mut t).speed(0.1).range(0.0..=1_000_000.0));
@@ -237,7 +237,7 @@ impl PetriApp {
                     self.sim_params.stop.sim_time = None;
                 }
 
-                if ui.button("РЎРўРђР Рў").clicked() {
+                if ui.button("СТАРТ").clicked() {
                     self.net.rebuild_matrices_from_arcs();
                     self.sim_result = Some(run_simulation(
                         &self.net,
@@ -263,14 +263,14 @@ impl PetriApp {
     pub(super) fn draw_results(&mut self, ctx: &egui::Context) {
         if let Some(result) = self.sim_result.clone() {
             let mut open = self.show_results;
-            egui::Window::new(self.tr("Р РµР·СѓР»СЊС‚Р°С‚С‹/РЎС‚Р°С‚РёСЃС‚РёРєР°", "Results/Statistics"))
+            egui::Window::new(self.tr("Результаты/Статистика", "Results/Statistics"))
                 .open(&mut open)
                 .show(ctx, |ui| {
                     ui.label(match result.cycle_time {
-                        Some(t) => format!("{}: {:.6} {}", self.tr("Р’СЂРµРјСЏ С†РёРєР»Р°", "Cycle time"), t, self.tr("СЃРµРє", "sec")),
-                        None => format!("{}: N/A", self.tr("Р’СЂРµРјСЏ С†РёРєР»Р°", "Cycle time")),
+                        Some(t) => format!("{}: {:.6} {}", self.tr("Время цикла", "Cycle time"), t, self.tr("сек", "sec")),
+                        None => format!("{}: N/A", self.tr("Время цикла", "Cycle time")),
                     });
-                    ui.label(format!("{}: {}", self.tr("РЎСЂР°Р±РѕС‚Р°Р»Рѕ РїРµСЂРµС…РѕРґРѕРІ", "Fired transitions"), result.fired_count));
+                    ui.label(format!("{}: {}", self.tr("Сработало переходов", "Fired transitions"), result.fired_count));
 
                     let stats_places: Vec<usize> = self
                         .net
@@ -281,8 +281,8 @@ impl PetriApp {
                         .collect();
                     if !stats_places.is_empty() {
                         ui.horizontal(|ui| {
-                            ui.label(self.tr("Р”РµС‚Р°Р»СЊРЅР°СЏ СЃС‚Р°С‚РёСЃС‚РёРєР° РїРѕ РїРѕР·РёС†РёСЏРј РґРѕСЃС‚СѓРїРЅР°", "Detailed per-place statistics available"));
-                            if ui.button(self.tr("РЎС‚Р°С‚РёСЃС‚РёРєР°", "Statistics")).clicked() {
+                            ui.label(self.tr("Детальная статистика по позициям доступна", "Detailed per-place statistics available"));
+                            if ui.button(self.tr("Статистика", "Statistics")).clicked() {
                                 let selected = stats_places
                                     .iter()
                                     .position(|&p| p == self.place_stats_view_place)
@@ -294,11 +294,11 @@ impl PetriApp {
                     }
 
                     ui.separator();
-                    ui.label(self.tr("Р–СѓСЂРЅР°Р» (С‚Р°Р±Р»РёС†Р°)", "Log (table)"));
+                    ui.label(self.tr("Журнал (таблица)", "Log (table)"));
                     egui::ScrollArea::horizontal().show(ui, |ui| {
                         let row_h = ui.text_style_height(&egui::TextStyle::Body) + 4.0;
                         egui::Grid::new("sim_log_grid_header").striped(true).show(ui, |ui| {
-                            ui.label(self.tr("Р’СЂРµРјСЏ", "Time"));
+                            ui.label(self.tr("Время", "Time"));
                             for (p, _) in self.net.places.iter().enumerate() {
                                 ui.label(format!("P{}", p + 1));
                             }
@@ -329,9 +329,9 @@ impl PetriApp {
 
                     if let Some(stats) = &result.place_stats {
                         ui.separator();
-                        ui.label(self.tr("РЎС‚Р°С‚РёСЃС‚РёРєР° РјР°СЂРєРµСЂРѕРІ (min/max/avg)", "Token statistics (min/max/avg)"));
+                        ui.label(self.tr("Статистика маркеров (min/max/avg)", "Token statistics (min/max/avg)"));
                         egui::Grid::new("stats_grid").striped(true).show(ui, |ui| {
-                            ui.label(self.tr("РџРѕР·РёС†РёСЏ", "Place"));
+                            ui.label(self.tr("Позиция", "Place"));
                             ui.label("Min");
                             ui.label("Max");
                             ui.label("Avg");
@@ -355,11 +355,11 @@ impl PetriApp {
                             || self.net.places.iter().any(|p| p.stats.markers_input || p.stats.markers_output);
                         if want_flow {
                             ui.separator();
-                            ui.label(self.tr("РџРѕС‚РѕРєРё (РІС…РѕРґ/РІС‹С…РѕРґ)", "Flows (in/out)"));
+                            ui.label(self.tr("Потоки (вход/выход)", "Flows (in/out)"));
                             egui::Grid::new("flow_grid").striped(true).show(ui, |ui| {
-                                ui.label(self.tr("РџРѕР·РёС†РёСЏ", "Place"));
-                                ui.label(self.tr("Р’С…РѕРґ", "In"));
-                                ui.label(self.tr("Р’С‹С…РѕРґ", "Out"));
+                                ui.label(self.tr("Позиция", "Place"));
+                                ui.label(self.tr("Вход", "In"));
+                                ui.label(self.tr("Выход", "Out"));
                                 ui.end_row();
                                 for (p, st) in flow.iter().enumerate() {
                                     let selected = self.net.places.get(p).map(|pl| pl.stats.markers_input || pl.stats.markers_output).unwrap_or(false);
@@ -380,12 +380,12 @@ impl PetriApp {
                             || self.net.places.iter().any(|p| p.stats.load_total || p.stats.load_input || p.stats.load_output);
                         if want_load {
                             ui.separator();
-                            ui.label(self.tr("Р—Р°РіСЂСѓР¶РµРЅРЅРѕСЃС‚СЊ", "Load"));
+                            ui.label(self.tr("Загруженность", "Load"));
                             egui::Grid::new("load_grid").striped(true).show(ui, |ui| {
-                                ui.label(self.tr("РџРѕР·РёС†РёСЏ", "Place"));
-                                ui.label(self.tr("РћР±С‰Р°СЏ", "Total"));
-                                ui.label(self.tr("Р’С…РѕРґ", "Input"));
-                                ui.label(self.tr("Р’С‹С…РѕРґ", "Output"));
+                                ui.label(self.tr("Позиция", "Place"));
+                                ui.label(self.tr("Общая", "Total"));
+                                ui.label(self.tr("Вход", "Input"));
+                                ui.label(self.tr("Выход", "Output"));
                                 ui.end_row();
                                 for (p, st) in load.iter().enumerate() {
                                     let selected = self.net.places.get(p).map(|pl| {
@@ -443,7 +443,7 @@ impl PetriApp {
         let place_idx = self.place_stats_view_place;
 
         let mut open = self.show_place_stats_window;
-        egui::Window::new(self.tr("РЎС‚Р°С‚РёСЃС‚РёРєР°", "Statistics"))
+        egui::Window::new(self.tr("Статистика", "Statistics"))
             .id(egui::Id::new("results_place_stats_window"))
             .open(&mut open)
             .vscroll(true)
@@ -456,7 +456,7 @@ impl PetriApp {
                     .unwrap_or_else(|| format!("P{}", place_idx + 1));
 
                 ui.horizontal(|ui| {
-                    ui.label(self.tr("РџРѕР·РёС†РёСЏ", "Place"));
+                    ui.label(self.tr("Позиция", "Place"));
                     let mut selected_ordinal = available_places
                         .iter()
                         .position(|&idx| idx == place_idx)
@@ -482,7 +482,7 @@ impl PetriApp {
                     }
                 }
                 if values.is_empty() {
-                    ui.label(self.tr("РќРµС‚ РґР°РЅРЅС‹С… РґР»СЏ РѕС‚РѕР±СЂР°Р¶РµРЅРёСЏ", "No data to display"));
+                    ui.label(self.tr("Нет данных для отображения", "No data to display"));
                     return;
                 }
 
@@ -512,14 +512,14 @@ impl PetriApp {
                     .unwrap_or(0.0);
 
                 ui.horizontal(|ui| {
-                    ui.label(format!("{} {:.3}", self.tr("РњР°РєСЃРёРјСѓРј", "Maximum"), max_v));
-                    ui.label(format!("{} {:.3}", self.tr("Р’СЂРµРјСЏ", "Time"), max_t));
+                    ui.label(format!("{} {:.3}", self.tr("Максимум", "Maximum"), max_v));
+                    ui.label(format!("{} {:.3}", self.tr("Время", "Time"), max_t));
                     ui.separator();
-                    ui.label(format!("{} {:.3}", self.tr("РњРёРЅРёРјСѓРј", "Minimum"), min_v));
-                    ui.label(format!("{} {:.3}", self.tr("Р’СЂРµРјСЏ", "Time"), min_t));
+                    ui.label(format!("{} {:.3}", self.tr("Минимум", "Minimum"), min_v));
+                    ui.label(format!("{} {:.3}", self.tr("Время", "Time"), min_t));
                     ui.separator();
-                    ui.label(format!("{} {:.3}", self.tr("РЎСЂРµРґРЅРµРµ", "Average"), avg));
-                    ui.label(format!("{} {:.3}%", self.tr("РЈС‚РёР»РёР·Р°С†РёСЏ", "Utilization"), utilization));
+                    ui.label(format!("{} {:.3}", self.tr("Среднее", "Average"), avg));
+                    ui.label(format!("{} {:.3}%", self.tr("Утилизация", "Utilization"), utilization));
                 });
 
                 if let Some(place) = self.net.places.get(place_idx) {
@@ -527,9 +527,9 @@ impl PetriApp {
                         let mut markers_total = place.stats.markers_total;
                         let mut markers_input = place.stats.markers_input;
                         let mut markers_output = place.stats.markers_output;
-                        ui.add_enabled(false, egui::Checkbox::new(&mut markers_total, self.tr("РћР±С‰Р°СЏ", "Total")));
-                        ui.add_enabled(false, egui::Checkbox::new(&mut markers_input, self.tr("РќР° РІС…РѕРґРµ", "On input")));
-                        ui.add_enabled(false, egui::Checkbox::new(&mut markers_output, self.tr("РќР° РІС‹С…РѕРґРµ", "On output")));
+                        ui.add_enabled(false, egui::Checkbox::new(&mut markers_total, self.tr("Общая", "Total")));
+                        ui.add_enabled(false, egui::Checkbox::new(&mut markers_input, self.tr("На входе", "On input")));
+                        ui.add_enabled(false, egui::Checkbox::new(&mut markers_output, self.tr("На выходе", "On output")));
                     });
                 }
 

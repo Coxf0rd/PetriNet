@@ -3,26 +3,26 @@ use super::*;
 impl PetriApp {
     pub(super) fn draw_tool_palette(&mut self, ctx: &egui::Context) {
         egui::SidePanel::left("tools").resizable(false).show(ctx, |ui| {
-            ui.heading("РРЅСЃС‚СЂСѓРјРµРЅС‚С‹");
+            ui.heading("Инструменты");
             ui.separator();
-            ui.radio_value(&mut self.tool, Tool::Place, "РњРµСЃС‚Рѕ");
-            ui.radio_value(&mut self.tool, Tool::Transition, "РџРµСЂРµС…РѕРґ");
-            ui.radio_value(&mut self.tool, Tool::Arc, "Р”СѓРіР°");
-            ui.radio_value(&mut self.tool, Tool::Text, "РўРµРєСЃС‚");
-            ui.radio_value(&mut self.tool, Tool::Frame, "Р Р°РјРєР°");
-            ui.radio_value(&mut self.tool, Tool::Edit, "Р РµРґР°РєС‚РёСЂРѕРІР°С‚СЊ");
-            ui.radio_value(&mut self.tool, Tool::Delete, "РЈРґР°Р»РёС‚СЊ");
-            ui.radio_value(&mut self.tool, Tool::Run, "Р—Р°РїСѓСЃРє");
+            ui.radio_value(&mut self.tool, Tool::Place, "Место");
+            ui.radio_value(&mut self.tool, Tool::Transition, "Переход");
+            ui.radio_value(&mut self.tool, Tool::Arc, "Дуга");
+            ui.radio_value(&mut self.tool, Tool::Text, "Текст");
+            ui.radio_value(&mut self.tool, Tool::Frame, "Рамка");
+            ui.radio_value(&mut self.tool, Tool::Edit, "Редактировать");
+            ui.radio_value(&mut self.tool, Tool::Delete, "Удалить");
+            ui.radio_value(&mut self.tool, Tool::Run, "Запуск");
 
-            if ui.button("РЎРўРђР Рў").clicked() {
+            if ui.button("СТАРТ").clicked() {
                 self.reset_sim_stop_controls();
                 self.show_sim_params = true;
             }
 
             ui.separator();
-            ui.label(self.tr("РћС‚РѕР±СЂР°Р¶РµРЅРёРµ СЃРІСЏР·РµР№", "Link visibility"));
+            ui.label(self.tr("Отображение связей", "Link visibility"));
             let is_ru = matches!(self.net.ui.language, Language::Ru);
-            egui::ComboBox::from_label(self.tr("Р РµР¶РёРј", "Mode"))
+            egui::ComboBox::from_label(self.tr("Режим", "Mode"))
                 .selected_text(Self::arc_display_mode_text(self.arc_display_mode, is_ru))
                 .show_ui(ui, |ui| {
                     ui.selectable_value(
@@ -43,12 +43,12 @@ impl PetriApp {
                 });
 
             if self.arc_display_mode == ArcDisplayMode::OnlyColor {
-                let color_label = if is_ru { "Р¦РІРµС‚" } else { "Color" };
-                let c_default = if is_ru { "РџРѕ СѓРјРѕР»С‡Р°РЅРёСЋ" } else { "Default" };
-                let c_blue = if is_ru { "РЎРёРЅРёР№" } else { "Blue" };
-                let c_red = if is_ru { "РљСЂР°СЃРЅС‹Р№" } else { "Red" };
-                let c_green = if is_ru { "Р—РµР»РµРЅС‹Р№" } else { "Green" };
-                let c_yellow = if is_ru { "Р–РµР»С‚С‹Р№" } else { "Yellow" };
+                let color_label = if is_ru { "Цвет" } else { "Color" };
+                let c_default = if is_ru { "По умолчанию" } else { "Default" };
+                let c_blue = if is_ru { "Синий" } else { "Blue" };
+                let c_red = if is_ru { "Красный" } else { "Red" };
+                let c_green = if is_ru { "Зеленый" } else { "Green" };
+                let c_yellow = if is_ru { "Желтый" } else { "Yellow" };
 
                 egui::ComboBox::from_label(color_label)
                     .selected_text(Self::node_color_text(self.arc_display_color, is_ru))
@@ -64,11 +64,11 @@ impl PetriApp {
             let selected_arc_ids = self.collect_selected_arc_ids();
             if !selected_arc_ids.is_empty() {
                 ui.separator();
-                let color_label = self.tr("Р¦РІРµС‚", "Color");
+                let color_label = self.tr("Цвет", "Color");
 
                 if selected_arc_ids.len() == 1 {
                     let arc_id = selected_arc_ids[0];
-                    ui.label(self.tr("Р’С‹Р±СЂР°РЅРЅР°СЏ СЃРІСЏР·СЊ", "Selected link"));
+                    ui.label(self.tr("Выбранная связь", "Selected link"));
 
                     if let Some(arc) = self.net.arcs.iter_mut().find(|a| a.id == arc_id) {
                         egui::ComboBox::from_label(color_label)
@@ -133,7 +133,7 @@ impl PetriApp {
                     }
                 } else {
                     let selected_label = if is_ru {
-                        format!("Р’С‹Р±СЂР°РЅРѕ СЃРІСЏР·РµР№: {}", selected_arc_ids.len())
+                        format!("Выбрано связей: {}", selected_arc_ids.len())
                     } else {
                         format!("Selected links: {}", selected_arc_ids.len())
                     };
