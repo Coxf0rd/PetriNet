@@ -1605,6 +1605,98 @@ impl PetriApp {
         self.status_hint = Some(format!("Вставлено объектов: {pasted_count}"));
     }
 
+    fn arc_screen_endpoints(&self, rect: Rect, arc: &crate::model::Arc) -> Option<(Pos2, Pos2)> {
+        let (from_center, from_radius, from_rect, to_center, to_radius, to_rect) = match (arc.from, arc.to) {
+            (NodeRef::Place(p), NodeRef::Transition(t)) => {
+                let (Some(pi), Some(ti)) = (self.place_idx_by_id(p), self.transition_idx_by_id(t)) else {
+                    return None;
+                };
+                let p_center = self.world_to_screen(rect, self.net.places[pi].pos);
+                let p_radius = Self::place_radius(self.net.places[pi].size) * self.canvas.zoom;
+                let t_min = self.world_to_screen(rect, self.net.transitions[ti].pos);
+                let t_rect = Rect::from_min_size(t_min, Self::transition_dimensions(self.net.transitions[ti].size) * self.canvas.zoom);
+                (p_center, Some(p_radius), None, t_rect.center(), None, Some(t_rect))
+            }
+            (NodeRef::Transition(t), NodeRef::Place(p)) => {
+                let (Some(pi), Some(ti)) = (self.place_idx_by_id(p), self.transition_idx_by_id(t)) else {
+                    return None;
+                };
+                let t_min = self.world_to_screen(rect, self.net.transitions[ti].pos);
+                let t_rect = Rect::from_min_size(t_min, Self::transition_dimensions(self.net.transitions[ti].size) * self.canvas.zoom);
+                let p_center = self.world_to_screen(rect, self.net.places[pi].pos);
+                let p_radius = Self::place_radius(self.net.places[pi].size) * self.canvas.zoom;
+                (t_rect.center(), None, Some(t_rect), p_center, Some(p_radius), None)
+            }
+            _ => return None,
+        };
+
+        let mut from = from_center;
+        let mut to = to_center;
+        let delta = to_center - from_center;
+        let dir = if delta.length_sq() > 0.0 { delta.normalized() } else { Vec2::X };
+
+        if let Some(radius) = from_radius {
+            from += dir * radius;
+        } else if let Some(r) = from_rect {
+            from = Self::rect_border_point(r, dir);
+        }
+
+        if let Some(radius) = to_radius {
+            to -= dir * radius;
+        } else if let Some(r) = to_rect {
+            to = Self::rect_border_point(r, -dir);
+        }
+
+        Some((from, to))
+    }
+
+    fn inhibitor_screen_endpoints(&self, rect: Rect, inh: &crate::model::InhibitorArc) -> Option<(Pos2, Pos2)> {
+        let (Some(pi), Some(ti)) = (
+            self.place_idx_by_id(inh.place_id),
+            self.transition_idx_by_id(inh.transition_id),
+        ) else {
+            return None;
+        };
+
+        let p_center = self.world_to_screen(rect, self.net.places[pi].pos);
+        let p_radius = Self::place_radius(self.net.places[pi].size) * self.canvas.zoom;
+        let t_min = self.world_to_screen(rect, self.net.transitions[ti].pos);
+        let t_rect = Rect::from_min_size(t_min, Self::transition_dimensions(self.net.transitions[ti].size) * self.canvas.zoom);
+        let t_center = t_rect.center();
+        let delta = t_center - p_center;
+        let dir = if delta.length_sq() > 0.0 { delta.normalized() } else { Vec2::X };
+        let from = p_center + dir * p_radius;
+        let to = Self::rect_border_point(t_rect, -dir);
+
+        Some((from, to))
+    }
+
+    fn segment_distance_to_point(pos: Pos2, a: Pos2, b: Pos2) -> f32 {
+        let ab = b - a;
+        if ab.length_sq() <= f32::EPSILON {
+            return pos.distance(a);
+        }
+        let t = ((pos - a).dot(ab) / ab.length_sq()).clamp(0.0, 1.0);
+        let proj = a + ab * t;
+        proj.distance(pos)
+    }
+
+    fn arc_fully_inside_rect(sel: Rect, from: Pos2, to: Pos2) -> bool {
+        if !sel.contains(from) || !sel.contains(to) {
+            return false;
+        }
+
+        let arrow = to - from;
+        if arrow.length_sq() <= f32::EPSILON {
+            return true;
+        }
+
+        let dir = arrow.normalized();
+        let left = to - dir * 10.0 + Vec2::new(-dir.y, dir.x) * 5.0;
+        let right = to - dir * 10.0 + Vec2::new(dir.y, -dir.x) * 5.0;
+        sel.contains(left) && sel.contains(right)
+    }
+
     fn arc_at(&self, rect: Rect, pos: Pos2) -> Option<u64> {
         let mut best_id = None;
         // Keep arc hit-test tighter so node clicks near edges still select the node.
@@ -1614,36 +1706,10 @@ impl PetriApp {
             if !self.arc_visible_by_mode(arc.color, arc.visible) {
                 continue;
             }
-            let (a, b) = match (arc.from, arc.to) {
-                (NodeRef::Place(p), NodeRef::Transition(t)) => {
-                    if let (Some(pi), Some(ti)) = (self.place_idx_by_id(p), self.transition_idx_by_id(t)) {
-                        (
-                            self.world_to_screen(rect, self.net.places[pi].pos),
-                            self.world_to_screen(rect, self.net.transitions[ti].pos),
-                        )
-                    } else {
-                        continue;
-                    }
-                }
-                (NodeRef::Transition(t), NodeRef::Place(p)) => {
-                    if let (Some(pi), Some(ti)) = (self.place_idx_by_id(p), self.transition_idx_by_id(t)) {
-                        (
-                            self.world_to_screen(rect, self.net.transitions[ti].pos),
-                            self.world_to_screen(rect, self.net.places[pi].pos),
-                        )
-                    } else {
-                        continue;
-                    }
-                }
-                _ => continue,
-            };
-            let ab = b - a;
-            if ab.length_sq() <= f32::EPSILON {
+            let Some((a, b)) = self.arc_screen_endpoints(rect, arc) else {
                 continue;
-            }
-            let t = ((pos - a).dot(ab) / ab.length_sq()).clamp(0.0, 1.0);
-            let proj = a + ab * t;
-            let dist = proj.distance(pos);
+            };
+            let dist = Self::segment_distance_to_point(pos, a, b);
             if dist < best_dist {
                 best_dist = dist;
                 best_id = Some(arc.id);
@@ -1654,21 +1720,10 @@ impl PetriApp {
             if !self.arc_visible_by_mode(inh.color, inh.visible) {
                 continue;
             }
-            let (Some(pi), Some(ti)) = (
-                self.place_idx_by_id(inh.place_id),
-                self.transition_idx_by_id(inh.transition_id),
-            ) else {
+            let Some((a, b)) = self.inhibitor_screen_endpoints(rect, inh) else {
                 continue;
             };
-            let a = self.world_to_screen(rect, self.net.places[pi].pos);
-            let b = self.world_to_screen(rect, self.net.transitions[ti].pos);
-            let ab = b - a;
-            if ab.length_sq() <= f32::EPSILON {
-                continue;
-            }
-            let t = ((pos - a).dot(ab) / ab.length_sq()).clamp(0.0, 1.0);
-            let proj = a + ab * t;
-            let dist = proj.distance(pos);
+            let dist = Self::segment_distance_to_point(pos, a, b);
             if dist < best_dist {
                 best_dist = dist;
                 best_id = Some(inh.id);
@@ -2443,6 +2498,31 @@ impl PetriApp {
                     })
                     .map(|t| t.id)
                     .collect();
+                self.canvas.selected_arc = self
+                    .net
+                    .arcs
+                    .iter()
+                    .find(|arc| {
+                        if !self.arc_visible_by_mode(arc.color, arc.visible) {
+                            return false;
+                        }
+                        let Some((from, to)) = self.arc_screen_endpoints(rect, arc) else {
+                            return false;
+                        };
+                        Self::arc_fully_inside_rect(norm, from, to)
+                    })
+                    .map(|arc| arc.id)
+                    .or_else(|| {
+                        self.net.inhibitor_arcs.iter().find(|inh| {
+                            if !self.arc_visible_by_mode(inh.color, inh.visible) {
+                                return false;
+                            }
+                            let Some((from, to)) = self.inhibitor_screen_endpoints(rect, inh) else {
+                                return false;
+                            };
+                            norm.contains(from) && norm.contains(to)
+                        }).map(|inh| inh.id)
+                    });
                 self.canvas.selected_place = None;
                 self.canvas.selected_transition = None;
                 self.canvas.selected_text = None;
