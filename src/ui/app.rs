@@ -39,6 +39,7 @@ struct CanvasState {
     selected_places: Vec<u64>,
     selected_transitions: Vec<u64>,
     selected_arc: Option<u64>,
+    selected_arcs: Vec<u64>,
     selected_text: Option<u64>,
     selected_frame: Option<u64>,
     arc_start: Option<NodeRef>,
@@ -63,6 +64,7 @@ impl Default for CanvasState {
             selected_places: Vec::new(),
             selected_transitions: Vec::new(),
             selected_arc: None,
+            selected_arcs: Vec::new(),
             selected_text: None,
             selected_frame: None,
             arc_start: None,
@@ -1202,6 +1204,7 @@ impl PetriApp {
         self.canvas.selected_places.clear();
         self.canvas.selected_transitions.clear();
         self.canvas.selected_arc = None;
+        self.canvas.selected_arcs.clear();
         self.canvas.selected_text = None;
         self.canvas.selected_frame = None;
         self.canvas.frame_draw_start_world = None;
@@ -1241,10 +1244,17 @@ impl PetriApp {
             self.text_blocks.retain(|item| item.id != text_id);
             return;
         }
+        let mut arc_ids = self.canvas.selected_arcs.clone();
         if let Some(arc_id) = self.canvas.selected_arc.take() {
+            arc_ids.push(arc_id);
+        }
+        arc_ids.sort_unstable();
+        arc_ids.dedup();
+        if !arc_ids.is_empty() {
+            self.canvas.selected_arcs.clear();
             self.push_undo_snapshot();
-            self.net.arcs.retain(|a| a.id != arc_id);
-            self.net.inhibitor_arcs.retain(|a| a.id != arc_id);
+            self.net.arcs.retain(|a| !arc_ids.contains(&a.id));
+            self.net.inhibitor_arcs.retain(|a| !arc_ids.contains(&a.id));
             self.net.rebuild_matrices_from_arcs();
             return;
         }
@@ -1294,6 +1304,16 @@ impl PetriApp {
         transition_ids.sort_unstable();
         transition_ids.dedup();
         transition_ids
+    }
+
+    fn collect_selected_arc_ids(&self) -> Vec<u64> {
+        let mut arc_ids = self.canvas.selected_arcs.clone();
+        if let Some(id) = self.canvas.selected_arc {
+            arc_ids.push(id);
+        }
+        arc_ids.sort_unstable();
+        arc_ids.dedup();
+        arc_ids
     }
 
     fn ensure_unique_place_name(&self, desired: &str, exclude_id: u64) -> String {
@@ -1998,80 +2018,189 @@ impl PetriApp {
                     });
             }
 
-            if let Some(arc_id) = self.canvas.selected_arc {
+            let selected_arc_ids = self.collect_selected_arc_ids();
+            if !selected_arc_ids.is_empty() {
                 ui.separator();
-                ui.label(self.tr("Выбранная связь", "Selected link"));
                 let visible_label = self.tr("Отображать", "Visible");
                 let color_label = self.tr("Цвет", "Color");
 
-                if let Some(arc) = self.net.arcs.iter_mut().find(|a| a.id == arc_id) {
-                    ui.checkbox(&mut arc.visible, visible_label);
-                    egui::ComboBox::from_label(color_label)
-                        .selected_text(Self::node_color_text(arc.color, is_ru))
+                if selected_arc_ids.len() == 1 {
+                    let arc_id = selected_arc_ids[0];
+                    ui.label(self.tr("Выбранная связь", "Selected link"));
+
+                    if let Some(arc) = self.net.arcs.iter_mut().find(|a| a.id == arc_id) {
+                        ui.checkbox(&mut arc.visible, visible_label);
+                        egui::ComboBox::from_label(color_label)
+                            .selected_text(Self::node_color_text(arc.color, is_ru))
+                            .show_ui(ui, |ui| {
+                                ui.selectable_value(
+                                    &mut arc.color,
+                                    NodeColor::Default,
+                                    Self::node_color_text(NodeColor::Default, is_ru),
+                                );
+                                ui.selectable_value(
+                                    &mut arc.color,
+                                    NodeColor::Blue,
+                                    Self::node_color_text(NodeColor::Blue, is_ru),
+                                );
+                                ui.selectable_value(
+                                    &mut arc.color,
+                                    NodeColor::Red,
+                                    Self::node_color_text(NodeColor::Red, is_ru),
+                                );
+                                ui.selectable_value(
+                                    &mut arc.color,
+                                    NodeColor::Green,
+                                    Self::node_color_text(NodeColor::Green, is_ru),
+                                );
+                                ui.selectable_value(
+                                    &mut arc.color,
+                                    NodeColor::Yellow,
+                                    Self::node_color_text(NodeColor::Yellow, is_ru),
+                                );
+                            });
+                    } else if let Some(inh) = self.net.inhibitor_arcs.iter_mut().find(|a| a.id == arc_id) {
+                        ui.checkbox(&mut inh.visible, visible_label);
+                        egui::ComboBox::from_label(color_label)
+                            .selected_text(Self::node_color_text(inh.color, is_ru))
+                            .show_ui(ui, |ui| {
+                                ui.selectable_value(
+                                    &mut inh.color,
+                                    NodeColor::Default,
+                                    Self::node_color_text(NodeColor::Default, is_ru),
+                                );
+                                ui.selectable_value(
+                                    &mut inh.color,
+                                    NodeColor::Blue,
+                                    Self::node_color_text(NodeColor::Blue, is_ru),
+                                );
+                                ui.selectable_value(
+                                    &mut inh.color,
+                                    NodeColor::Red,
+                                    Self::node_color_text(NodeColor::Red, is_ru),
+                                );
+                                ui.selectable_value(
+                                    &mut inh.color,
+                                    NodeColor::Green,
+                                    Self::node_color_text(NodeColor::Green, is_ru),
+                                );
+                                ui.selectable_value(
+                                    &mut inh.color,
+                                    NodeColor::Yellow,
+                                    Self::node_color_text(NodeColor::Yellow, is_ru),
+                                );
+                            });
+                    }
+                } else {
+                    let selected_label = if is_ru {
+                        format!("Выбрано связей: {}", selected_arc_ids.len())
+                    } else {
+                        format!("Selected links: {}", selected_arc_ids.len())
+                    };
+                    ui.label(selected_label);
+
+                    let mut bulk_color = selected_arc_ids
+                        .iter()
+                        .find_map(|id| {
+                            self.net
+                                .arcs
+                                .iter()
+                                .find(|a| a.id == *id)
+                                .map(|a| a.color)
+                                .or_else(|| {
+                                    self.net
+                                        .inhibitor_arcs
+                                        .iter()
+                                        .find(|a| a.id == *id)
+                                        .map(|a| a.color)
+                                })
+                        })
+                        .unwrap_or(NodeColor::Default);
+
+                    let response = egui::ComboBox::from_label(color_label)
+                        .selected_text(Self::node_color_text(bulk_color, is_ru))
                         .show_ui(ui, |ui| {
                             ui.selectable_value(
-                                &mut arc.color,
+                                &mut bulk_color,
                                 NodeColor::Default,
                                 Self::node_color_text(NodeColor::Default, is_ru),
                             );
                             ui.selectable_value(
-                                &mut arc.color,
+                                &mut bulk_color,
                                 NodeColor::Blue,
                                 Self::node_color_text(NodeColor::Blue, is_ru),
                             );
                             ui.selectable_value(
-                                &mut arc.color,
+                                &mut bulk_color,
                                 NodeColor::Red,
                                 Self::node_color_text(NodeColor::Red, is_ru),
                             );
                             ui.selectable_value(
-                                &mut arc.color,
+                                &mut bulk_color,
                                 NodeColor::Green,
                                 Self::node_color_text(NodeColor::Green, is_ru),
                             );
                             ui.selectable_value(
-                                &mut arc.color,
+                                &mut bulk_color,
                                 NodeColor::Yellow,
                                 Self::node_color_text(NodeColor::Yellow, is_ru),
                             );
                         });
-                } else if let Some(inh) = self.net.inhibitor_arcs.iter_mut().find(|a| a.id == arc_id) {
-                    ui.checkbox(&mut inh.visible, visible_label);
-                    egui::ComboBox::from_label(color_label)
-                        .selected_text(Self::node_color_text(inh.color, is_ru))
-                        .show_ui(ui, |ui| {
-                            ui.selectable_value(
-                                &mut inh.color,
-                                NodeColor::Default,
-                                Self::node_color_text(NodeColor::Default, is_ru),
-                            );
-                            ui.selectable_value(
-                                &mut inh.color,
-                                NodeColor::Blue,
-                                Self::node_color_text(NodeColor::Blue, is_ru),
-                            );
-                            ui.selectable_value(
-                                &mut inh.color,
-                                NodeColor::Red,
-                                Self::node_color_text(NodeColor::Red, is_ru),
-                            );
-                            ui.selectable_value(
-                                &mut inh.color,
-                                NodeColor::Green,
-                                Self::node_color_text(NodeColor::Green, is_ru),
-                            );
-                            ui.selectable_value(
-                                &mut inh.color,
-                                NodeColor::Yellow,
-                                Self::node_color_text(NodeColor::Yellow, is_ru),
-                            );
-                        });
+
+                    if response.response.changed() {
+                        self.push_undo_snapshot();
+                        let ids: HashSet<u64> = selected_arc_ids.iter().copied().collect();
+                        for arc in &mut self.net.arcs {
+                            if ids.contains(&arc.id) {
+                                arc.color = bulk_color;
+                            }
+                        }
+                        for inh in &mut self.net.inhibitor_arcs {
+                            if ids.contains(&inh.id) {
+                                inh.color = bulk_color;
+                            }
+                        }
+                    }
+
+                    ui.horizontal(|ui| {
+                        let show_all = if is_ru { "Показать все" } else { "Show all" };
+                        let hide_all = if is_ru { "Скрыть все" } else { "Hide all" };
+                        if ui.button(show_all).clicked() {
+                            self.push_undo_snapshot();
+                            let ids: HashSet<u64> = selected_arc_ids.iter().copied().collect();
+                            for arc in &mut self.net.arcs {
+                                if ids.contains(&arc.id) {
+                                    arc.visible = true;
+                                }
+                            }
+                            for inh in &mut self.net.inhibitor_arcs {
+                                if ids.contains(&inh.id) {
+                                    inh.visible = true;
+                                }
+                            }
+                        }
+                        if ui.button(hide_all).clicked() {
+                            self.push_undo_snapshot();
+                            let ids: HashSet<u64> = selected_arc_ids.iter().copied().collect();
+                            for arc in &mut self.net.arcs {
+                                if ids.contains(&arc.id) {
+                                    arc.visible = false;
+                                }
+                            }
+                            for inh in &mut self.net.inhibitor_arcs {
+                                if ids.contains(&inh.id) {
+                                    inh.visible = false;
+                                }
+                            }
+                        }
+                    });
                 }
             }
         });
     }
 
     fn draw_graph_view(&mut self, ui: &mut egui::Ui) {
+
         ui.heading("Граф");
         let desired = ui.available_size_before_wrap();
         let (rect, response) = ui.allocate_exact_size(desired, Sense::click_and_drag());
@@ -2224,6 +2353,8 @@ impl PetriApp {
                             }
                         } else if let Some(arc_id) = self.arc_at(rect, click) {
                             self.canvas.selected_arc = Some(arc_id);
+                            self.canvas.selected_arcs.clear();
+                            self.canvas.selected_arcs.push(arc_id);
                         } else if let Some(text_id) = self.text_at(rect, click) {
 
                             self.canvas.selected_text = Some(text_id);
@@ -2498,11 +2629,11 @@ impl PetriApp {
                     })
                     .map(|t| t.id)
                     .collect();
-                self.canvas.selected_arc = self
+                self.canvas.selected_arcs = self
                     .net
                     .arcs
                     .iter()
-                    .find(|arc| {
+                    .filter(|arc| {
                         if !self.arc_visible_by_mode(arc.color, arc.visible) {
                             return false;
                         }
@@ -2512,17 +2643,24 @@ impl PetriApp {
                         Self::arc_fully_inside_rect(norm, from, to)
                     })
                     .map(|arc| arc.id)
-                    .or_else(|| {
-                        self.net.inhibitor_arcs.iter().find(|inh| {
-                            if !self.arc_visible_by_mode(inh.color, inh.visible) {
-                                return false;
-                            }
-                            let Some((from, to)) = self.inhibitor_screen_endpoints(rect, inh) else {
-                                return false;
-                            };
-                            norm.contains(from) && norm.contains(to)
-                        }).map(|inh| inh.id)
-                    });
+                    .collect();
+                let selected_inhibitor_ids: Vec<u64> = self
+                    .net
+                    .inhibitor_arcs
+                    .iter()
+                    .filter(|inh| {
+                        if !self.arc_visible_by_mode(inh.color, inh.visible) {
+                            return false;
+                        }
+                        let Some((from, to)) = self.inhibitor_screen_endpoints(rect, inh) else {
+                            return false;
+                        };
+                        norm.contains(from) && norm.contains(to)
+                    })
+                    .map(|inh| inh.id)
+                    .collect();
+                self.canvas.selected_arcs.extend(selected_inhibitor_ids);
+                self.canvas.selected_arc = self.canvas.selected_arcs.first().copied();
                 self.canvas.selected_place = None;
                 self.canvas.selected_transition = None;
                 self.canvas.selected_text = None;
@@ -2645,7 +2783,7 @@ impl PetriApp {
             }
 
             let arc_color = Self::color_to_egui(arc.color, Color32::DARK_GRAY);
-            let arc_stroke = if self.canvas.selected_arc == Some(arc.id) {
+            let arc_stroke = if self.canvas.selected_arc == Some(arc.id) || self.canvas.selected_arcs.contains(&arc.id) {
                 Stroke::new(3.0, Color32::from_rgb(255, 140, 0))
             } else {
                 Stroke::new(2.0, arc_color)
@@ -2681,7 +2819,7 @@ impl PetriApp {
                 let from = p_center + dir * p_radius;
                 let to = Self::rect_border_point(t_rect, -dir);
                 let inh_color = Self::color_to_egui(inh.color, Color32::RED);
-                let inh_stroke = if self.canvas.selected_arc == Some(inh.id) {
+                let inh_stroke = if self.canvas.selected_arc == Some(inh.id) || self.canvas.selected_arcs.contains(&inh.id) {
                     Stroke::new(3.0, Color32::from_rgb(255, 140, 0))
                 } else {
                     Stroke::new(1.5, inh_color)
@@ -2924,40 +3062,8 @@ impl PetriApp {
                 ui.text_edit_singleline(&mut tr.name);
             }
         }
-        if let Some(arc_id) = self.canvas.selected_arc {
-            ui.separator();
-            let is_ru = matches!(self.net.ui.language, Language::Ru);
-            let label = if is_ru { "????????? ?????" } else { "Selected link" };
-            let visible_label = if is_ru { "??????????" } else { "Visible" };
-                let color_label = if is_ru { "????" } else { "Color" };
-
-            ui.label(label);
-
-            if let Some(arc) = self.net.arcs.iter_mut().find(|a| a.id == arc_id) {
-                ui.checkbox(&mut arc.visible, visible_label);
-                egui::ComboBox::from_label(color_label)
-                    .selected_text(Self::node_color_text(arc.color, is_ru))
-                    .show_ui(ui, |ui| {
-                        ui.selectable_value(&mut arc.color, NodeColor::Default, if is_ru { "По умолчанию" } else { "Default" });
-                        ui.selectable_value(&mut arc.color, NodeColor::Blue, if is_ru { "Синий" } else { "Blue" });
-                        ui.selectable_value(&mut arc.color, NodeColor::Red, if is_ru { "Красный" } else { "Red" });
-                        ui.selectable_value(&mut arc.color, NodeColor::Green, if is_ru { "Зеленый" } else { "Green" });
-                        ui.selectable_value(&mut arc.color, NodeColor::Yellow, if is_ru { "Желтый" } else { "Yellow" });
-                    });
-            } else if let Some(inh) = self.net.inhibitor_arcs.iter_mut().find(|a| a.id == arc_id) {
-                ui.checkbox(&mut inh.visible, visible_label);
-                egui::ComboBox::from_label(color_label)
-                    .selected_text(Self::node_color_text(inh.color, is_ru))
-                    .show_ui(ui, |ui| {
-                        ui.selectable_value(&mut inh.color, NodeColor::Default, if is_ru { "По умолчанию" } else { "Default" });
-                        ui.selectable_value(&mut inh.color, NodeColor::Blue, if is_ru { "Синий" } else { "Blue" });
-                        ui.selectable_value(&mut inh.color, NodeColor::Red, if is_ru { "Красный" } else { "Red" });
-                        ui.selectable_value(&mut inh.color, NodeColor::Green, if is_ru { "Зеленый" } else { "Green" });
-                        ui.selectable_value(&mut inh.color, NodeColor::Yellow, if is_ru { "Желтый" } else { "Yellow" });
-                    });
-            }
-        }
         if let Some(text_id) = self.canvas.selected_text {
+
             if let Some(idx) = self.text_idx_by_id(text_id) {
                 ui.separator();
                 ui.label("Выбранный текст");
