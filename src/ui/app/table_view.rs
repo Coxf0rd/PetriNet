@@ -607,13 +607,7 @@ impl PetriApp {
             .places
             .iter()
             .enumerate()
-            .filter_map(|(idx, place)| {
-                if place.stats.any_enabled() {
-                    Some(idx)
-                } else {
-                    None
-                }
-            })
+            .filter_map(|(idx, place)| place.stats.any_enabled().then_some(idx))
             .collect();
         if available_places.is_empty() {
             self.show_place_stats_window = false;
@@ -622,6 +616,7 @@ impl PetriApp {
         if !available_places.contains(&self.place_stats_view_place) {
             self.place_stats_view_place = available_places[0];
         }
+
         let mut open = self.show_place_stats_window;
         egui::Window::new(self.tr("Статистика", "Statistics"))
             .id(egui::Id::new("results_place_stats_window"))
@@ -682,22 +677,94 @@ impl PetriApp {
                 });
 
                 let place_idx = self.place_stats_view_place;
+                let place_stats = self
+                    .net
+                    .places
+                    .get(place_idx)
+                    .map(|p| p.stats)
+                    .unwrap_or_default();
+                let mut available_series = Vec::new();
+                if place_stats.markers_total {
+                    available_series.push(PlaceStatsSeries::MarkersTotal);
+                }
+                if place_stats.markers_input {
+                    available_series.push(PlaceStatsSeries::MarkersInput);
+                }
+                if place_stats.markers_output {
+                    available_series.push(PlaceStatsSeries::MarkersOutput);
+                }
+                if available_series.is_empty() {
+                    available_series.push(PlaceStatsSeries::MarkersTotal);
+                }
+                if !available_series.contains(&self.place_stats_series) {
+                    self.place_stats_series = available_series[0];
+                }
+                ui.horizontal(|ui| {
+                    ui.label(self.tr("Показатель", "Metric"));
+                    for series in available_series {
+                        let label = match series {
+                            PlaceStatsSeries::MarkersTotal => self.tr("Общая", "Total"),
+                            PlaceStatsSeries::MarkersInput => self.tr("На входе", "On input"),
+                            PlaceStatsSeries::MarkersOutput => self.tr("На выходе", "On output"),
+                        };
+                        ui.selectable_value(&mut self.place_stats_series, series, label);
+                    }
+                });
 
                 let sampled = Self::sampled_indices(result.logs.len(), Self::MAX_PLOT_POINTS);
                 let mut values = Vec::<f64>::with_capacity(sampled.len());
                 let mut times = Vec::<f64>::with_capacity(sampled.len());
+
+                let mut cumulative_in = vec![0_u64; result.logs.len()];
+                let mut cumulative_out = vec![0_u64; result.logs.len()];
+                let mut in_sum = 0_u64;
+                let mut out_sum = 0_u64;
+                for (idx, entry) in result.logs.iter().enumerate() {
+                    if let Some(t_idx) = entry.fired_transition {
+                        in_sum = in_sum.saturating_add(
+                            *self
+                                .net
+                                .tables
+                                .post
+                                .get(place_idx)
+                                .and_then(|row| row.get(t_idx))
+                                .unwrap_or(&0) as u64,
+                        );
+                        out_sum = out_sum.saturating_add(
+                            *self
+                                .net
+                                .tables
+                                .pre
+                                .get(place_idx)
+                                .and_then(|row| row.get(t_idx))
+                                .unwrap_or(&0) as u64,
+                        );
+                    }
+                    cumulative_in[idx] = in_sum;
+                    cumulative_out[idx] = out_sum;
+                }
+
                 for idx in sampled {
                     let entry = &result.logs[idx];
-                    if let Some(value) = entry.marking.get(place_idx) {
-                        values.push(*value as f64);
-                        let t = if entry.time.is_finite() {
-                            entry.time
-                        } else {
-                            idx as f64
-                        };
-                        times.push(t);
-                    }
+                    let value = match self.place_stats_series {
+                        PlaceStatsSeries::MarkersTotal => {
+                            entry.marking.get(place_idx).copied().unwrap_or_default() as f64
+                        }
+                        PlaceStatsSeries::MarkersInput => {
+                            cumulative_in.get(idx).copied().unwrap_or_default() as f64
+                        }
+                        PlaceStatsSeries::MarkersOutput => {
+                            cumulative_out.get(idx).copied().unwrap_or_default() as f64
+                        }
+                    };
+                    values.push(value);
+                    times.push(if entry.time.is_finite() {
+                        entry.time
+                    } else {
+                        idx as f64
+                    });
                 }
+
                 if values.len() >= 2 {
                     let mut has_increasing_x = false;
                     for i in 1..times.len() {
@@ -742,13 +809,30 @@ impl PetriApp {
                     }
                 }
                 let avg = sum / values.len() as f64;
-                let utilization = result
+                let place_load = result
                     .place_load
                     .as_ref()
-                    .and_then(|load| load.get(place_idx))
-                    .and_then(|l| l.avg_over_capacity)
-                    .map(|v| v * 100.0)
-                    .unwrap_or(0.0);
+                    .and_then(|load| load.get(place_idx));
+                let summary_tail = match self.place_stats_series {
+                    PlaceStatsSeries::MarkersTotal => format!(
+                        "{} {:.3}%",
+                        self.tr("Утилизация", "Utilization"),
+                        place_load
+                            .and_then(|l| l.avg_over_capacity)
+                            .map(|v| v * 100.0)
+                            .unwrap_or(0.0)
+                    ),
+                    PlaceStatsSeries::MarkersInput => format!(
+                        "{} {:.3}",
+                        self.tr("Ср. вход/сек", "Avg in/sec"),
+                        place_load.and_then(|l| l.in_rate).unwrap_or(0.0)
+                    ),
+                    PlaceStatsSeries::MarkersOutput => format!(
+                        "{} {:.3}",
+                        self.tr("Ср. выход/сек", "Avg out/sec"),
+                        place_load.and_then(|l| l.out_rate).unwrap_or(0.0)
+                    ),
+                };
 
                 ui.horizontal(|ui| {
                     ui.label(format!("{} {:.3}", self.tr("Максимум", "Maximum"), max_v));
@@ -758,11 +842,7 @@ impl PetriApp {
                     ui.label(format!("{} {:.3}", self.tr("Время", "Time"), min_t));
                     ui.separator();
                     ui.label(format!("{} {:.3}", self.tr("Среднее", "Average"), avg));
-                    ui.label(format!(
-                        "{} {:.3}%",
-                        self.tr("Утилизация", "Utilization"),
-                        utilization
-                    ));
+                    ui.label(summary_tail);
                 });
                 ui.horizontal(|ui| {
                     ui.label(self.tr("Масштаб X", "X zoom"));
@@ -773,32 +853,6 @@ impl PetriApp {
                     ui.label(self.tr("Сдвиг X", "X pan"));
                     ui.add(egui::Slider::new(&mut self.place_stats_pan_x, 0.0..=1.0));
                 });
-
-                if let Some(place) = self.net.places.get(place_idx) {
-                    ui.horizontal(|ui| {
-                        let mut markers_total = place.stats.markers_total;
-                        let mut markers_input = place.stats.markers_input;
-                        let mut markers_output = place.stats.markers_output;
-                        ui.add_enabled(
-                            false,
-                            egui::Checkbox::new(&mut markers_total, self.tr("Общая", "Total")),
-                        );
-                        ui.add_enabled(
-                            false,
-                            egui::Checkbox::new(
-                                &mut markers_input,
-                                self.tr("На входе", "On input"),
-                            ),
-                        );
-                        ui.add_enabled(
-                            false,
-                            egui::Checkbox::new(
-                                &mut markers_output,
-                                self.tr("На выходе", "On output"),
-                            ),
-                        );
-                    });
-                }
 
                 let total = values.len();
                 let visible = (((total as f32) / self.place_stats_zoom_x).round() as usize)

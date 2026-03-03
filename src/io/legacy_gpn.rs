@@ -303,7 +303,7 @@ pub fn export_legacy_gpn_with_hints(
 
         // NetStar displays the place label from this legacy field.
         // Prefer the explicit name; if it's an auto-name (P1, P2, ...) and note is filled,
-        // export note instead so "РўРµРєСЃС‚/РћРїРёСЃР°РЅРёРµ" is visible in NetStar.
+        // export note instead so "Текст/Описание" is visible in NetStar.
         let place_label =
             if looks_like_auto_place_name(&place.name) && !place.note.trim().is_empty() {
                 place.note.as_str()
@@ -331,7 +331,7 @@ pub fn export_legacy_gpn_with_hints(
                 .get(idx)
                 .copied()
                 .unwrap_or(1)
-                .clamp(1, 1_000_000),
+                .clamp(0, 1_000_000),
         );
         write_i32(&mut record, 12, transition.angle_deg.clamp(-360, 360));
         write_i32(&mut record, 16, -131072);
@@ -1116,7 +1116,7 @@ fn apply_legacy_read_arc_heuristics(model: &mut PetriNetModel) {
     let mut changed = false;
     for p in 0..places {
         let name = model.places[p].name.to_lowercase();
-        let looks_like_free_resource = name.contains("СЃРІРѕР±РѕРґ") || name.contains("free");
+        let looks_like_free_resource = name.contains("свобод") || name.contains("free");
         if !looks_like_free_resource {
             continue;
         }
@@ -1475,7 +1475,7 @@ fn encode_legacy_cp1251(s: &str) -> Vec<u8> {
             '\u{0000}'..='\u{007F}' => ch as u8,
             '\u{0401}' => 0xA8, // РЃ
             '\u{0451}' => 0xB8, // С‘
-            '\u{0410}'..='\u{044F}' => (0xC0u32 + (ch as u32 - 0x0410)) as u8, // Рђ..СЏ
+            '\u{0410}'..='\u{044F}' => (0xC0u32 + (ch as u32 - 0x0410)) as u8, // А..я
             _ => b'?',          // unsupported in our legacy subset
         };
         out.push(b);

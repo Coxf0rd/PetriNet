@@ -4,7 +4,11 @@ pub fn generate_atf(net: &PetriNet, selected_place: usize) -> String {
     let mut out = String::new();
     out.push_str("ATF v1\n");
     out.push_str(&format!("selected_place=P{}\n", selected_place + 1));
-    out.push_str(&format!("places={} transitions={}\n", net.places.len(), net.transitions.len()));
+    out.push_str(&format!(
+        "places={} transitions={}\n",
+        net.places.len(),
+        net.transitions.len()
+    ));
     out.push_str("[M0]\n");
     for (i, v) in net.tables.m0.iter().enumerate() {
         out.push_str(&format!("P{}={}\n", i + 1, v));

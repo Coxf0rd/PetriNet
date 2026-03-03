@@ -39,6 +39,13 @@ enum ArcDisplayMode {
     Hidden,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum PlaceStatsSeries {
+    MarkersTotal,
+    MarkersInput,
+    MarkersOutput,
+}
+
 #[derive(Debug, Clone, Default)]
 struct NetstarExportValidationReport {
     errors: Vec<String>,
@@ -251,6 +258,7 @@ pub struct PetriApp {
     place_stats_dialog_backup: Option<(u64, PlaceStatisticsSelection)>,
     show_place_stats_window: bool,
     place_stats_view_place: usize,
+    place_stats_series: PlaceStatsSeries,
     place_stats_zoom_x: f32,
     place_stats_pan_x: f32,
     arc_display_mode: ArcDisplayMode,
@@ -371,6 +379,7 @@ impl PetriApp {
             place_stats_dialog_backup: None,
             show_place_stats_window: false,
             place_stats_view_place: 0,
+            place_stats_series: PlaceStatsSeries::MarkersTotal,
             place_stats_zoom_x: 1.0,
             place_stats_pan_x: 1.0,
             arc_display_mode: ArcDisplayMode::All,
@@ -436,6 +445,7 @@ impl PetriApp {
                 place_stats_dialog_backup: None,
                 show_place_stats_window: false,
                 place_stats_view_place: 0,
+                place_stats_series: PlaceStatsSeries::MarkersTotal,
                 place_stats_zoom_x: 1.0,
                 place_stats_pan_x: 1.0,
                 arc_display_mode: ArcDisplayMode::All,
@@ -833,6 +843,75 @@ impl PetriApp {
         duplicates
     }
 
+    fn select_export_issue_target(&mut self, issue: &str) -> bool {
+        let mut arc_candidate: Option<u64> = None;
+        let mut place_candidate: Option<u64> = None;
+        let mut transition_candidate: Option<u64> = None;
+
+        for token in issue.split(|c: char| !c.is_ascii_alphanumeric()) {
+            if token.len() < 2 {
+                continue;
+            }
+            let (prefix, rest) = token.split_at(1);
+            let Ok(id) = rest.parse::<u64>() else {
+                continue;
+            };
+            match prefix {
+                "A" | "a" => arc_candidate = Some(id),
+                "P" | "p" => place_candidate = Some(id),
+                "T" | "t" => transition_candidate = Some(id),
+                _ => {}
+            }
+        }
+
+        if let Some(arc_id) = arc_candidate {
+            let arc_exists = self.net.arcs.iter().any(|a| a.id == arc_id)
+                || self.net.inhibitor_arcs.iter().any(|a| a.id == arc_id);
+            if arc_exists {
+                self.clear_selection();
+                self.canvas.selected_arc = Some(arc_id);
+                self.canvas.selected_arcs.push(arc_id);
+                return true;
+            }
+        }
+
+        if let Some(place_ref) = place_candidate {
+            let by_id = self.place_idx_by_id(place_ref);
+            let by_ordinal = place_ref
+                .checked_sub(1)
+                .and_then(|idx| usize::try_from(idx).ok())
+                .filter(|&idx| idx < self.net.places.len());
+            if let Some(idx) = by_id.or(by_ordinal) {
+                let place_id = self.net.places[idx].id;
+                self.clear_selection();
+                self.canvas.selected_place = Some(place_id);
+                self.canvas.selected_places.push(place_id);
+                self.place_props_id = Some(place_id);
+                self.show_place_props = true;
+                return true;
+            }
+        }
+
+        if let Some(transition_ref) = transition_candidate {
+            let by_id = self.transition_idx_by_id(transition_ref);
+            let by_ordinal = transition_ref
+                .checked_sub(1)
+                .and_then(|idx| usize::try_from(idx).ok())
+                .filter(|&idx| idx < self.net.transitions.len());
+            if let Some(idx) = by_id.or(by_ordinal) {
+                let transition_id = self.net.transitions[idx].id;
+                self.clear_selection();
+                self.canvas.selected_transition = Some(transition_id);
+                self.canvas.selected_transitions.push(transition_id);
+                self.transition_props_id = Some(transition_id);
+                self.show_transition_props = true;
+                return true;
+            }
+        }
+
+        false
+    }
+
     fn start_netstar_export_validation(&mut self, path: PathBuf) {
         self.sync_model_overlays_from_canvas();
         self.pending_netstar_export_path = Some(path);
@@ -1124,9 +1203,9 @@ impl PetriApp {
                 ));
             }
 
-            if !(1..=1_000_000).contains(&mpr) {
+            if !(0..=1_000_000).contains(&mpr) {
                 report.warnings.push(format!(
-                    "{} T{} ({} -> диапазон 1..1000000)",
+                    "{} T{} ({} -> РґРёР°РїР°Р·РѕРЅ 0..1000000)",
                     self.tr(
                         "Приоритет перехода будет ограничен при экспорте:",
                         "Transition priority will be clamped during export:"
@@ -1138,7 +1217,7 @@ impl PetriApp {
 
             if transition.angle_deg < -360 || transition.angle_deg > 360 {
                 report.warnings.push(format!(
-                    "{} T{} ({} -> диапазон -360..360)",
+                    "{} T{} ({} -> РґРёР°РїР°Р·РѕРЅ -360..360)",
                     self.tr(
                         "Угол перехода будет ограничен при экспорте:",
                         "Transition angle will be clamped during export:"
@@ -1159,7 +1238,7 @@ impl PetriApp {
                 .to_string(),
             );
             for item in non_exportable_items {
-                report.warnings.push(format!("• {}", item));
+                report.warnings.push(format!("- {}", item));
             }
         }
 
@@ -2452,7 +2531,7 @@ impl PetriApp {
                 let non_exportable_items = self.netstar_non_exportable_items();
                 if !non_exportable_items.is_empty() {
                     ui.menu_button(
-                        self.tr("Совместимость NetStar ⚠", "NetStar Compatibility ⚠"),
+                        self.tr("Совместимость NetStar (!)", "NetStar Compatibility (!)"),
                         |ui| {
                             ui.label(self.tr(
                                 "Есть элементы, которые не экспортируются в NetStar:",
@@ -2460,7 +2539,7 @@ impl PetriApp {
                             ));
                             ui.separator();
                             for item in non_exportable_items {
-                                ui.label(format!("• {}", item));
+                                ui.label(format!("- {}", item));
                             }
                         },
                     );
@@ -3266,13 +3345,13 @@ impl PetriApp {
                 ui.label("ПКМ + перетаскивание: двигать рабочую область");
                 ui.label("Delete: удалить выделенное");
                 ui.separator();
-                ui.label("Ctrl+N: новый файл");
+                ui.label("Ctrl+N: РЅРѕРІС‹Р№ С„Р°Р№Р»");
                 ui.label("Ctrl+O: открыть файл");
                 ui.label("Ctrl+S: сохранить файл");
                 ui.label("Ctrl+C: копировать выделенное");
                 ui.label("Ctrl+V: вставить");
                 ui.label("Ctrl+Z: отменить последнее действие");
-                ui.label("Ctrl+Q: выход");
+                ui.label("Ctrl+Q: РІС‹С…РѕРґ");
             });
         self.show_help_controls = open;
     }
@@ -3319,20 +3398,42 @@ impl PetriApp {
                         self.tr("Проблем не найдено.", "No issues found."),
                     );
                 } else {
+                    ui.label(self.tr(
+                        "Нажмите на строку ошибки/предупреждения, чтобы выделить объект в графе.",
+                        "Click an issue row to select the related object on the graph.",
+                    ));
                     egui::ScrollArea::vertical()
                         .max_height(260.0)
                         .show(ui, |ui| {
                             for issue in &report.errors {
-                                ui.colored_label(
-                                    Color32::RED,
-                                    format!("[{}] {}", self.tr("Ошибка", "Error"), issue),
+                                let line = format!("[{}] {}", self.tr("Ошибка", "Error"), issue);
+                                let response = ui.add(
+                                    egui::Label::new(egui::RichText::new(line).color(Color32::RED))
+                                        .sense(Sense::click()),
                                 );
+                                if response.clicked() && !self.select_export_issue_target(issue) {
+                                    self.status_hint = Some(
+                                        self.tr(
+                                            "Не удалось определить объект по строке отчёта.",
+                                            "Could not resolve target object from issue row.",
+                                        )
+                                        .to_string(),
+                                    );
+                                }
                             }
                             for issue in &report.warnings {
-                                ui.colored_label(
-                                    Color32::from_rgb(160, 110, 0),
-                                    format!("[{}] {}", self.tr("Предупреждение", "Warning"), issue),
+                                let line =
+                                    format!("[{}] {}", self.tr("Предупреждение", "Warning"), issue);
+                                let response = ui.add(
+                                    egui::Label::new(
+                                        egui::RichText::new(line)
+                                            .color(Color32::from_rgb(160, 110, 0)),
+                                    )
+                                    .sense(Sense::click()),
                                 );
+                                if response.clicked() {
+                                    let _ = self.select_export_issue_target(issue);
+                                }
                             }
                         });
                 }

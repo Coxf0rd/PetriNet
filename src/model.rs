@@ -184,11 +184,23 @@ impl PlaceStatisticsSelection {
 pub enum StochasticDistribution {
     #[default]
     None,
-    Uniform { min: f64, max: f64 },
-    Normal { mean: f64, std_dev: f64 },
-    Exponential { lambda: f64 },
-    Poisson { lambda: f64 },
-    CustomValue { value: f64 },
+    Uniform {
+        min: f64,
+        max: f64,
+    },
+    Normal {
+        mean: f64,
+        std_dev: f64,
+    },
+    Exponential {
+        lambda: f64,
+    },
+    Poisson {
+        lambda: f64,
+    },
+    CustomValue {
+        value: f64,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
@@ -472,7 +484,11 @@ impl PetriNetModel {
     }
 
     pub fn add_arc(&mut self, from: NodeRef, to: NodeRef, weight: u32) {
-        if matches!((from, to), (NodeRef::Place(_), NodeRef::Transition(_)) | (NodeRef::Transition(_), NodeRef::Place(_))) {
+        if matches!(
+            (from, to),
+            (NodeRef::Place(_), NodeRef::Transition(_))
+                | (NodeRef::Transition(_), NodeRef::Place(_))
+        ) {
             self.arcs.push(Arc {
                 id: self.next_arc_id(),
                 from,
@@ -486,7 +502,9 @@ impl PetriNetModel {
     }
 
     pub fn add_inhibitor_arc(&mut self, place_id: u64, transition_id: u64, threshold: u32) {
-        if self.places.iter().any(|p| p.id == place_id) && self.transitions.iter().any(|t| t.id == transition_id) {
+        if self.places.iter().any(|p| p.id == place_id)
+            && self.transitions.iter().any(|t| t.id == transition_id)
+        {
             self.inhibitor_arcs.push(InhibitorArc {
                 id: self.next_inhibitor_id(),
                 place_id,
@@ -516,7 +534,8 @@ impl PetriNetModel {
     }
 
     pub fn rebuild_matrices_from_arcs(&mut self) {
-        self.tables.resize(self.places.len(), self.transitions.len());
+        self.tables
+            .resize(self.places.len(), self.transitions.len());
 
         for p in 0..self.places.len() {
             for t in 0..self.transitions.len() {
@@ -530,7 +549,8 @@ impl PetriNetModel {
         let tmap = self.transition_index_map();
 
         self.arcs.retain(|arc| match (arc.from, arc.to) {
-            (NodeRef::Place(pid), NodeRef::Transition(tid)) | (NodeRef::Transition(tid), NodeRef::Place(pid)) => {
+            (NodeRef::Place(pid), NodeRef::Transition(tid))
+            | (NodeRef::Transition(tid), NodeRef::Place(pid)) => {
                 pmap.contains_key(&pid) && tmap.contains_key(&tid)
             }
             _ => false,
@@ -540,12 +560,14 @@ impl PetriNetModel {
             match (arc.from, arc.to) {
                 (NodeRef::Place(pid), NodeRef::Transition(tid)) => {
                     if let (Some(&p), Some(&t)) = (pmap.get(&pid), tmap.get(&tid)) {
-                        self.tables.pre[p][t] = self.tables.pre[p][t].saturating_add(arc.weight.max(1));
+                        self.tables.pre[p][t] =
+                            self.tables.pre[p][t].saturating_add(arc.weight.max(1));
                     }
                 }
                 (NodeRef::Transition(tid), NodeRef::Place(pid)) => {
                     if let (Some(&p), Some(&t)) = (pmap.get(&pid), tmap.get(&tid)) {
-                        self.tables.post[p][t] = self.tables.post[p][t].saturating_add(arc.weight.max(1));
+                        self.tables.post[p][t] =
+                            self.tables.post[p][t].saturating_add(arc.weight.max(1));
                     }
                 }
                 _ => {}
@@ -668,7 +690,9 @@ impl PetriNetModel {
             || self.tables.mz.len() != self.places.len()
             || self.tables.mpr.len() != self.transitions.len()
         {
-            return Err(anyhow!("Размеры таблиц не согласованы с числами мест/переходов"));
+            return Err(anyhow!(
+                "Размеры таблиц не согласованы с числами мест/переходов"
+            ));
         }
 
         for (idx, v) in self.tables.mz.iter().enumerate() {
@@ -684,12 +708,18 @@ impl PetriNetModel {
             match (arc.from, arc.to) {
                 (NodeRef::Place(p), NodeRef::Transition(t)) => {
                     if !place_ids.contains(&p) || !transition_ids.contains(&t) {
-                        return Err(anyhow!("Дуга {} ссылается на отсутствующие вершины", arc.id));
+                        return Err(anyhow!(
+                            "Дуга {} ссылается на отсутствующие вершины",
+                            arc.id
+                        ));
                     }
                 }
                 (NodeRef::Transition(t), NodeRef::Place(p)) => {
                     if !place_ids.contains(&p) || !transition_ids.contains(&t) {
-                        return Err(anyhow!("Дуга {} ссылается на отсутствующие вершины", arc.id));
+                        return Err(anyhow!(
+                            "Дуга {} ссылается на отсутствующие вершины",
+                            arc.id
+                        ));
                     }
                 }
                 _ => return Err(anyhow!("Дуга {} нарушает двудольность графа", arc.id)),
@@ -698,20 +728,19 @@ impl PetriNetModel {
 
         for inh in &self.inhibitor_arcs {
             if inh.threshold == 0 {
-                return Err(anyhow!("Порог ингибиторной дуги {} должен быть > 0", inh.id));
+                return Err(anyhow!(
+                    "Порог ингибиторной дуги {} должен быть > 0",
+                    inh.id
+                ));
             }
             if !place_ids.contains(&inh.place_id) || !transition_ids.contains(&inh.transition_id) {
-                return Err(anyhow!("Ингибиторная дуга {} ссылается на отсутствующие вершины", inh.id));
+                return Err(anyhow!(
+                    "Ингибиторная дуга {} ссылается на отсутствующие вершины",
+                    inh.id
+                ));
             }
         }
 
         Ok(())
     }
 }
-
-
-
-
-
-
-
