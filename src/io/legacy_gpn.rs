@@ -49,8 +49,8 @@ pub enum LegacyImportError {
 impl fmt::Display for LegacyImportError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Io(e) => write!(f, "РћС€РёР±РєР° РІРІРѕРґР°-РІС‹РІРѕРґР°: {e}"),
-            Self::Invalid(msg) => write!(f, "РќРµРєРѕСЂСЂРµРєС‚РЅС‹Р№ legacy GPN: {msg}"),
+            Self::Io(e) => write!(f, "Ошибка ввода-вывода: {e}"),
+            Self::Invalid(msg) => write!(f, "Некорректный legacy GPN: {msg}"),
         }
     }
 }
@@ -78,7 +78,7 @@ pub fn detect_legacy_gpn(bytes: &[u8]) -> bool {
 pub fn import_legacy_gpn(path: &Path) -> Result<LegacyImportResult, LegacyImportError> {
     let bytes = fs::read(path)?;
     if bytes.is_empty() {
-        return Err(LegacyImportError::Invalid("РџСѓСЃС‚РѕР№ С„Р°Р№Р»".to_string()));
+        return Err(LegacyImportError::Invalid("Пустой файл".to_string()));
     }
 
     let candidate_counts = detect_counts(&bytes);
@@ -93,14 +93,14 @@ pub fn import_legacy_gpn(path: &Path) -> Result<LegacyImportResult, LegacyImport
             (
                 p.clamp(1, 2000) as usize,
                 t.clamp(1, 2000) as usize,
-                vec!["РСЃРїРѕР»СЊР·РѕРІР°РЅС‹ СЌРІСЂРёСЃС‚РёС‡РµСЃРєРёРµ counts".to_string()],
+                vec!["Использованы эвристические counts".to_string()],
             )
         } else {
             (
                 1,
                 1,
                 vec![
-                    "РќРµ СѓРґР°Р»РѕСЃСЊ РЅР°РґРµР¶РЅРѕ РёР·РІР»РµС‡СЊ С‡РёСЃР»Р° РјРµСЃС‚/РїРµСЂРµС…РѕРґРѕРІ, РїСЂРёРјРµРЅРµРЅС‹ Р·РЅР°С‡РµРЅРёСЏ 1/1"
+                    "Не удалось надежно извлечь числа мест/переходов, применены значения 1/1"
                         .to_string(),
                 ],
             )
@@ -161,7 +161,8 @@ pub fn import_legacy_gpn(path: &Path) -> Result<LegacyImportResult, LegacyImport
             }
         }
 
-        if let Some(arcs) = parse_arcs_from_section(&bytes, places_count, transitions_count, layout) {
+        if let Some(arcs) = parse_arcs_from_section(&bytes, places_count, transitions_count, layout)
+        {
             apply_legacy_arcs(&mut model, &arcs);
             arcs_applied = true;
         } else if let Some(arcs) = parse_arcs_by_signature(
@@ -185,11 +186,11 @@ pub fn import_legacy_gpn(path: &Path) -> Result<LegacyImportResult, LegacyImport
         }
     } else {
         used_fallback = true;
-        warnings.push("РќРµ СѓРґР°Р»РѕСЃСЊ РѕРїСЂРµРґРµР»РёС‚СЊ layout legacy СЃРµРєС†РёР№".to_string());
+        warnings.push("Не удалось определить layout legacy секций".to_string());
     }
 
     if used_fallback {
-        warnings.push("РРјРїРѕСЂС‚ legacy GPN РІС‹РїРѕР»РЅРµРЅ РІ СЂРµР¶РёРјРµ best-effort".to_string());
+        warnings.push("Импорт legacy GPN выполнен в режиме best-effort".to_string());
     }
 
     let mut discovered_sections = detect_section_boundaries(&bytes);
@@ -298,20 +299,17 @@ pub fn export_legacy_gpn_with_hints(
             .copied()
             .unwrap_or(0.0)
             .clamp(0.0, 86_400.0);
-        write_f64(
-            &mut record,
-            PLACE_DELAY_OFFSET,
-            delay,
-        );
+        write_f64(&mut record, PLACE_DELAY_OFFSET, delay);
 
         // NetStar displays the place label from this legacy field.
         // Prefer the explicit name; if it's an auto-name (P1, P2, ...) and note is filled,
-        // export note instead so "Текст/Описание" is visible in NetStar.
-        let place_label = if looks_like_auto_place_name(&place.name) && !place.note.trim().is_empty() {
-            place.note.as_str()
-        } else {
-            place.name.as_str()
-        };
+        // export note instead so "РўРµРєСЃС‚/РћРїРёСЃР°РЅРёРµ" is visible in NetStar.
+        let place_label =
+            if looks_like_auto_place_name(&place.name) && !place.note.trim().is_empty() {
+                place.note.as_str()
+            } else {
+                place.name.as_str()
+            };
         // Keep place name inside the safe legacy slot so it does not overwrite delay bytes.
         let place_name_max = PLACE_DELAY_OFFSET.saturating_sub(PLACE_NAME_OFFSET + 1);
         write_legacy_name_limited(&mut record, PLACE_NAME_OFFSET, place_label, place_name_max);
@@ -431,8 +429,11 @@ pub fn export_legacy_gpn_with_hints(
 
     let mut encoded_arcs = Vec::new();
     for (inhibitor, direction, source_idx, target_idx, from_node, to_node) in arc_records {
-        let points = legacy_arc_polyline_points(&normalized, from_node, to_node)
-            .unwrap_or(([0.0, 0.0], [0.0, 0.0], [0.0, 0.0]));
+        let points = legacy_arc_polyline_points(&normalized, from_node, to_node).unwrap_or((
+            [0.0, 0.0],
+            [0.0, 0.0],
+            [0.0, 0.0],
+        ));
         encoded_arcs.push((inhibitor, direction, source_idx, target_idx, points));
     }
 
@@ -827,14 +828,27 @@ impl LegacyArcBinaryRecord {
             if self.source_raw > places as i32 || self.target_raw > transitions as i32 {
                 return None;
             }
-            ((self.source_raw - 1) as usize, (self.target_raw - 1) as usize, true)
+            (
+                (self.source_raw - 1) as usize,
+                (self.target_raw - 1) as usize,
+                true,
+            )
         } else {
             if self.source_raw > transitions as i32 || self.target_raw > places as i32 {
                 return None;
             }
-            ((self.target_raw - 1) as usize, (self.source_raw - 1) as usize, false)
+            (
+                (self.target_raw - 1) as usize,
+                (self.source_raw - 1) as usize,
+                false,
+            )
         };
-        Some((place_idx, transition_idx, place_to_transition, self.marker == 0))
+        Some((
+            place_idx,
+            transition_idx,
+            place_to_transition,
+            self.marker == 0,
+        ))
     }
 }
 fn parse_arcs_from_section(
@@ -859,8 +873,12 @@ fn parse_arcs_from_section(
     let mut parsed_records = 0usize;
     for index in 0..arc_count {
         let off = section_start + index * ARC_RECORD_SIZE;
-        let Some(bin) = LegacyArcBinaryRecord::decode(bytes, off) else { continue; };
-        if let Some((place_idx, transition_idx, place_to_transition, inhibitor)) = bin.to_topology(places, transitions) {
+        let Some(bin) = LegacyArcBinaryRecord::decode(bytes, off) else {
+            continue;
+        };
+        if let Some((place_idx, transition_idx, place_to_transition, inhibitor)) =
+            bin.to_topology(places, transitions)
+        {
             *counts
                 .entry((place_idx, transition_idx, place_to_transition, inhibitor))
                 .or_insert(0) += 1;
@@ -991,11 +1009,8 @@ fn prune_legacy_ghost_nodes(model: &mut PetriNetModel) {
             continue;
         }
         let node = &model.places[idx];
-        let duplicate_connected_exists = model
-            .places
-            .iter()
-            .enumerate()
-            .any(|(other_idx, other)| {
+        let duplicate_connected_exists =
+            model.places.iter().enumerate().any(|(other_idx, other)| {
                 other_idx != idx
                     && place_incident[other_idx]
                     && near_point(other.pos, node.pos[0], node.pos[1], 0.5)
@@ -1011,15 +1026,16 @@ fn prune_legacy_ghost_nodes(model: &mut PetriNetModel) {
             continue;
         }
         let node = &model.transitions[idx];
-        let duplicate_connected_exists = model
-            .transitions
-            .iter()
-            .enumerate()
-            .any(|(other_idx, other)| {
-                other_idx != idx
-                    && transition_incident[other_idx]
-                    && near_point(other.pos, node.pos[0], node.pos[1], 0.5)
-            });
+        let duplicate_connected_exists =
+            model
+                .transitions
+                .iter()
+                .enumerate()
+                .any(|(other_idx, other)| {
+                    other_idx != idx
+                        && transition_incident[other_idx]
+                        && near_point(other.pos, node.pos[0], node.pos[1], 0.5)
+                });
         if duplicate_connected_exists {
             keep_transitions[idx] = false;
         }
@@ -1061,11 +1077,14 @@ fn prune_legacy_ghost_nodes(model: &mut PetriNetModel) {
         }
         _ => false,
     });
-    model
-        .inhibitor_arcs
-        .retain(|arc| keep_place_ids.contains_key(&arc.place_id) && keep_transition_ids.contains_key(&arc.transition_id));
+    model.inhibitor_arcs.retain(|arc| {
+        keep_place_ids.contains_key(&arc.place_id)
+            && keep_transition_ids.contains_key(&arc.transition_id)
+    });
 
-    model.tables.resize(model.places.len(), model.transitions.len());
+    model
+        .tables
+        .resize(model.places.len(), model.transitions.len());
     for (old_idx, maybe_new_idx) in place_old_to_new.into_iter().enumerate() {
         let Some(new_idx) = maybe_new_idx else {
             continue;
@@ -1097,7 +1116,7 @@ fn apply_legacy_read_arc_heuristics(model: &mut PetriNetModel) {
     let mut changed = false;
     for p in 0..places {
         let name = model.places[p].name.to_lowercase();
-        let looks_like_free_resource = name.contains("свобод") || name.contains("free");
+        let looks_like_free_resource = name.contains("СЃРІРѕР±РѕРґ") || name.contains("free");
         if !looks_like_free_resource {
             continue;
         }
@@ -1106,8 +1125,12 @@ fn apply_legacy_read_arc_heuristics(model: &mut PetriNetModel) {
         if model.tables.m0.get(p).copied().unwrap_or(0) != 1 {
             continue;
         }
-        let outgoing = (0..transitions).filter(|&t| model.tables.pre[p][t] > 0).count();
-        let incoming = (0..transitions).filter(|&t| model.tables.post[p][t] > 0).count();
+        let outgoing = (0..transitions)
+            .filter(|&t| model.tables.pre[p][t] > 0)
+            .count();
+        let incoming = (0..transitions)
+            .filter(|&t| model.tables.post[p][t] > 0)
+            .count();
         if outgoing < 3 || incoming == 0 {
             continue;
         }
@@ -1306,11 +1329,21 @@ fn legacy_arc_polyline_points(
 
 fn legacy_node_center(model: &PetriNetModel, node: NodeRef) -> Option<[f32; 2]> {
     match node {
-        NodeRef::Place(id) => model.places.iter().find(|item| item.id == id).map(|item| item.pos),
-        NodeRef::Transition(id) => model.transitions.iter().find(|item| item.id == id).map(|item| {
-            let (w, h) = legacy_transition_dims(item.size);
-            [item.pos[0] + w * 0.5, item.pos[1] + h * 0.5]
-        }),
+        NodeRef::Place(id) => model
+            .places
+            .iter()
+            .find(|item| item.id == id)
+            .map(|item| item.pos),
+        NodeRef::Transition(id) => {
+            model
+                .transitions
+                .iter()
+                .find(|item| item.id == id)
+                .map(|item| {
+                    let (w, h) = legacy_transition_dims(item.size);
+                    [item.pos[0] + w * 0.5, item.pos[1] + h * 0.5]
+                })
+        }
     }
 }
 
@@ -1320,28 +1353,34 @@ fn legacy_node_anchor(model: &PetriNetModel, node: NodeRef, dir: [f32; 2]) -> Op
             let r = legacy_place_radius(item.size);
             [item.pos[0] + dir[0] * r, item.pos[1] + dir[1] * r]
         }),
-        NodeRef::Transition(id) => model.transitions.iter().find(|item| item.id == id).map(|item| {
-            let (w, h) = legacy_transition_dims(item.size);
-            let center = [item.pos[0] + w * 0.5, item.pos[1] + h * 0.5];
-            let half_w = w * 0.5;
-            let half_h = h * 0.5;
-            let tx = if dir[0].abs() > f32::EPSILON {
-                half_w / dir[0].abs()
-            } else {
-                f32::INFINITY
-            };
-            let ty = if dir[1].abs() > f32::EPSILON {
-                half_h / dir[1].abs()
-            } else {
-                f32::INFINITY
-            };
-            let t = tx.min(ty);
-            if t.is_finite() {
-                [center[0] + dir[0] * t, center[1] + dir[1] * t]
-            } else {
-                center
-            }
-        }),
+        NodeRef::Transition(id) => {
+            model
+                .transitions
+                .iter()
+                .find(|item| item.id == id)
+                .map(|item| {
+                    let (w, h) = legacy_transition_dims(item.size);
+                    let center = [item.pos[0] + w * 0.5, item.pos[1] + h * 0.5];
+                    let half_w = w * 0.5;
+                    let half_h = h * 0.5;
+                    let tx = if dir[0].abs() > f32::EPSILON {
+                        half_w / dir[0].abs()
+                    } else {
+                        f32::INFINITY
+                    };
+                    let ty = if dir[1].abs() > f32::EPSILON {
+                        half_h / dir[1].abs()
+                    } else {
+                        f32::INFINITY
+                    };
+                    let t = tx.min(ty);
+                    if t.is_finite() {
+                        [center[0] + dir[0] * t, center[1] + dir[1] * t]
+                    } else {
+                        center
+                    }
+                })
+        }
     }
 }
 
@@ -1374,13 +1413,10 @@ fn map_color_to_legacy(color: NodeColor) -> i32 {
 fn legacy_footer_template() -> &'static [u8] {
     &[
         // NetStar simulation defaults: time limit = 1000, pass limit = 1000.
-        0xE8, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-        0xE8, 0x03, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00,
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-        0x00, 0x00, 0x00, 0x00, 0x28, 0x63, 0x29, 0x20,
-        0x4D, 0x69, 0x6B, 0x68, 0x61, 0x79, 0x6C, 0x69,
-        0x73, 0x68, 0x69, 0x6E,
+        0xE8, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0xE8, 0x03, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x28, 0x63, 0x29, 0x20, 0x4D, 0x69, 0x6B, 0x68, 0x61,
+        0x79, 0x6C, 0x69, 0x73, 0x68, 0x69, 0x6E,
     ]
 }
 
@@ -1437,17 +1473,22 @@ fn encode_legacy_cp1251(s: &str) -> Vec<u8> {
     for ch in s.chars() {
         let b = match ch {
             '\u{0000}'..='\u{007F}' => ch as u8,
-            '\u{0401}' => 0xA8, // Ё
-            '\u{0451}' => 0xB8, // ё
-            '\u{0410}'..='\u{044F}' => (0xC0u32 + (ch as u32 - 0x0410)) as u8, // А..я
-            _ => b'?', // unsupported in our legacy subset
+            '\u{0401}' => 0xA8, // РЃ
+            '\u{0451}' => 0xB8, // С‘
+            '\u{0410}'..='\u{044F}' => (0xC0u32 + (ch as u32 - 0x0410)) as u8, // Рђ..СЏ
+            _ => b'?',          // unsupported in our legacy subset
         };
         out.push(b);
     }
     out
 }
 
-fn write_legacy_name_limited(record: &mut [u8], field_offset: usize, value: &str, hard_max_len: usize) {
+fn write_legacy_name_limited(
+    record: &mut [u8],
+    field_offset: usize,
+    value: &str,
+    hard_max_len: usize,
+) {
     if field_offset + 1 >= record.len() {
         return;
     }
@@ -1642,14 +1683,11 @@ fn detect_section_boundaries(bytes: &[u8]) -> Vec<String> {
     let mut sections = Vec::new();
     for (off, p, t) in detect_counts(bytes).into_iter().take(5) {
         sections.push(format!(
-            "РљР°РЅРґРёРґР°С‚ СЃРµРєС†РёРё counts @0x{off:08X}: places={p}, transitions={t}"
+            "Кандидат секции counts @0x{off:08X}: places={p}, transitions={t}"
         ));
     }
     sections
 }
-
-
-
 
 #[cfg(test)]
 mod tests {
@@ -1668,7 +1706,16 @@ mod tests {
         let tmp = NamedTempFile::new().expect("temp file");
         export_legacy_gpn(tmp.path(), &model).expect("legacy export");
         let imported = import_legacy_gpn(tmp.path()).expect("legacy import");
-        let delay = imported.model.tables.mz.first().copied().unwrap_or_default();
-        assert!((delay - 12.5).abs() < 1e-9, "delay mismatch after roundtrip: {delay}");
+        let delay = imported
+            .model
+            .tables
+            .mz
+            .first()
+            .copied()
+            .unwrap_or_default();
+        assert!(
+            (delay - 12.5).abs() < 1e-9,
+            "delay mismatch after roundtrip: {delay}"
+        );
     }
 }

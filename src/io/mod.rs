@@ -1,4 +1,4 @@
-﻿use std::fs;
+use std::fs;
 use std::path::Path;
 
 use anyhow::{Context, Result};
@@ -19,7 +19,7 @@ pub struct LoadGpnResult {
 
 pub fn load_gpn(path: &Path) -> Result<LoadGpnResult> {
     let bytes =
-        fs::read(path).with_context(|| format!("РќРµ СѓРґР°Р»РѕСЃСЊ РїСЂРѕС‡РёС‚Р°С‚СЊ С„Р°Р№Р» {}", path.display()))?;
+        fs::read(path).with_context(|| format!("Не удалось прочитать файл {}", path.display()))?;
 
     if bytes.starts_with(GPN2_MAGIC.as_bytes()) {
         let model = gpn2::load_gpn2_from_bytes(&bytes)?;
@@ -35,7 +35,7 @@ pub fn load_gpn(path: &Path) -> Result<LoadGpnResult> {
                     model.validate()?;
                     return Ok(LoadGpnResult {
                         model,
-                        warnings: vec!["Р¤Р°Р№Р» JSON РѕС‚РєСЂС‹С‚ Р±РµР· Р·Р°РіРѕР»РѕРІРєР° GPN2".to_string()],
+                        warnings: vec!["Файл JSON открыт без заголовка GPN2".to_string()],
                         legacy_debug: None,
                     });
                 }

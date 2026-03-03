@@ -15,12 +15,14 @@ pub fn save_gpn2(path: &Path, model: &PetriNetModel) -> Result<()> {
     bytes.extend_from_slice(GPN2_MAGIC.as_bytes());
     bytes.extend_from_slice(json.as_bytes());
 
-    fs::write(path, bytes).with_context(|| format!("Не удалось записать файл {}", path.display()))?;
+    fs::write(path, bytes)
+        .with_context(|| format!("Не удалось записать файл {}", path.display()))?;
     Ok(())
 }
 
 pub fn load_gpn2(path: &Path) -> Result<PetriNetModel> {
-    let bytes = fs::read(path).with_context(|| format!("Не удалось прочитать файл {}", path.display()))?;
+    let bytes =
+        fs::read(path).with_context(|| format!("Не удалось прочитать файл {}", path.display()))?;
     load_gpn2_from_bytes(&bytes)
 }
 
@@ -30,10 +32,12 @@ pub fn load_gpn2_from_bytes(bytes: &[u8]) -> Result<PetriNetModel> {
     }
 
     let json_bytes = &bytes[GPN2_MAGIC.len()..];
-    let value: serde_json::Value = serde_json::from_slice(json_bytes).context("Некорректный JSON в GPN2")?;
+    let value: serde_json::Value =
+        serde_json::from_slice(json_bytes).context("Некорректный JSON в GPN2")?;
 
     let migrated = migrate_to_latest(value)?;
-    let model: PetriNetModel = serde_json::from_value(migrated).context("JSON не соответствует схеме GPN2")?;
+    let model: PetriNetModel =
+        serde_json::from_value(migrated).context("JSON не соответствует схеме GPN2")?;
     model.validate()?;
     Ok(model)
 }
