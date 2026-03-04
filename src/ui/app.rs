@@ -2573,22 +2573,6 @@ impl PetriApp {
                         }
                     });
                 });
-                let non_exportable_items = self.netstar_non_exportable_items();
-                if !non_exportable_items.is_empty() {
-                    ui.menu_button(
-                        self.tr("Совместимость NetStar (!)", "NetStar Compatibility (!)"),
-                        |ui| {
-                            ui.label(self.tr(
-                                "Есть элементы, которые не экспортируются в NetStar:",
-                                "There are elements not exported to NetStar:",
-                            ));
-                            ui.separator();
-                            for item in non_exportable_items {
-                                ui.label(format!("- {}", item));
-                            }
-                        },
-                    );
-                }
 
                 ui.menu_button("Окно", |ui| {
                     if ui.button("Каскад").clicked() {
