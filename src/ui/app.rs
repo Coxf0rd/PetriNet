@@ -738,7 +738,7 @@ impl PetriApp {
 
     fn open_file(&mut self) {
         if let Some(path) = rfd::FileDialog::new()
-            .add_filter("Р¤Р°Р№Р»С‹ PetriNet", &["gpn2", "pn", "gpn"])
+            .add_filter("Файлы PetriNet", &["gpn2", "pn", "gpn"])
             .pick_file()
         {
             match load_gpn(&path) {
@@ -770,9 +770,7 @@ impl PetriApp {
                         .filter(|w| {
                             !w.contains("best-effort")
                                 && !w.contains("signature heuristic")
-                                && !w.contains(
-                                    "РІРѕСЃСЃС‚Р°РЅРѕРІР»РµРЅС‹ РїРѕ СЃРёРіРЅР°С‚СѓСЂР°Рј",
-                                )
+                                && !w.contains("восстановлены по сигнатурам")
                         })
                         .cloned()
                         .collect();
@@ -814,8 +812,8 @@ impl PetriApp {
 
     fn save_file_as(&mut self) {
         if let Some(path) = rfd::FileDialog::new()
-            .add_filter("Р¤Р°Р№Р»С‹ PetriNet (gpn2)", &["gpn2"])
-            .set_file_name("РјРѕРґРµР»СЊ.gpn2")
+            .add_filter("Файлы PetriNet (gpn2)", &["gpn2"])
+            .set_file_name("модель.gpn2")
             .save_file()
         {
             self.file_path = Some(path.clone());
@@ -830,8 +828,8 @@ impl PetriApp {
 
     fn export_netstar_file(&mut self) {
         if let Some(path) = rfd::FileDialog::new()
-            .add_filter("Р¤Р°Р№Р»С‹ NetStar (gpn)", &["gpn"])
-            .set_file_name("СЌРєСЃРїРѕСЂС‚_netstar.gpn")
+            .add_filter("Файлы NetStar (gpn)", &["gpn"])
+            .set_file_name("экспорт_netstar.gpn")
             .save_file()
         {
             self.start_netstar_export_validation(path);
@@ -843,14 +841,14 @@ impl PetriApp {
         if !self.text_blocks.is_empty() {
             items.push(format!(
                 "{}: {}",
-                self.tr("РўРµРєСЃС‚РѕРІС‹Рµ Р±Р»РѕРєРё", "Text blocks"),
+                self.tr("Текстовые блоки", "Text blocks"),
                 self.text_blocks.len()
             ));
         }
         if !self.decorative_frames.is_empty() {
             items.push(format!(
                 "{}: {}",
-                self.tr("Р”РµРєРѕСЂР°С‚РёРІРЅС‹Рµ СЂР°РјРєРё", "Decorative frames"),
+                self.tr("Декоративные рамки", "Decorative frames"),
                 self.decorative_frames.len()
             ));
         }
@@ -866,7 +864,7 @@ impl PetriApp {
                 .any(|arc| arc.color != NodeColor::Red || !arc.visible);
         if has_arc_style_data {
             items.push(
-                self.tr("Р¦РІРµС‚/СЃРєСЂС‹С‚РёРµ РґСѓРі", "Arc color/visibility")
+                self.tr("Цвет/скрытие дуг", "Arc color/visibility")
                     .to_string(),
             );
         }
@@ -983,7 +981,7 @@ impl PetriApp {
         {
             report.errors.push(
                 self.tr(
-                    "РўР°Р±Р»РёС†С‹ M0/Mo/Mz РёРјРµСЋС‚ РЅРµРІРµСЂРЅС‹Р№ СЂР°Р·РјРµСЂ РѕС‚РЅРѕСЃРёС‚РµР»СЊРЅРѕ С‡РёСЃР»Р° РјРµСЃС‚.",
+                    "Таблицы M0/Mo/Mz имеют неверный размер относительно числа мест.",
                     "M0/Mo/Mz table sizes do not match the places count.",
                 )
                 .to_string(),
@@ -992,7 +990,7 @@ impl PetriApp {
         if self.net.tables.mpr.len() != self.net.transitions.len() {
             report.errors.push(
                 self.tr(
-                    "РўР°Р±Р»РёС†Р° РїСЂРёРѕСЂРёС‚РµС‚РѕРІ РїРµСЂРµС…РѕРґРѕРІ (Mpr) РёРјРµРµС‚ РЅРµРІРµСЂРЅС‹Р№ СЂР°Р·РјРµСЂ.",
+                    "Таблица приоритетов переходов (Mpr) имеет неверный размер.",
                     "Mpr table size does not match the transitions count.",
                 )
                 .to_string(),
@@ -1007,7 +1005,7 @@ impl PetriApp {
                 report.errors.push(format!(
                     "{}: {}",
                     self.tr(
-                        "РќРµРєРѕСЂСЂРµРєС‚РЅРѕРµ С‡РёСЃР»Рѕ СЃС‚СЂРѕРє РІ РјР°С‚СЂРёС†Рµ",
+                        "Некорректное число строк в матрице",
                         "Invalid matrix row count"
                     ),
                     name
@@ -1021,7 +1019,7 @@ impl PetriApp {
                 report.errors.push(format!(
                     "{}: {}",
                     self.tr(
-                        "РќРµРєРѕСЂСЂРµРєС‚РЅРѕРµ С‡РёСЃР»Рѕ СЃС‚РѕР»Р±С†РѕРІ РІ РјР°С‚СЂРёС†Рµ",
+                        "Некорректное число столбцов в матрице",
                         "Invalid matrix column count"
                     ),
                     name
@@ -1032,17 +1030,14 @@ impl PetriApp {
         for id in Self::duplicate_ids(self.net.places.iter().map(|p| p.id)) {
             report.errors.push(format!(
                 "{} P{}",
-                self.tr("Р”СѓР±Р»РёРєР°С‚ ID РјРµСЃС‚Р°:", "Duplicate place ID:"),
+                self.tr("Дубликат ID места:", "Duplicate place ID:"),
                 id
             ));
         }
         for id in Self::duplicate_ids(self.net.transitions.iter().map(|t| t.id)) {
             report.errors.push(format!(
                 "{} T{}",
-                self.tr(
-                    "Р”СѓР±Р»РёРєР°С‚ ID РїРµСЂРµС…РѕРґР°:",
-                    "Duplicate transition ID:"
-                ),
+                self.tr("Дубликат ID перехода:", "Duplicate transition ID:"),
                 id
             ));
         }
@@ -1051,7 +1046,7 @@ impl PetriApp {
         for id in Self::duplicate_ids(arc_like_ids) {
             report.errors.push(format!(
                 "{} A{}",
-                self.tr("Р”СѓР±Р»РёРєР°С‚ ID РґСѓРіРё:", "Duplicate arc ID:"),
+                self.tr("Дубликат ID дуги:", "Duplicate arc ID:"),
                 id
             ));
         }
@@ -1061,7 +1056,7 @@ impl PetriApp {
                 report.errors.push(format!(
                     "{} A{}",
                     self.tr(
-                        "Р’РµСЃ РґСѓРіРё РґРѕР»Р¶РµРЅ Р±С‹С‚СЊ Р±РѕР»СЊС€Рµ 0:",
+                        "Вес дуги должен быть больше 0:",
                         "Arc weight must be greater than 0:"
                     ),
                     arc.id
@@ -1071,7 +1066,7 @@ impl PetriApp {
                 report.warnings.push(format!(
                     "{} A{} ({} -> 1024)",
                     self.tr(
-                        "Р’РµСЃ РґСѓРіРё Р±СѓРґРµС‚ РѕРіСЂР°РЅРёС‡РµРЅ РїСЂРё СЌРєСЃРїРѕСЂС‚Рµ:",
+                        "Вес дуги будет ограничен при экспорте:",
                         "Arc weight will be clamped during export:"
                     ),
                     arc.id,
@@ -1085,7 +1080,7 @@ impl PetriApp {
                         report.errors.push(format!(
                             "{} A{}",
                             self.tr(
-                                "Р”СѓРіР° СЃСЃС‹Р»Р°РµС‚СЃСЏ РЅР° РЅРµСЃСѓС‰РµСЃС‚РІСѓСЋС‰РµРµ РјРµСЃС‚Рѕ/РїРµСЂРµС…РѕРґ:",
+                                "Дуга ссылается на несуществующее место/переход:",
                                 "Arc references a missing place/transition:"
                             ),
                             arc.id
@@ -1096,7 +1091,7 @@ impl PetriApp {
                     report.errors.push(format!(
                         "{} A{}",
                         self.tr(
-                            "Р”СѓРіР° РЅР°СЂСѓС€Р°РµС‚ РґРІСѓРґРѕР»СЊРЅРѕСЃС‚СЊ РіСЂР°С„Р°:",
+                            "Дуга нарушает двудольность графа:",
                             "Arc breaks graph bipartiteness:"
                         ),
                         arc.id
@@ -1110,7 +1105,7 @@ impl PetriApp {
                 report.errors.push(format!(
                     "{} A{}",
                     self.tr(
-                        "РџРѕСЂРѕРі РёРЅРіРёР±РёС‚РѕСЂРЅРѕР№ РґСѓРіРё РґРѕР»Р¶РµРЅ Р±С‹С‚СЊ Р±РѕР»СЊС€Рµ 0:",
+                        "Порог ингибиторной дуги должен быть больше 0:",
                         "Inhibitor threshold must be greater than 0:"
                     ),
                     inh.id
@@ -1120,7 +1115,7 @@ impl PetriApp {
                 report.warnings.push(format!(
                     "{} A{} ({} -> 1024)",
                     self.tr(
-                        "РџРѕСЂРѕРі РёРЅРіРёР±РёС‚РѕСЂРЅРѕР№ РґСѓРіРё Р±СѓРґРµС‚ РѕРіСЂР°РЅРёС‡РµРЅ РїСЂРё СЌРєСЃРїРѕСЂС‚Рµ:",
+                        "Порог ингибиторной дуги будет ограничен при экспорте:",
                         "Inhibitor threshold will be clamped during export:"
                     ),
                     inh.id,
@@ -1148,7 +1143,7 @@ impl PetriApp {
                 report.errors.push(format!(
                     "{} P{}",
                     self.tr(
-                        "РќРµРєРѕСЂСЂРµРєС‚РЅС‹Рµ РєРѕРѕСЂРґРёРЅР°С‚С‹ РјРµСЃС‚Р°:",
+                        "Некорректные координаты места:",
                         "Invalid place coordinates:"
                     ),
                     idx + 1
@@ -1161,7 +1156,7 @@ impl PetriApp {
                 report.warnings.push(format!(
                     "{} P{}",
                     self.tr(
-                        "РљРѕРѕСЂРґРёРЅР°С‚С‹ РјРµСЃС‚Р° РјРѕРіСѓС‚ РІС‹Р№С‚Рё Р·Р° РґРёР°РїР°Р·РѕРЅ legacy-С„РѕСЂРјР°С‚Р°:",
+                        "Координаты места могут выйти за диапазон legacy-формата:",
                         "Place coordinates may exceed legacy format limits:"
                     ),
                     idx + 1
@@ -1173,7 +1168,7 @@ impl PetriApp {
                     report.warnings.push(format!(
                         "{} P{} ({} -> 1000000)",
                         self.tr(
-                            "РњР°РєСЃРёРјР°Р»СЊРЅР°СЏ РµРјРєРѕСЃС‚СЊ РјРµСЃС‚Р° Р±СѓРґРµС‚ РѕРіСЂР°РЅРёС‡РµРЅР° РїСЂРё СЌРєСЃРїРѕСЂС‚Рµ:",
+                            "Максимальная емкость места будет ограничена при экспорте:",
                             "Place capacity will be clamped during export:"
                         ),
                         idx + 1,
@@ -1184,7 +1179,7 @@ impl PetriApp {
                 report.warnings.push(format!(
                     "{} P{}",
                     self.tr(
-                        "Р‘РµР·Р»РёРјРёС‚РЅР°СЏ РµРјРєРѕСЃС‚СЊ РјРµСЃС‚Р° РЅРµ РїРѕРґРґРµСЂР¶РёРІР°РµС‚СЃСЏ, Р±СѓРґРµС‚ Р·Р°РјРµРЅРµРЅР° РЅР° 1:",
+                        "Безлимитная емкость места не поддерживается, будет заменена на 1:",
                         "Unlimited place capacity is not supported and will be replaced with 1:"
                     ),
                     idx + 1
@@ -1196,7 +1191,7 @@ impl PetriApp {
                 report.warnings.push(format!(
                     "{} P{}",
                     self.tr(
-                        "Р§РёСЃР»Рѕ РјР°СЂРєРµСЂРѕРІ РјРµСЃС‚Р° Р±СѓРґРµС‚ РѕРіСЂР°РЅРёС‡РµРЅРѕ РїСЂРё СЌРєСЃРїРѕСЂС‚Рµ:",
+                        "Число маркеров места будет ограничено при экспорте:",
                         "Place markers count will be clamped during export:"
                     ),
                     idx + 1
@@ -1207,7 +1202,7 @@ impl PetriApp {
                 report.errors.push(format!(
                     "{} P{}",
                     self.tr(
-                        "Р—Р°РґРµСЂР¶РєР° РјРµСЃС‚Р° РёРјРµРµС‚ РЅРµС‡РёСЃР»РѕРІРѕРµ Р·РЅР°С‡РµРЅРёРµ:",
+                        "Задержка места имеет нечисловое значение:",
                         "Place delay has a non-finite value:"
                     ),
                     idx + 1
@@ -1216,7 +1211,7 @@ impl PetriApp {
                 report.warnings.push(format!(
                     "{} P{} ({:.3})",
                     self.tr(
-                        "Р—Р°РґРµСЂР¶РєР° РјРµСЃС‚Р° Р±СѓРґРµС‚ РѕРіСЂР°РЅРёС‡РµРЅР° РґРёР°РїР°Р·РѕРЅРѕРј [0; 86400]:",
+                        "Задержка места будет ограничена диапазоном [0; 86400]:",
                         "Place delay will be clamped to [0; 86400]:"
                     ),
                     idx + 1,
@@ -1232,7 +1227,7 @@ impl PetriApp {
                 report.errors.push(format!(
                     "{} T{}",
                     self.tr(
-                        "РќРµРєРѕСЂСЂРµРєС‚РЅС‹Рµ РєРѕРѕСЂРґРёРЅР°С‚С‹ РїРµСЂРµС…РѕРґР°:",
+                        "Некорректные координаты перехода:",
                         "Invalid transition coordinates:"
                     ),
                     idx + 1
@@ -1245,7 +1240,7 @@ impl PetriApp {
                 report.warnings.push(format!(
                     "{} T{}",
                     self.tr(
-                        "РљРѕРѕСЂРґРёРЅР°С‚С‹ РїРµСЂРµС…РѕРґР° РјРѕРіСѓС‚ РІС‹Р№С‚Рё Р·Р° РґРёР°РїР°Р·РѕРЅ legacy-С„РѕСЂРјР°С‚Р°:",
+                        "Координаты перехода могут выйти за диапазон legacy-формата:",
                         "Transition coordinates may exceed legacy format limits:"
                     ),
                     idx + 1
@@ -1254,9 +1249,9 @@ impl PetriApp {
 
             if !(0..=1_000_000).contains(&mpr) {
                 report.warnings.push(format!(
-                    "{} T{} ({} -> РґРёР°РїР°Р·РѕРЅ 0..1000000)",
+                    "{} T{} ({} -> диапазон 0..1000000)",
                     self.tr(
-                        "РџСЂРёРѕСЂРёС‚РµС‚ РїРµСЂРµС…РѕРґР° Р±СѓРґРµС‚ РѕРіСЂР°РЅРёС‡РµРЅ РїСЂРё СЌРєСЃРїРѕСЂС‚Рµ:",
+                        "Приоритет перехода будет ограничен при экспорте:",
                         "Transition priority will be clamped during export:"
                     ),
                     idx + 1,
@@ -1266,9 +1261,9 @@ impl PetriApp {
 
             if transition.angle_deg < -360 || transition.angle_deg > 360 {
                 report.warnings.push(format!(
-                    "{} T{} ({} -> РґРёР°РїР°Р·РѕРЅ -360..360)",
+                    "{} T{} ({} -> диапазон -360..360)",
                     self.tr(
-                        "РЈРіРѕР» РїРµСЂРµС…РѕРґР° Р±СѓРґРµС‚ РѕРіСЂР°РЅРёС‡РµРЅ РїСЂРё СЌРєСЃРїРѕСЂС‚Рµ:",
+                        "Угол перехода будет ограничен при экспорте:",
                         "Transition angle will be clamped during export:"
                     ),
                     idx + 1,
@@ -1281,7 +1276,7 @@ impl PetriApp {
         if !non_exportable_items.is_empty() {
             report.warnings.push(
                 self.tr(
-                    "Р•СЃС‚СЊ СЌР»РµРјРµРЅС‚С‹, РєРѕС‚РѕСЂС‹Рµ РЅРµ СЌРєСЃРїРѕСЂС‚РёСЂСѓСЋС‚СЃСЏ РІ NetStar.",
+                    "Есть элементы, которые не экспортируются в NetStar.",
                     "There are elements that are not exported to NetStar.",
                 )
                 .to_string(),
@@ -1306,11 +1301,8 @@ impl PetriApp {
         } else {
             self.last_error = None;
             self.status_hint = Some(
-                self.tr(
-                    "Р­РєСЃРїРѕСЂС‚ РІ NetStar Р·Р°РІРµСЂС€РµРЅ",
-                    "NetStar export completed",
-                )
-                .to_string(),
+                self.tr("Экспорт в NetStar завершен", "NetStar export completed")
+                    .to_string(),
             );
         }
         self.clear_netstar_export_validation();
@@ -1599,11 +1591,11 @@ impl PetriApp {
 
     fn label_pos_text(pos: LabelPosition, is_ru: bool) -> &'static str {
         match (pos, is_ru) {
-            (LabelPosition::Top, true) => "Р’РІРµСЂС…Сѓ",
-            (LabelPosition::Bottom, true) => "Р’РЅРёР·Сѓ",
-            (LabelPosition::Left, true) => "РЎР»РµРІР°",
-            (LabelPosition::Right, true) => "РЎРїСЂР°РІР°",
-            (LabelPosition::Center, true) => "РџРѕ С†РµРЅС‚СЂСѓ",
+            (LabelPosition::Top, true) => "Вверху",
+            (LabelPosition::Bottom, true) => "Внизу",
+            (LabelPosition::Left, true) => "Слева",
+            (LabelPosition::Right, true) => "Справа",
+            (LabelPosition::Center, true) => "По центру",
             (LabelPosition::Top, false) => "Top",
             (LabelPosition::Bottom, false) => "Bottom",
             (LabelPosition::Left, false) => "Left",
@@ -1614,11 +1606,11 @@ impl PetriApp {
 
     fn node_color_text(color: NodeColor, is_ru: bool) -> &'static str {
         match (color, is_ru) {
-            (NodeColor::Default, true) => "РџРѕ СѓРјРѕР»С‡Р°РЅРёСЋ",
-            (NodeColor::Blue, true) => "РЎРёРЅРёР№",
-            (NodeColor::Red, true) => "РљСЂР°СЃРЅС‹Р№",
-            (NodeColor::Green, true) => "Р—РµР»РµРЅС‹Р№",
-            (NodeColor::Yellow, true) => "Р–РµР»С‚С‹Р№",
+            (NodeColor::Default, true) => "По умолчанию",
+            (NodeColor::Blue, true) => "Синий",
+            (NodeColor::Red, true) => "Красный",
+            (NodeColor::Green, true) => "Зеленый",
+            (NodeColor::Yellow, true) => "Желтый",
             (NodeColor::Default, false) => "Default",
             (NodeColor::Blue, false) => "Blue",
             (NodeColor::Red, false) => "Red",
@@ -1629,14 +1621,12 @@ impl PetriApp {
 
     fn stochastic_text(dist: &StochasticDistribution, is_ru: bool) -> &'static str {
         match (dist, is_ru) {
-            (StochasticDistribution::None, true) => "РќРµС‚",
-            (StochasticDistribution::Uniform { .. }, true) => "Р Р°РІРЅРѕРјРµСЂРЅРѕРµ",
-            (StochasticDistribution::Normal { .. }, true) => "РќРѕСЂРјР°Р»СЊРЅРѕРµ (Р“Р°СѓСЃСЃР°)",
-            (StochasticDistribution::Exponential { .. }, true) => "Р­РєСЃРїРѕРЅРµРЅС†РёР°Р»СЊРЅРѕРµ",
-            (StochasticDistribution::Poisson { .. }, true) => "РџСѓР°СЃСЃРѕРЅР°",
-            (StochasticDistribution::CustomValue { .. }, true) => {
-                "Р—Р°РґР°РЅРЅРѕРµ РїРѕР»СЊР·РѕРІР°С‚РµР»РµРј"
-            }
+            (StochasticDistribution::None, true) => "Нет",
+            (StochasticDistribution::Uniform { .. }, true) => "Равномерное",
+            (StochasticDistribution::Normal { .. }, true) => "Нормальное (Гаусса)",
+            (StochasticDistribution::Exponential { .. }, true) => "Экспоненциальное",
+            (StochasticDistribution::Poisson { .. }, true) => "Пуассона",
+            (StochasticDistribution::CustomValue { .. }, true) => "Заданное пользователем",
             (StochasticDistribution::None, false) => "None",
             (StochasticDistribution::Uniform { .. }, false) => "Uniform",
             (StochasticDistribution::Normal { .. }, false) => "Normal (Gaussian)",
@@ -1658,9 +1648,9 @@ impl PetriApp {
 
     fn arc_display_mode_text(mode: ArcDisplayMode, is_ru: bool) -> &'static str {
         match (mode, is_ru) {
-            (ArcDisplayMode::All, true) => "Р’СЃРµ",
-            (ArcDisplayMode::OnlyColor, true) => "РўРѕР»СЊРєРѕ РІС‹Р±СЂР°РЅРЅС‹Р№ С†РІРµС‚",
-            (ArcDisplayMode::Hidden, true) => "РЎРєСЂС‹С‚СЊ РІСЃРµ",
+            (ArcDisplayMode::All, true) => "Все",
+            (ArcDisplayMode::OnlyColor, true) => "Только выбранный цвет",
+            (ArcDisplayMode::Hidden, true) => "Скрыть все",
             (ArcDisplayMode::All, false) => "All",
             (ArcDisplayMode::OnlyColor, false) => "Only selected color",
             (ArcDisplayMode::Hidden, false) => "Hide all",
@@ -2110,8 +2100,7 @@ impl PetriApp {
         }
 
         if place_ids.is_empty() && transition_ids.is_empty() && text_ids.is_empty() {
-            self.status_hint =
-                Some("РќРµС‡РµРіРѕ РєРѕРїРёСЂРѕРІР°С‚СЊ: РЅРµС‚ РІС‹РґРµР»РµРЅРёСЏ".to_string());
+            self.status_hint = Some("Нечего копировать: нет выделения".to_string());
             return;
         }
 
@@ -2221,9 +2210,7 @@ impl PetriApp {
         self.clipboard = Some(clip);
         // Keep first paste visibly offset from original selection.
         self.paste_serial = 1;
-        self.status_hint = Some(format!(
-            "РЎРєРѕРїРёСЂРѕРІР°РЅРѕ РѕР±СЉРµРєС‚РѕРІ: {copied_count}"
-        ));
+        self.status_hint = Some(format!("Скопировано объектов: {copied_count}"));
     }
 
     fn paste_copied_objects(&mut self) {
@@ -2231,11 +2218,11 @@ impl PetriApp {
             self.clipboard = Some(ext);
         }
         let Some(buf) = self.clipboard.clone() else {
-            self.status_hint = Some("Р‘СѓС„РµСЂ РїСѓСЃС‚".to_string());
+            self.status_hint = Some("Буфер пуст".to_string());
             return;
         };
         if buf.places.is_empty() && buf.transitions.is_empty() && buf.texts.is_empty() {
-            self.status_hint = Some("Р‘СѓС„РµСЂ РїСѓСЃС‚".to_string());
+            self.status_hint = Some("Буфер пуст".to_string());
             return;
         }
         self.push_undo_snapshot();
@@ -2381,9 +2368,7 @@ impl PetriApp {
 
         self.paste_serial = self.paste_serial.saturating_add(1);
         let pasted_count = place_map.len() + transition_map.len() + new_text_ids.len();
-        self.status_hint = Some(format!(
-            "Р’СЃС‚Р°РІР»РµРЅРѕ РѕР±СЉРµРєС‚РѕРІ: {pasted_count}"
-        ));
+        self.status_hint = Some(format!("Вставлено объектов: {pasted_count}"));
     }
 
     fn arc_screen_endpoints(&self, rect: Rect, arc: &crate::model::Arc) -> Option<(Pos2, Pos2)> {
@@ -2559,116 +2544,90 @@ impl PetriApp {
     fn draw_menu(&mut self, ctx: &egui::Context) {
         egui::TopBottomPanel::top("menu").show(ctx, |ui| {
             egui::menu::bar(ui, |ui| {
-                ui.menu_button("Р¤Р°Р№Р»", |ui| {
-                    if ui.button("РќРѕРІС‹Р№ (Ctrl+N)").clicked() {
+                ui.menu_button("Файл", |ui| {
+                    if ui.button("Новый (Ctrl+N)").clicked() {
                         self.new_file();
                         ui.close_menu();
                     }
-                    if ui.button("РћС‚РєСЂС‹С‚СЊ (Ctrl+O)").clicked() {
+                    if ui.button("Открыть (Ctrl+O)").clicked() {
                         self.open_file();
                         ui.close_menu();
                     }
                     ui.menu_button("РРјРїРѕСЂС‚", |ui| {
                         ui.label("РРјРїРѕСЂС‚ PeSim: TODO");
                     });
-                    ui.menu_button("Р­РєСЃРїРѕСЂС‚", |ui| {
-                        if ui.button("Р­РєСЃРїРѕСЂС‚ РІ NetStar (gpn)").clicked() {
+                    ui.menu_button("Экспорт", |ui| {
+                        if ui.button("Экспорт в NetStar (gpn)").clicked() {
                             self.export_netstar_file();
                             ui.close_menu();
                         }
                     });
-                    if ui.button("РЎРѕС…СЂР°РЅРёС‚СЊ (gpn2) (Ctrl+S)").clicked()
-                    {
+                    if ui.button("Сохранить (gpn2) (Ctrl+S)").clicked() {
                         self.save_file();
                         ui.close_menu();
                     }
-                    if ui.button("РЎРѕС…СЂР°РЅРёС‚СЊ РєР°Рє (gpn2)").clicked()
-                    {
+                    if ui.button("Сохранить как (gpn2)").clicked() {
                         self.save_file_as();
                         ui.close_menu();
                     }
-                    if ui.button("Р’С‹С…РѕРґ").clicked() {
+                    if ui.button("Выход").clicked() {
                         ctx.send_viewport_cmd(egui::ViewportCommand::Close);
                     }
                 });
-                ui.menu_button("РћРїС†РёРё", |ui| {
-                    ui.menu_button("РЇР·С‹Рє", |ui| {
+                ui.menu_button("Опции", |ui| {
+                    ui.menu_button("Язык", |ui| {
                         ui.radio_value(&mut self.net.ui.language, Language::Ru, "RU");
                         ui.radio_value(&mut self.net.ui.language, Language::En, "EN");
                     });
-                    ui.checkbox(&mut self.net.ui.hide_grid, "РЎРєСЂС‹С‚СЊ СЃРµС‚РєСѓ");
-                    ui.checkbox(
-                        &mut self.net.ui.snap_to_grid,
-                        "РџСЂРёРІСЏР·РєР° Рє СЃРµС‚РєРµ",
-                    );
-                    ui.checkbox(
-                        &mut self.net.ui.colored_petri_nets,
-                        "Р¦РІРµС‚РЅС‹Рµ СЃРµС‚Рё РџРµС‚СЂРё",
-                    );
-                    ui.menu_button(
-                        "РЎР±РѕСЂ СЃС‚Р°С‚РёСЃС‚РёРєРё",
-                        |ui| {
-                            ui.checkbox(
-                                &mut self.net.ui.marker_count_stats,
-                                "РЎС‚Р°С‚РёСЃС‚РёРєР° РјР°СЂРєРµСЂРѕРІ",
-                            );
-                        },
-                    );
+                    ui.checkbox(&mut self.net.ui.hide_grid, "Скрыть сетку");
+                    ui.checkbox(&mut self.net.ui.snap_to_grid, "Привязка к сетке");
+                    ui.checkbox(&mut self.net.ui.colored_petri_nets, "Цветные сети Петри");
+                    ui.menu_button("Сбор статистики", |ui| {
+                        ui.checkbox(&mut self.net.ui.marker_count_stats, "Статистика маркеров");
+                    });
                     ui.menu_button("Help", |ui| {
-                        if ui.button("Р Р°Р·СЂР°Р±РѕС‚РєР°").clicked() {
+                        if ui.button("Разработка").clicked() {
                             self.show_help_development = true;
                             ui.close_menu();
                         }
-                        if ui
-                            .button("РџРѕРјРѕС‰СЊ РїРѕ СѓРїСЂР°РІР»РµРЅРёСЋ")
-                            .clicked()
-                        {
+                        if ui.button("Помощь по управлению").clicked() {
                             self.show_help_controls = true;
                             ui.close_menu();
                         }
                     });
                 });
 
-                ui.menu_button("РћРєРЅРѕ", |ui| {
-                    if ui.button("РљР°СЃРєР°Рґ").clicked() {
+                ui.menu_button("Окно", |ui| {
+                    if ui.button("Каскад").clicked() {
                         self.layout_mode = LayoutMode::Cascade;
                     }
-                    if ui
-                        .button("РџР»РёС‚РєР° РїРѕ РіРѕСЂРёР·РѕРЅС‚Р°Р»Рё")
-                        .clicked()
-                    {
+                    if ui.button("Плитка по горизонтали").clicked() {
                         self.layout_mode = LayoutMode::TileHorizontal;
                     }
-                    if ui.button("РџР»РёС‚РєР° РїРѕ РІРµСЂС‚РёРєР°Р»Рё").clicked()
-                    {
+                    if ui.button("Плитка по вертикали").clicked() {
                         self.layout_mode = LayoutMode::TileVertical;
                     }
-                    if ui.button("РЎРІРµСЂРЅСѓС‚СЊ РІСЃРµ").clicked() {
+                    if ui.button("Свернуть все").clicked() {
                         self.layout_mode = LayoutMode::Minimized;
                     }
-                    if ui.button("РЈРїРѕСЂСЏРґРѕС‡РёС‚СЊ РІСЃРµ").clicked()
-                    {
+                    if ui.button("Упорядочить все").clicked() {
                         self.layout_mode = LayoutMode::TileVertical;
                         self.show_graph_view = true;
                     }
                 });
 
-                if ui.button("РџР°СЂР°РјРµС‚СЂС‹ СЃРёРјСѓР»СЏС†РёРё").clicked()
-                {
+                if ui.button("Параметры симуляции").clicked() {
                     self.reset_sim_stop_controls();
                     self.show_sim_params = true;
                 }
-                if ui.button("РЎС‚СЂСѓРєС‚СѓСЂР° СЃРµС‚Рё").clicked() {
+                if ui.button("Структура сети").clicked() {
                     self.show_table_view = !self.show_table_view;
                     if !self.show_table_view {
                         self.table_fullscreen = false;
                     }
                 }
                 if ui
-                    .button(self.tr(
-                        "Р РµР·СѓР»СЊС‚Р°С‚С‹ РёРјРёС‚Р°С†РёРё",
-                        "Simulation Results",
-                    ))
+                    .button(self.tr("Результаты имитации", "Simulation Results"))
                     .clicked()
                 {
                     if self.sim_result.is_some() {
@@ -2680,9 +2639,7 @@ impl PetriApp {
                 if ui.button("Proof").clicked() && self.sim_result.is_some() {
                     self.show_proof = true;
                 }
-                if ui
-                    .button(self.tr("Р РµР¶РёРј РѕС‚Р»Р°РґРєРё", "Debug Mode"))
-                    .clicked()
+                if ui.button(self.tr("Режим отладки", "Debug Mode")).clicked()
                     && self.sim_result.is_some()
                 {
                     self.show_debug = true;
@@ -2713,7 +2670,7 @@ impl PetriApp {
                 ui.label(format!("ID: P{}", place_id));
                 ui.separator();
                 ui.horizontal(|ui| {
-                    ui.label(t("Р§РёСЃР»Рѕ РјР°СЂРєРµСЂРѕРІ", "Markers"));
+                    ui.label(t("Число маркеров", "Markers"));
                     ui.add(
                         egui::DragValue::new(&mut self.net.tables.m0[place_idx])
                             .range(0..=u32::MAX),
@@ -2723,7 +2680,7 @@ impl PetriApp {
                 let mut cap = self.net.tables.mo[place_idx].unwrap_or(0);
                 ui.horizontal(|ui| {
                     ui.label(t(
-                        "РњР°РєСЃ. РµРјРєРѕСЃС‚СЊ (0 = Р±РµР· РѕРіСЂР°РЅРёС‡РµРЅРёР№)",
+                        "Макс. емкость (0 = без ограничений)",
                         "Capacity (0 = unlimited)",
                     ));
                     if ui
@@ -2735,7 +2692,7 @@ impl PetriApp {
                 });
 
                 ui.horizontal(|ui| {
-                    ui.label(t("Р’СЂРµРјСЏ Р·Р°РґРµСЂР¶РєРё (СЃРµРє)", "Delay (sec)"));
+                    ui.label(t("Время задержки (сек)", "Delay (sec)"));
                     ui.add(
                         egui::DragValue::new(&mut self.net.tables.mz[place_idx])
                             .speed(0.1)
@@ -2744,26 +2701,26 @@ impl PetriApp {
                 });
 
                 ui.separator();
-                ui.label(t("Р Р°Р·РјРµСЂ РїРѕР·РёС†РёРё", "Place size"));
+                ui.label(t("Размер позиции", "Place size"));
                 ui.horizontal(|ui| {
                     ui.radio_value(
                         &mut self.net.places[place_idx].size,
                         VisualSize::Small,
-                        t("РњР°Р»С‹Р№", "Small"),
+                        t("Малый", "Small"),
                     );
                     ui.radio_value(
                         &mut self.net.places[place_idx].size,
                         VisualSize::Medium,
-                        t("РЎСЂРµРґРЅРёР№", "Medium"),
+                        t("Средний", "Medium"),
                     );
                     ui.radio_value(
                         &mut self.net.places[place_idx].size,
                         VisualSize::Large,
-                        t("Р‘РѕР»СЊС€РѕР№", "Large"),
+                        t("Большой", "Large"),
                     );
                 });
 
-                egui::ComboBox::from_label(t("РџРѕР»РѕР¶РµРЅРёРµ РјРµС‚РєРё", "Marker label position"))
+                egui::ComboBox::from_label(t("Положение метки", "Marker label position"))
                     .selected_text(Self::label_pos_text(
                         self.net.places[place_idx].marker_label_position,
                         is_ru,
@@ -2772,31 +2729,31 @@ impl PetriApp {
                         ui.selectable_value(
                             &mut self.net.places[place_idx].marker_label_position,
                             LabelPosition::Top,
-                            t("Р’РІРµСЂС…Сѓ", "Top"),
+                            t("Вверху", "Top"),
                         );
                         ui.selectable_value(
                             &mut self.net.places[place_idx].marker_label_position,
                             LabelPosition::Bottom,
-                            t("Р’РЅРёР·Сѓ", "Bottom"),
+                            t("Внизу", "Bottom"),
                         );
                         ui.selectable_value(
                             &mut self.net.places[place_idx].marker_label_position,
                             LabelPosition::Left,
-                            t("РЎР»РµРІР°", "Left"),
+                            t("Слева", "Left"),
                         );
                         ui.selectable_value(
                             &mut self.net.places[place_idx].marker_label_position,
                             LabelPosition::Right,
-                            t("РЎРїСЂР°РІР°", "Right"),
+                            t("Справа", "Right"),
                         );
                         ui.selectable_value(
                             &mut self.net.places[place_idx].marker_label_position,
                             LabelPosition::Center,
-                            t("РџРѕ С†РµРЅС‚СЂСѓ", "Center"),
+                            t("По центру", "Center"),
                         );
                     });
 
-                egui::ComboBox::from_label(t("РџРѕР»РѕР¶РµРЅРёРµ С‚РµРєСЃС‚Р°", "Text position"))
+                egui::ComboBox::from_label(t("Положение текста", "Text position"))
                     .selected_text(Self::label_pos_text(
                         self.net.places[place_idx].text_position,
                         is_ru,
@@ -2805,31 +2762,31 @@ impl PetriApp {
                         ui.selectable_value(
                             &mut self.net.places[place_idx].text_position,
                             LabelPosition::Top,
-                            t("Р’РІРµСЂС…Сѓ", "Top"),
+                            t("Вверху", "Top"),
                         );
                         ui.selectable_value(
                             &mut self.net.places[place_idx].text_position,
                             LabelPosition::Bottom,
-                            t("Р’РЅРёР·Сѓ", "Bottom"),
+                            t("Внизу", "Bottom"),
                         );
                         ui.selectable_value(
                             &mut self.net.places[place_idx].text_position,
                             LabelPosition::Left,
-                            t("РЎР»РµРІР°", "Left"),
+                            t("Слева", "Left"),
                         );
                         ui.selectable_value(
                             &mut self.net.places[place_idx].text_position,
                             LabelPosition::Right,
-                            t("РЎРїСЂР°РІР°", "Right"),
+                            t("Справа", "Right"),
                         );
                         ui.selectable_value(
                             &mut self.net.places[place_idx].text_position,
                             LabelPosition::Center,
-                            t("РџРѕ С†РµРЅС‚СЂСѓ", "Center"),
+                            t("По центру", "Center"),
                         );
                     });
 
-                egui::ComboBox::from_label(t("Р¦РІРµС‚", "Color"))
+                egui::ComboBox::from_label(t("Цвет", "Color"))
                     .selected_text(Self::node_color_text(
                         self.net.places[place_idx].color,
                         is_ru,
@@ -2838,27 +2795,27 @@ impl PetriApp {
                         ui.selectable_value(
                             &mut self.net.places[place_idx].color,
                             NodeColor::Default,
-                            t("РџРѕ СѓРјРѕР»С‡Р°РЅРёСЋ", "Default"),
+                            t("По умолчанию", "Default"),
                         );
                         ui.selectable_value(
                             &mut self.net.places[place_idx].color,
                             NodeColor::Blue,
-                            t("РЎРёРЅРёР№", "Blue"),
+                            t("Синий", "Blue"),
                         );
                         ui.selectable_value(
                             &mut self.net.places[place_idx].color,
                             NodeColor::Red,
-                            t("РљСЂР°СЃРЅС‹Р№", "Red"),
+                            t("Красный", "Red"),
                         );
                         ui.selectable_value(
                             &mut self.net.places[place_idx].color,
                             NodeColor::Green,
-                            t("Р—РµР»РµРЅС‹Р№", "Green"),
+                            t("Зеленый", "Green"),
                         );
                         ui.selectable_value(
                             &mut self.net.places[place_idx].color,
                             NodeColor::Yellow,
-                            t("Р–РµР»С‚С‹Р№", "Yellow"),
+                            t("Желтый", "Yellow"),
                         );
                     });
 
@@ -2873,30 +2830,30 @@ impl PetriApp {
                 ui.checkbox(
                     &mut self.net.places[place_idx].input_module,
                     t(
-                        "РћРїСЂРµРґРµР»РёС‚СЊ РїРѕР·РёС†РёСЋ РєР°Рє РІС…РѕРґ РјРѕРґСѓР»СЏ",
+                        "Определить позицию как вход модуля",
                         "Define place as module input",
                     ),
                 );
                 if self.net.places[place_idx].input_module {
                     ui.horizontal(|ui| {
-                        ui.label(t("РќРѕРјРµСЂ РІС…РѕРґР°", "Input number"));
+                        ui.label(t("Номер входа", "Input number"));
                         ui.add(
                             egui::DragValue::new(&mut self.net.places[place_idx].input_number)
                                 .range(1..=u32::MAX),
                         );
                     });
-                    ui.label(t("РћРїРёСЃР°РЅРёРµ РІС…РѕРґР°", "Input description"));
+                    ui.label(t("Описание входа", "Input description"));
                     ui.text_edit_singleline(&mut self.net.places[place_idx].input_description);
                 }
 
                 ui.separator();
                 ui.horizontal(|ui| {
-                    ui.label(t("РЎС‚РѕС…Р°СЃС‚РёС‡РµСЃС‚РёРµ РїСЂРѕС†РµСЃСЃС‹", "Stochastic processes"));
+                    ui.label(t("Стохастичестие процессы", "Stochastic processes"));
                     let stats_enabled = self.net.ui.marker_count_stats;
                     if ui
                         .add_enabled(
                             stats_enabled,
-                            egui::Button::new(t("РЎР±РѕСЂ СЃС‚Р°С‚РёСЃС‚РёРєРё", "Collect statistics")),
+                            egui::Button::new(t("Сбор статистики", "Collect statistics")),
                         )
                         .clicked()
                     {
@@ -2905,7 +2862,7 @@ impl PetriApp {
                             Some((place_id, self.net.places[place_idx].stats));
                     }
                 });
-                egui::ComboBox::from_label(t("Р Р°СЃРїСЂРµРґРµР»РµРЅРёРµ", "Distribution"))
+                egui::ComboBox::from_label(t("Распределение", "Distribution"))
                     .selected_text(Self::stochastic_text(
                         &self.net.places[place_idx].stochastic,
                         is_ru,
@@ -2999,14 +2956,14 @@ impl PetriApp {
                     }
                     StochasticDistribution::CustomValue { value } => {
                         ui.horizontal(|ui| {
-                            ui.label(t("Р—РЅР°С‡РµРЅРёРµ", "Value"));
+                            ui.label(t("Значение", "Value"));
                             ui.add(egui::DragValue::new(value).speed(0.1).range(0.0..=10_000.0));
                         });
                     }
                 }
 
                 ui.separator();
-                ui.label(t("РќР°Р·РІР°РЅРёРµ", "Name"));
+                ui.label(t("Название", "Name"));
                 ui.text_edit_singleline(&mut self.net.places[place_idx].name);
             });
         open
@@ -3024,9 +2981,7 @@ impl PetriApp {
             self.place_props_id = Some(id);
         }
         if let Some(place_id) = self.place_props_id {
-            let title = self
-                .tr("РЎРІРѕР№СЃС‚РІР° РїРѕР·РёС†РёРё", "Place Properties")
-                .to_string();
+            let title = self.tr("Свойства позиции", "Place Properties").to_string();
             self.show_place_props = self.draw_place_props_window(ctx, place_id, title);
         } else {
             self.show_place_props = false;
@@ -3054,39 +3009,39 @@ impl PetriApp {
                 ui.label(format!("ID: T{}", transition_id));
                 ui.separator();
                 ui.horizontal(|ui| {
-                    ui.label(t("РџСЂРёРѕСЂРёС‚РµС‚", "Priority"));
+                    ui.label(t("Приоритет", "Priority"));
                     ui.add(egui::DragValue::new(
                         &mut self.net.tables.mpr[transition_idx],
                     ));
                 });
                 ui.horizontal(|ui| {
-                    ui.label(t("РЈРіРѕР» РЅР°РєР»РѕРЅР°", "Angle"));
+                    ui.label(t("Угол наклона", "Angle"));
                     ui.add(
                         egui::DragValue::new(&mut self.net.transitions[transition_idx].angle_deg)
                             .range(-180..=180),
                     );
                 });
 
-                ui.label(t("Р Р°Р·РјРµСЂ РїРµСЂРµС…РѕРґР°", "Transition size"));
+                ui.label(t("Размер перехода", "Transition size"));
                 ui.horizontal(|ui| {
                     ui.radio_value(
                         &mut self.net.transitions[transition_idx].size,
                         VisualSize::Small,
-                        t("РњР°Р»С‹Р№", "Small"),
+                        t("Малый", "Small"),
                     );
                     ui.radio_value(
                         &mut self.net.transitions[transition_idx].size,
                         VisualSize::Medium,
-                        t("РЎСЂРµРґРЅРёР№", "Medium"),
+                        t("Средний", "Medium"),
                     );
                     ui.radio_value(
                         &mut self.net.transitions[transition_idx].size,
                         VisualSize::Large,
-                        t("Р‘РѕР»СЊС€РѕР№", "Large"),
+                        t("Большой", "Large"),
                     );
                 });
 
-                egui::ComboBox::from_label(t("РџРѕР»РѕР¶РµРЅРёРµ РјРµС‚РєРё", "Label position"))
+                egui::ComboBox::from_label(t("Положение метки", "Label position"))
                     .selected_text(Self::label_pos_text(
                         self.net.transitions[transition_idx].label_position,
                         is_ru,
@@ -3095,31 +3050,31 @@ impl PetriApp {
                         ui.selectable_value(
                             &mut self.net.transitions[transition_idx].label_position,
                             LabelPosition::Top,
-                            t("Р’РІРµСЂС…Сѓ", "Top"),
+                            t("Вверху", "Top"),
                         );
                         ui.selectable_value(
                             &mut self.net.transitions[transition_idx].label_position,
                             LabelPosition::Bottom,
-                            t("Р’РЅРёР·Сѓ", "Bottom"),
+                            t("Внизу", "Bottom"),
                         );
                         ui.selectable_value(
                             &mut self.net.transitions[transition_idx].label_position,
                             LabelPosition::Left,
-                            t("РЎР»РµРІР°", "Left"),
+                            t("Слева", "Left"),
                         );
                         ui.selectable_value(
                             &mut self.net.transitions[transition_idx].label_position,
                             LabelPosition::Right,
-                            t("РЎРїСЂР°РІР°", "Right"),
+                            t("Справа", "Right"),
                         );
                         ui.selectable_value(
                             &mut self.net.transitions[transition_idx].label_position,
                             LabelPosition::Center,
-                            t("РџРѕ С†РµРЅС‚СЂСѓ", "Center"),
+                            t("По центру", "Center"),
                         );
                     });
 
-                egui::ComboBox::from_label(t("РџРѕР»РѕР¶РµРЅРёРµ С‚РµРєСЃС‚Р°", "Text position"))
+                egui::ComboBox::from_label(t("Положение текста", "Text position"))
                     .selected_text(Self::label_pos_text(
                         self.net.transitions[transition_idx].text_position,
                         is_ru,
@@ -3128,31 +3083,31 @@ impl PetriApp {
                         ui.selectable_value(
                             &mut self.net.transitions[transition_idx].text_position,
                             LabelPosition::Top,
-                            t("Р’РІРµСЂС…Сѓ", "Top"),
+                            t("Вверху", "Top"),
                         );
                         ui.selectable_value(
                             &mut self.net.transitions[transition_idx].text_position,
                             LabelPosition::Bottom,
-                            t("Р’РЅРёР·Сѓ", "Bottom"),
+                            t("Внизу", "Bottom"),
                         );
                         ui.selectable_value(
                             &mut self.net.transitions[transition_idx].text_position,
                             LabelPosition::Left,
-                            t("РЎР»РµРІР°", "Left"),
+                            t("Слева", "Left"),
                         );
                         ui.selectable_value(
                             &mut self.net.transitions[transition_idx].text_position,
                             LabelPosition::Right,
-                            t("РЎРїСЂР°РІР°", "Right"),
+                            t("Справа", "Right"),
                         );
                         ui.selectable_value(
                             &mut self.net.transitions[transition_idx].text_position,
                             LabelPosition::Center,
-                            t("РџРѕ С†РµРЅС‚СЂСѓ", "Center"),
+                            t("По центру", "Center"),
                         );
                     });
 
-                egui::ComboBox::from_label(t("Р¦РІРµС‚", "Color"))
+                egui::ComboBox::from_label(t("Цвет", "Color"))
                     .selected_text(Self::node_color_text(
                         self.net.transitions[transition_idx].color,
                         is_ru,
@@ -3161,32 +3116,32 @@ impl PetriApp {
                         ui.selectable_value(
                             &mut self.net.transitions[transition_idx].color,
                             NodeColor::Default,
-                            t("РџРѕ СѓРјРѕР»С‡Р°РЅРёСЋ", "Default"),
+                            t("По умолчанию", "Default"),
                         );
                         ui.selectable_value(
                             &mut self.net.transitions[transition_idx].color,
                             NodeColor::Blue,
-                            t("РЎРёРЅРёР№", "Blue"),
+                            t("Синий", "Blue"),
                         );
                         ui.selectable_value(
                             &mut self.net.transitions[transition_idx].color,
                             NodeColor::Red,
-                            t("РљСЂР°СЃРЅС‹Р№", "Red"),
+                            t("Красный", "Red"),
                         );
                         ui.selectable_value(
                             &mut self.net.transitions[transition_idx].color,
                             NodeColor::Green,
-                            t("Р—РµР»РµРЅС‹Р№", "Green"),
+                            t("Зеленый", "Green"),
                         );
                         ui.selectable_value(
                             &mut self.net.transitions[transition_idx].color,
                             NodeColor::Yellow,
-                            t("Р–РµР»С‚С‹Р№", "Yellow"),
+                            t("Желтый", "Yellow"),
                         );
                     });
 
                 ui.separator();
-                ui.label(t("РќР°Р·РІР°РЅРёРµ", "Name"));
+                ui.label(t("Название", "Name"));
                 ui.text_edit_singleline(&mut self.net.transitions[transition_idx].name);
             });
         open
@@ -3205,7 +3160,7 @@ impl PetriApp {
         }
         if let Some(transition_id) = self.transition_props_id {
             let title = self
-                .tr("РЎРІРѕР№СЃС‚РІР° РїРµСЂРµС…РѕРґР°", "Transition Properties")
+                .tr("Свойства перехода", "Transition Properties")
                 .to_string();
             self.show_transition_props =
                 self.draw_transition_props_window(ctx, transition_id, title);
@@ -3221,20 +3176,17 @@ impl PetriApp {
         let t = |ru: &'static str, en: &'static str| if is_ru { ru } else { en };
 
         let mut open = self.show_debug;
-        egui::Window::new(t("Р РµР¶РёРј РѕС‚Р»Р°РґРєРё", "Debug Mode"))
+        egui::Window::new(t("Режим отладки", "Debug Mode"))
             .open(&mut open)
             .show(ctx, |ui| {
                 let Some(result) = self.sim_result.clone() else {
-                    ui.label(t(
-                        "РЎРЅР°С‡Р°Р»Р° Р·Р°РїСѓСЃС‚РёС‚Рµ РёРјРёС‚Р°С†РёСЋ.",
-                        "Run simulation first.",
-                    ));
+                    ui.label(t("Сначала запустите имитацию.", "Run simulation first."));
                     return;
                 };
                 let visible_steps = Self::debug_visible_log_indices(&result);
                 let steps = visible_steps.len();
                 if steps == 0 {
-                    ui.label(t("РџСѓСЃС‚РѕР№ Р¶СѓСЂРЅР°Р».", "Empty log."));
+                    ui.label(t("Пустой журнал.", "Empty log."));
                     return;
                 }
                 if self.debug_step >= steps {
@@ -3269,9 +3221,9 @@ impl PetriApp {
                     }
                     if ui
                         .button(if self.debug_playing {
-                            t("РџР°СѓР·Р°", "Pause")
+                            t("Пауза", "Pause")
                         } else {
-                            t("РџСѓСЃРє", "Play")
+                            t("Пуск", "Play")
                         })
                         .clicked()
                     {
@@ -3281,13 +3233,12 @@ impl PetriApp {
                     if ui.button(">>").clicked() {
                         self.debug_step = (self.debug_step + 1).min(steps - 1);
                     }
-                    ui.label(t("РЎРєРѕСЂРѕСЃС‚СЊ (РјСЃ):", "Speed (ms):"));
+                    ui.label(t("Скорость (мс):", "Speed (ms):"));
                     ui.add(egui::DragValue::new(&mut self.debug_interval_ms).range(50..=5_000));
                 });
 
                 ui.add(
-                    egui::Slider::new(&mut self.debug_step, 0..=steps - 1)
-                        .text(t("РЁР°Рі", "Step")),
+                    egui::Slider::new(&mut self.debug_step, 0..=steps - 1).text(t("Шаг", "Step")),
                 );
                 if let Some(&log_idx) = visible_steps.get(self.debug_step) {
                     if let Some(entry) = result.logs.get(log_idx) {
@@ -3295,7 +3246,7 @@ impl PetriApp {
                         ui.label(format!("t = {:.3}", entry.time));
                         ui.label(format!(
                             "{}: {}",
-                            t("РџРµСЂРµС…РѕРґ", "Transition"),
+                            t("Переход", "Transition"),
                             entry
                                 .fired_transition
                                 .map(|i| format!("T{}", i + 1))
@@ -3474,7 +3425,7 @@ impl PetriApp {
         let mut do_export = false;
         let mut do_cancel = false;
 
-        egui::Window::new(self.tr("РџСЂРѕРІРµСЂРєР° СЌРєСЃРїРѕСЂС‚Р°", "Export validation"))
+        egui::Window::new(self.tr("Проверка экспорта", "Export validation"))
             .id(egui::Id::new("netstar_export_validation_window"))
             .open(&mut open)
             .collapsible(false)
@@ -3482,32 +3433,32 @@ impl PetriApp {
             .default_width(620.0)
             .show(ctx, |ui| {
                 if let Some(path) = &target_path {
-                    ui.label(format!("{} {}", self.tr("Р¤Р°Р№Р»:", "File:"), path.display()));
+                    ui.label(format!("{} {}", self.tr("Файл:", "File:"), path.display()));
                 }
                 ui.separator();
                 ui.label(format!(
                     "{}: {}    {}: {}",
-                    self.tr("РћС€РёР±РєРё", "Errors"),
+                    self.tr("Ошибки", "Errors"),
                     errors,
-                    self.tr("РџСЂРµРґСѓРїСЂРµР¶РґРµРЅРёСЏ", "Warnings"),
+                    self.tr("Предупреждения", "Warnings"),
                     warnings
                 ));
 
                 if report.is_clean() {
                     ui.colored_label(
                         Color32::from_rgb(0, 128, 0),
-                        self.tr("РџСЂРѕР±Р»РµРј РЅРµ РЅР°Р№РґРµРЅРѕ.", "No issues found."),
+                        self.tr("Проблем не найдено.", "No issues found."),
                     );
                 } else {
                     ui.label(self.tr(
-                        "РќР°Р¶РјРёС‚Рµ РЅР° СЃС‚СЂРѕРєСѓ РѕС€РёР±РєРё/РїСЂРµРґСѓРїСЂРµР¶РґРµРЅРёСЏ, С‡С‚РѕР±С‹ РІС‹РґРµР»РёС‚СЊ РѕР±СЉРµРєС‚ РІ РіСЂР°С„Рµ.",
+                        "Нажмите на строку ошибки/предупреждения, чтобы выделить объект в графе.",
                         "Click an issue row to select the related object on the graph.",
                     ));
                     egui::ScrollArea::vertical()
                         .max_height(260.0)
                         .show(ui, |ui| {
                             for issue in &report.errors {
-                                let line = format!("[{}] {}", self.tr("РћС€РёР±РєР°", "Error"), issue);
+                                let line = format!("[{}] {}", self.tr("Ошибка", "Error"), issue);
                                 let response = ui.add(
                                     egui::Label::new(egui::RichText::new(line).color(Color32::RED))
                                         .sense(Sense::click()),
@@ -3515,7 +3466,7 @@ impl PetriApp {
                                 if response.clicked() && !self.select_export_issue_target(issue) {
                                     self.status_hint = Some(
                                         self.tr(
-                                            "РќРµ СѓРґР°Р»РѕСЃСЊ РѕРїСЂРµРґРµР»РёС‚СЊ РѕР±СЉРµРєС‚ РїРѕ СЃС‚СЂРѕРєРµ РѕС‚С‡С‘С‚Р°.",
+                                            "Не удалось определить объект по строке отчёта.",
                                             "Could not resolve target object from issue row.",
                                         )
                                         .to_string(),
@@ -3524,7 +3475,7 @@ impl PetriApp {
                             }
                             for issue in &report.warnings {
                                 let line =
-                                    format!("[{}] {}", self.tr("РџСЂРµРґСѓРїСЂРµР¶РґРµРЅРёРµ", "Warning"), issue);
+                                    format!("[{}] {}", self.tr("Предупреждение", "Warning"), issue);
                                 let response = ui.add(
                                     egui::Label::new(
                                         egui::RichText::new(line)
@@ -3544,7 +3495,7 @@ impl PetriApp {
                     ui.colored_label(
                         Color32::RED,
                         self.tr(
-                            "Р­РєСЃРїРѕСЂС‚ Р·Р°Р±Р»РѕРєРёСЂРѕРІР°РЅ: РёСЃРїСЂР°РІСЊС‚Рµ РѕС€РёР±РєРё РІ РјРѕРґРµР»Рё.",
+                            "Экспорт заблокирован: исправьте ошибки в модели.",
                             "Export blocked: fix model errors first.",
                         ),
                     );
@@ -3552,16 +3503,16 @@ impl PetriApp {
 
                 ui.separator();
                 ui.horizontal(|ui| {
-                    if ui.button(self.tr("РћС‚РјРµРЅР°", "Cancel")).clicked() {
+                    if ui.button(self.tr("Отмена", "Cancel")).clicked() {
                         do_cancel = true;
                     }
                     let export_label = if warnings > 0 {
                         self.tr(
-                            "Р­РєСЃРїРѕСЂС‚РёСЂРѕРІР°С‚СЊ СЃ РїСЂРµРґСѓРїСЂРµР¶РґРµРЅРёСЏРјРё",
+                            "Экспортировать с предупреждениями",
                             "Export despite warnings",
                         )
                     } else {
-                        self.tr("Р­РєСЃРїРѕСЂС‚РёСЂРѕРІР°С‚СЊ", "Export")
+                        self.tr("Экспортировать", "Export")
                     };
                     if ui
                         .add_enabled(errors == 0, egui::Button::new(export_label))
@@ -3587,7 +3538,7 @@ impl PetriApp {
         egui::TopBottomPanel::bottom("status").show(ctx, |ui| {
             ui.horizontal(|ui| {
                 ui.label(format!(
-                    "РљСѓСЂСЃРѕСЂ: x={:.2}, y={:.2}",
+                    "Курсор: x={:.2}, y={:.2}",
                     self.canvas.cursor_world[0], self.canvas.cursor_world[1]
                 ));
                 if let Some(path) = &self.file_path {
@@ -3646,7 +3597,7 @@ impl PetriApp {
 
         if self.layout_mode == LayoutMode::Minimized {
             egui::CentralPanel::default().show(ctx, |ui| {
-                ui.heading("Р’СЃРµ РѕРєРЅР° СЃРІРµСЂРЅСѓС‚С‹");
+                ui.heading("Все окна свернуты");
             });
             return;
         }
@@ -3716,7 +3667,7 @@ impl PetriApp {
         let t = |ru: &'static str, en: &'static str| if is_ru { ru } else { en };
 
         let mut open = true;
-        egui::Window::new(t("РЎС‚Р°С‚РёСЃС‚РёРєР°", "Statistics"))
+        egui::Window::new(t("Статистика", "Statistics"))
             .id(egui::Id::new(("place_stats_dialog", place_id)))
             .collapsible(false)
             .resizable(false)
@@ -3744,33 +3695,33 @@ impl PetriApp {
 
                 ui.columns(2, |cols| {
                     cols[0].group(|ui| {
-                        ui.label(t("Р§РёСЃР»Рѕ РјР°СЂРєРµСЂРѕРІ", "Tokens"));
+                        ui.label(t("Число маркеров", "Tokens"));
                         ui.checkbox(
                             &mut self.net.places[place_idx].stats.markers_total,
-                            t("РћР±С‰Р°СЏ", "Total"),
+                            t("Общая", "Total"),
                         );
                         ui.checkbox(
                             &mut self.net.places[place_idx].stats.markers_input,
-                            t("РќР° РІС…РѕРґРµ", "On input"),
+                            t("На входе", "On input"),
                         );
                         ui.checkbox(
                             &mut self.net.places[place_idx].stats.markers_output,
-                            t("РќР° РІС‹С…РѕРґРµ", "On output"),
+                            t("На выходе", "On output"),
                         );
                     });
                     cols[1].group(|ui| {
-                        ui.label(t("Р—Р°РіСЂСѓР¶РµРЅРЅРѕСЃС‚СЊ", "Load"));
+                        ui.label(t("Загруженность", "Load"));
                         ui.checkbox(
                             &mut self.net.places[place_idx].stats.load_total,
-                            t("РћР±С‰Р°СЏ", "Total"),
+                            t("Общая", "Total"),
                         );
                         ui.checkbox(
                             &mut self.net.places[place_idx].stats.load_input,
-                            t("Р’С…РѕРґ", "Input"),
+                            t("Вход", "Input"),
                         );
                         ui.checkbox(
                             &mut self.net.places[place_idx].stats.load_output,
-                            t("Р’С‹С…РѕРґ", "Output"),
+                            t("Выход", "Output"),
                         );
                     });
                 });

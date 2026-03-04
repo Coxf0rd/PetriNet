@@ -68,7 +68,7 @@ impl PetriApp {
                 if let egui::Event::Text(text) = e {
                     if i.modifiers.ctrl {
                         if text.eq_ignore_ascii_case("c")
-                            || matches!(text.as_str(), "СЃ" | "РЎ" | "Р РЋ" | "Р РЋР С“")
+                            || matches!(text.as_str(), "СЃ" | "РЎ" | "Р РЋ" | "РЎРѓ")
                         {
                             do_copy = true;
                         }
