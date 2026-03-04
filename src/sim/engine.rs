@@ -129,13 +129,13 @@ fn push_log_entry_sampled(
     raw_log_total: &mut usize,
     sample_stride: &mut usize,
 ) {
-    if *raw_log_total % *sample_stride == 0 {
+    if (*raw_log_total).is_multiple_of(*sample_stride) {
         logs.push(entry);
     }
     *raw_log_total = raw_log_total.saturating_add(1);
 
     while logs.len() > MAX_SIM_LOG_ENTRIES {
-        let mut reduced = Vec::with_capacity((logs.len() + 1) / 2);
+        let mut reduced = Vec::with_capacity(logs.len().div_ceil(2));
         for (idx, item) in logs.drain(..).enumerate() {
             if idx % 2 == 0 {
                 reduced.push(item);

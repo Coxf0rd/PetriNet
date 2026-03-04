@@ -68,26 +68,17 @@ impl PetriApp {
                 if let egui::Event::Text(text) = e {
                     if i.modifiers.ctrl {
                         if text.eq_ignore_ascii_case("c")
-                            || text == "с"
-                            || text == "С"
-                            || text == "с"
-                            || text == "РЎ"
+                            || matches!(text.as_str(), "СЃ" | "РЎ" | "Р РЋ" | "Р РЋР С“")
                         {
                             do_copy = true;
                         }
                         if text.eq_ignore_ascii_case("v")
-                            || text == "м"
-                            || text == "М"
-                            || text == "м"
-                            || text == "М"
+                            || matches!(text.as_str(), "Рј" | "Рњ" | "Р С" | "Р Сљ")
                         {
                             do_paste = true;
                         }
                         if text.eq_ignore_ascii_case("z")
-                            || text == "я"
-                            || text == "Я"
-                            || text == "я"
-                            || text == "Я"
+                            || matches!(text.as_str(), "СЏ" | "РЇ" | "Р Р‡")
                         {
                             do_undo = true;
                         }

@@ -257,8 +257,12 @@ impl PetriApp {
                             self.push_undo_snapshot();
                             if self.new_arc_inhibitor {
                                 let pair = match (first, last) {
-                                    (NodeRef::Place(pid), NodeRef::Transition(tid)) => Some((pid, tid)),
-                                    (NodeRef::Transition(tid), NodeRef::Place(pid)) => Some((pid, tid)),
+                                    (NodeRef::Place(pid), NodeRef::Transition(tid)) => {
+                                        Some((pid, tid))
+                                    }
+                                    (NodeRef::Transition(tid), NodeRef::Place(pid)) => {
+                                        Some((pid, tid))
+                                    }
                                     _ => None,
                                 };
                                 if let Some((place_id, transition_id)) = pair {
