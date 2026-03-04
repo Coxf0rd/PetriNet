@@ -1382,7 +1382,31 @@ impl PetriApp {
 
     fn tr<'a>(&self, ru: &'a str, en: &'a str) -> Cow<'a, str> {
         match self.net.ui.language {
-            Language::Ru => Cow::Borrowed(ru),
+            Language::Ru => {
+                let (bytes, _, had_errors) = encoding_rs::WINDOWS_1251.encode(ru);
+                if had_errors {
+                    return Cow::Borrowed(ru);
+                }
+
+                let Ok(decoded) = String::from_utf8(bytes.into_owned()) else {
+                    return Cow::Borrowed(ru);
+                };
+
+                let score = |s: &str| -> i32 {
+                    let cyr = s
+                        .chars()
+                        .filter(|c| matches!(*c, 'А'..='я' | 'Ё' | 'ё'))
+                        .count() as i32;
+                    let moj = s.matches('Р').count() as i32 + s.matches('С').count() as i32;
+                    cyr * 3 - moj
+                };
+
+                if score(&decoded) > score(ru) {
+                    Cow::Owned(decoded)
+                } else {
+                    Cow::Borrowed(ru)
+                }
+            }
             Language::En => Cow::Borrowed(en),
         }
     }
