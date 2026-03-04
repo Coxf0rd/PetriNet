@@ -778,7 +778,7 @@ impl PetriApp {
                         self.last_error = None;
                     } else {
                         self.last_error = Some(format!(
-                            "РРјРїРѕСЂС‚ СЃ РїСЂРµРґСѓРїСЂРµР¶РґРµРЅРёСЏРјРё: {}",
+                            "Импорт с предупреждениями: {}",
                             filtered.join("; ")
                         ));
                     }
@@ -1126,7 +1126,7 @@ impl PetriApp {
                 report.errors.push(format!(
                     "{} A{}",
                     self.tr(
-                        "РРЅРіРёР±РёС‚РѕСЂРЅР°СЏ РґСѓРіР° СЃСЃС‹Р»Р°РµС‚СЃСЏ РЅР° РЅРµСЃСѓС‰РµСЃС‚РІСѓСЋС‰РµРµ РјРµСЃС‚Рѕ/РїРµСЂРµС…РѕРґ:",
+                        "Ингибиторная дуга ссылается на несуществующее место/переход:",
                         "Inhibitor arc references a missing place/transition:"
                     ),
                     inh.id
@@ -1538,7 +1538,7 @@ impl PetriApp {
         };
         self.status_hint = Some(format!(
             "{}: {}x{} -> {}",
-            self.tr("РРјРїРѕСЂС‚ CSV", "CSV import"),
+            self.tr("Импорт CSV", "CSV import"),
             required_p,
             required_t,
             target_name
@@ -2553,8 +2553,8 @@ impl PetriApp {
                         self.open_file();
                         ui.close_menu();
                     }
-                    ui.menu_button("РРјРїРѕСЂС‚", |ui| {
-                        ui.label("РРјРїРѕСЂС‚ PeSim: TODO");
+                    ui.menu_button("Импорт", |ui| {
+                        ui.label("Импорт PeSim: TODO");
                     });
                     ui.menu_button("Экспорт", |ui| {
                         if ui.button("Экспорт в NetStar (gpn)").clicked() {
@@ -2823,7 +2823,7 @@ impl PetriApp {
                 ui.checkbox(
                     &mut self.net.places[place_idx].marker_color_on_pass,
                     t(
-                        "РР·РјРµРЅСЏС‚СЊ С†РІРµС‚ РјР°СЂРєРµСЂР° РїСЂРё РїСЂРѕС…РѕР¶РґРµРЅРёРё С‡РµСЂРµР· РїРѕР·РёС†РёСЋ",
+                        "Изменять цвет маркера при прохождении через позицию",
                         "Change marker color when token passes this place",
                     ),
                 );

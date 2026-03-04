@@ -104,7 +104,7 @@ impl PetriApp {
             ui.horizontal(|ui| {
                 ui.label("Матрица инциденций Pre");
                 if ui
-                    .small_button(self.tr("РРјРїРѕСЂС‚ CSV", "Import CSV"))
+                    .small_button(self.tr("Импорт CSV", "Import CSV"))
                     .clicked()
                 {
                     self.import_matrix_csv(MatrixCsvTarget::Pre);
@@ -137,7 +137,7 @@ impl PetriApp {
             ui.horizontal(|ui| {
                 ui.label("Матрица инциденций Post");
                 if ui
-                    .small_button(self.tr("РРјРїРѕСЂС‚ CSV", "Import CSV"))
+                    .small_button(self.tr("Импорт CSV", "Import CSV"))
                     .clicked()
                 {
                     self.import_matrix_csv(MatrixCsvTarget::Post);
@@ -169,7 +169,7 @@ impl PetriApp {
             ui.horizontal(|ui| {
                 ui.label("Матрица ингибиторных дуг");
                 if ui
-                    .small_button(self.tr("РРјРїРѕСЂС‚ CSV", "Import CSV"))
+                    .small_button(self.tr("Импорт CSV", "Import CSV"))
                     .clicked()
                 {
                     self.import_matrix_csv(MatrixCsvTarget::Inhibitor);

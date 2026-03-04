@@ -73,7 +73,7 @@ impl PetriApp {
                             do_copy = true;
                         }
                         if text.eq_ignore_ascii_case("v")
-                            || matches!(text.as_str(), "Рј" | "Рњ" | "Р С" | "Р Сљ")
+                            || matches!(text.as_str(), "Рј" | "Рњ" | "Рј" | "Р Сљ")
                         {
                             do_paste = true;
                         }
