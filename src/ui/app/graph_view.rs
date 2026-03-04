@@ -92,16 +92,38 @@ impl PetriApp {
                         self.net.add_place(snapped);
                         if let Some(new_id) = self.net.places.iter().map(|p| p.id).max() {
                             self.assign_auto_name_for_place(new_id);
+                            if let Some(idx) = self.place_idx_by_id(new_id) {
+                                self.net.places[idx].size = self.new_place_size;
+                                self.net.places[idx].color = self.new_place_color;
+                                if idx < self.net.tables.m0.len() {
+                                    self.net.tables.m0[idx] = self.new_place_marking;
+                                }
+                                if idx < self.net.tables.mo.len() {
+                                    self.net.tables.mo[idx] = self.new_place_capacity;
+                                }
+                                if idx < self.net.tables.mz.len() {
+                                    self.net.tables.mz[idx] = self.new_place_delay.max(0.0);
+                                }
+                            }
                         }
                     }
                     Tool::Transition => {
                         // Store transition position as top-left.
                         // Snap the top-left to the grid (not the center) so the rectangle aligns with the grid.
                         self.push_undo_snapshot();
-                        let dims = Self::transition_dimensions(VisualSize::Medium);
+                        let dims = Self::transition_dimensions(self.new_transition_size);
                         let tl =
                             self.snapped_world([world[0] - dims.x * 0.5, world[1] - dims.y * 0.5]);
                         self.net.add_transition(tl);
+                        if let Some(new_id) = self.net.transitions.iter().map(|t| t.id).max() {
+                            if let Some(idx) = self.transition_idx_by_id(new_id) {
+                                self.net.transitions[idx].size = self.new_transition_size;
+                                self.net.transitions[idx].color = self.new_transition_color;
+                                if idx < self.net.tables.mpr.len() {
+                                    self.net.tables.mpr[idx] = self.new_transition_priority;
+                                }
+                            }
+                        }
                     }
                     Tool::Arc => {}
                     Tool::Text => {
@@ -214,10 +236,7 @@ impl PetriApp {
                             }
                         }
                     }
-                    Tool::Run => {
-                        self.reset_sim_stop_controls();
-                        self.show_sim_params = true;
-                    }
+                    Tool::Run => {}
                 }
             }
         }
@@ -236,7 +255,30 @@ impl PetriApp {
                     if let Some(last) = self.node_at(rect, pointer) {
                         if first != last {
                             self.push_undo_snapshot();
-                            self.net.add_arc(first, last, 1);
+                            if self.new_arc_inhibitor {
+                                let pair = match (first, last) {
+                                    (NodeRef::Place(pid), NodeRef::Transition(tid)) => Some((pid, tid)),
+                                    (NodeRef::Transition(tid), NodeRef::Place(pid)) => Some((pid, tid)),
+                                    _ => None,
+                                };
+                                if let Some((place_id, transition_id)) = pair {
+                                    self.net.add_inhibitor_arc(
+                                        place_id,
+                                        transition_id,
+                                        self.new_arc_inhibitor_threshold.max(1),
+                                    );
+                                    if let Some(last_inh) = self.net.inhibitor_arcs.last_mut() {
+                                        last_inh.color = self.new_arc_color;
+                                        last_inh.visible = true;
+                                    }
+                                }
+                            } else {
+                                self.net.add_arc(first, last, self.new_arc_weight.max(1));
+                                if let Some(last_arc) = self.net.arcs.last_mut() {
+                                    last_arc.color = self.new_arc_color;
+                                    last_arc.visible = true;
+                                }
+                            }
                         }
                     }
                 }

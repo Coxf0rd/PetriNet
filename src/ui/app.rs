@@ -268,6 +268,19 @@ pub struct PetriApp {
     show_netstar_export_validation: bool,
     pending_netstar_export_path: Option<PathBuf>,
     netstar_export_validation: Option<NetstarExportValidationReport>,
+    show_new_element_props: bool,
+    new_place_size: VisualSize,
+    new_place_color: NodeColor,
+    new_place_marking: u32,
+    new_place_capacity: Option<u32>,
+    new_place_delay: f64,
+    new_transition_size: VisualSize,
+    new_transition_color: NodeColor,
+    new_transition_priority: i32,
+    new_arc_weight: u32,
+    new_arc_color: NodeColor,
+    new_arc_inhibitor: bool,
+    new_arc_inhibitor_threshold: u32,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -390,6 +403,19 @@ impl PetriApp {
             show_netstar_export_validation: false,
             pending_netstar_export_path: None,
             netstar_export_validation: None,
+            show_new_element_props: false,
+            new_place_size: VisualSize::Medium,
+            new_place_color: NodeColor::Default,
+            new_place_marking: 0,
+            new_place_capacity: Some(1),
+            new_place_delay: 0.0,
+            new_transition_size: VisualSize::Medium,
+            new_transition_color: NodeColor::Default,
+            new_transition_priority: 1,
+            new_arc_weight: 1,
+            new_arc_color: NodeColor::Default,
+            new_arc_inhibitor: false,
+            new_arc_inhibitor_threshold: 1,
         }
     }
 
@@ -455,8 +481,21 @@ impl PetriApp {
                 arc_display_mode: ArcDisplayMode::All,
                 arc_display_color: NodeColor::Default,
                 show_netstar_export_validation: false,
-                pending_netstar_export_path: None,
-                netstar_export_validation: None,
+            pending_netstar_export_path: None,
+            netstar_export_validation: None,
+            show_new_element_props: false,
+            new_place_size: VisualSize::Medium,
+            new_place_color: NodeColor::Default,
+            new_place_marking: 0,
+            new_place_capacity: Some(1),
+            new_place_delay: 0.0,
+            new_transition_size: VisualSize::Medium,
+            new_transition_color: NodeColor::Default,
+            new_transition_priority: 1,
+            new_arc_weight: 1,
+            new_arc_color: NodeColor::Default,
+            new_arc_inhibitor: false,
+            new_arc_inhibitor_threshold: 1,
             }
         }
     }
