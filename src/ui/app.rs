@@ -1249,7 +1249,7 @@ impl PetriApp {
 
             if !(0..=1_000_000).contains(&mpr) {
                 report.warnings.push(format!(
-                    "{} T{} ({} -> РґРёР°РїР°Р·РѕРЅ 0..1000000)",
+                    "{} T{} ({} -> диапазон 0..1000000)",
                     self.tr(
                         "Приоритет перехода будет ограничен при экспорте:",
                         "Transition priority will be clamped during export:"
@@ -1261,7 +1261,7 @@ impl PetriApp {
 
             if transition.angle_deg < -360 || transition.angle_deg > 360 {
                 report.warnings.push(format!(
-                    "{} T{} ({} -> РґРёР°РїР°Р·РѕРЅ -360..360)",
+                    "{} T{} ({} -> диапазон -360..360)",
                     self.tr(
                         "Угол перехода будет ограничен при экспорте:",
                         "Transition angle will be clamped during export:"
