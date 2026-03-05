@@ -142,6 +142,10 @@ impl PetriApp {
                         });
                         self.clear_selection();
                         self.canvas.selected_text = Some(id);
+                        self.text_props_id = Some(id);
+                        self.show_text_props = true;
+                        self.show_place_props = false;
+                        self.show_transition_props = false;
                     }
                     Tool::Frame => {}
                     Tool::Delete => {
