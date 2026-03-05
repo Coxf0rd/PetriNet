@@ -783,7 +783,7 @@ impl PetriApp {
 
     fn open_file(&mut self) {
         if let Some(path) = rfd::FileDialog::new()
-            .add_filter("Р¤Р°Р№Р»С‹ PetriNet", &["gpn2", "pn", "gpn"])
+            .add_filter("Файлы PetriNet", &["gpn2", "pn", "gpn"])
             .pick_file()
         {
             match load_gpn(&path) {
@@ -857,7 +857,7 @@ impl PetriApp {
 
     fn save_file_as(&mut self) {
         if let Some(path) = rfd::FileDialog::new()
-            .add_filter("Р¤Р°Р№Р»С‹ PetriNet (gpn2)", &["gpn2"])
+            .add_filter("Файлы PetriNet (gpn2)", &["gpn2"])
             .set_file_name("модель.gpn2")
             .save_file()
         {
@@ -873,7 +873,7 @@ impl PetriApp {
 
     fn export_netstar_file(&mut self) {
         if let Some(path) = rfd::FileDialog::new()
-            .add_filter("Р¤Р°Р№Р»С‹ NetStar (gpn)", &["gpn"])
+            .add_filter("Файлы NetStar (gpn)", &["gpn"])
             .set_file_name("экспорт_netstar.gpn")
             .save_file()
         {
@@ -2598,7 +2598,7 @@ impl PetriApp {
     fn draw_menu(&mut self, ctx: &egui::Context) {
         egui::TopBottomPanel::top("menu").show(ctx, |ui| {
             egui::menu::bar(ui, |ui| {
-                ui.menu_button("Р¤Р°Р№Р»", |ui| {
+                ui.menu_button("Файл", |ui| {
                     if ui.button("Новый (Ctrl+N)").clicked() {
                         self.new_file();
                         ui.close_menu();
@@ -3574,11 +3574,7 @@ impl PetriApp {
             .default_width(620.0)
             .show(ctx, |ui| {
                 if let Some(path) = &target_path {
-                    ui.label(format!(
-                        "{} {}",
-                        self.tr("Р¤Р°Р№Р»:", "File:"),
-                        path.display()
-                    ));
+                    ui.label(format!("{} {}", self.tr("Файл:", "File:"), path.display()));
                 }
                 ui.separator();
                 ui.label(format!(
