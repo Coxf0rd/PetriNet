@@ -2,7 +2,7 @@ use super::*;
 
 impl PetriApp {
     pub(super) fn draw_graph_view(&mut self, ui: &mut egui::Ui) {
-        ui.heading("Р В РІР‚СљР РЋР вЂљР В Р’В°Р РЋРІР‚С›");
+        ui.heading("Граф");
         let desired = ui.available_size_before_wrap();
         let (rect, response) = ui.allocate_exact_size(desired, Sense::click_and_drag());
         let painter = ui.painter_at(rect);
@@ -1079,7 +1079,7 @@ impl PetriApp {
             if let Some(idx) = self.place_idx_by_id(p) {
                 let place = &mut self.net.places[idx];
                 ui.separator();
-                ui.label("Р В РІР‚в„ўР РЋРІР‚в„–Р В Р’В±Р РЋР вЂљР В Р’В°Р В Р вЂ¦Р В Р вЂ¦Р В РЎвЂўР В Р’Вµ Р В РЎВР В Р’ВµР РЋР С“Р РЋРІР‚С™Р В РЎвЂў");
+                ui.label("Выбранное место");
                 ui.text_edit_singleline(&mut place.name);
             }
         }
@@ -1087,23 +1087,23 @@ impl PetriApp {
             if let Some(idx) = self.transition_idx_by_id(t) {
                 let tr = &mut self.net.transitions[idx];
                 ui.separator();
-                ui.label("Р В РІР‚в„ўР РЋРІР‚в„–Р В Р’В±Р РЋР вЂљР В Р’В°Р В Р вЂ¦Р В Р вЂ¦Р РЋРІР‚в„–Р В РІвЂћвЂ“ Р В РЎвЂ”Р В Р’ВµР РЋР вЂљР В Р’ВµР РЋРІР‚В¦Р В РЎвЂўР В РўвЂ");
+                ui.label("Выбранный переход");
                 ui.text_edit_singleline(&mut tr.name);
             }
         }
         if let Some(text_id) = self.canvas.selected_text {
             if let Some(idx) = self.text_idx_by_id(text_id) {
                 ui.separator();
-                ui.label("Р В РІР‚в„ўР РЋРІР‚в„–Р В Р’В±Р РЋР вЂљР В Р’В°Р В Р вЂ¦Р В Р вЂ¦Р РЋРІР‚в„–Р В РІвЂћвЂ“ Р РЋРІР‚С™Р В Р’ВµР В РЎвЂќР РЋР С“Р РЋРІР‚С™");
+                ui.label("Выбранный текст");
                 ui.text_edit_singleline(&mut self.text_blocks[idx].text);
             }
         }
         if let Some(frame_id) = self.canvas.selected_frame {
             if let Some(idx) = self.frame_idx_by_id(frame_id) {
                 ui.separator();
-                ui.label("Р В РІР‚в„ўР РЋРІР‚в„–Р В Р’В±Р РЋР вЂљР В Р’В°Р В Р вЂ¦Р В Р вЂ¦Р В Р’В°Р РЋР РЏ Р РЋР вЂљР В Р’В°Р В РЎВР В РЎвЂќР В Р’В°");
+                ui.label("Выбранная рамка");
                 ui.horizontal(|ui| {
-                    ui.label("Р В Р РѓР В РЎвЂР РЋР вЂљР В РЎвЂР В Р вЂ¦Р В Р’В°");
+                    ui.label("Ширина");
                     ui.add(
                         egui::DragValue::new(&mut self.decorative_frames[idx].width)
                             .speed(1.0)
@@ -1111,7 +1111,7 @@ impl PetriApp {
                     );
                 });
                 ui.horizontal(|ui| {
-                    ui.label("Р В РІР‚в„ўР РЋРІР‚в„–Р РЋР С“Р В РЎвЂўР РЋРІР‚С™Р В Р’В°");
+                    ui.label("Высота");
                     ui.add(
                         egui::DragValue::new(&mut self.decorative_frames[idx].height)
                             .speed(1.0)

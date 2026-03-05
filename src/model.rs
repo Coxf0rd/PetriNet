@@ -62,7 +62,7 @@ pub struct MetaInfo {
 impl Default for MetaInfo {
     fn default() -> Self {
         Self {
-            name: "Р‘РµР· РЅР°Р·РІР°РЅРёСЏ".to_string(),
+            name: "Без названия".to_string(),
             author: String::new(),
             description: String::new(),
         }
@@ -665,7 +665,7 @@ impl PetriNetModel {
     pub fn validate(&self) -> Result<()> {
         if self.format_version != GPN2_FORMAT_VERSION {
             return Err(anyhow!(
-                "РќРµРїРѕРґРґРµСЂР¶РёРІР°РµРјР°СЏ РІРµСЂСЃРёСЏ С„РѕСЂРјР°С‚Р°: {}",
+                "Неподдерживаемая версия формата: {}",
                 self.format_version
             ));
         }
@@ -673,32 +673,20 @@ impl PetriNetModel {
         let mut place_ids = HashSet::new();
         for place in &self.places {
             if !place_ids.insert(place.id) {
-                return Err(anyhow!(
-                    "Р”СѓР±Р»РёСЂСѓСЋС‰РёР№СЃСЏ id РјРµСЃС‚Р°: {}",
-                    place.id
-                ));
+                return Err(anyhow!("Дублирующийся id места: {}", place.id));
             }
             if !place.pos[0].is_finite() || !place.pos[1].is_finite() {
-                return Err(anyhow!(
-                    "РљРѕРѕСЂРґРёРЅР°С‚С‹ РјРµСЃС‚Р° {} РЅРµРІР°Р»РёРґРЅС‹",
-                    place.id
-                ));
+                return Err(anyhow!("Координаты места {} невалидны", place.id));
             }
         }
 
         let mut transition_ids = HashSet::new();
         for tr in &self.transitions {
             if !transition_ids.insert(tr.id) {
-                return Err(anyhow!(
-                    "Р”СѓР±Р»РёСЂСѓСЋС‰РёР№СЃСЏ id РїРµСЂРµС…РѕРґР°: {}",
-                    tr.id
-                ));
+                return Err(anyhow!("Дублирующийся id перехода: {}", tr.id));
             }
             if !tr.pos[0].is_finite() || !tr.pos[1].is_finite() {
-                return Err(anyhow!(
-                    "РљРѕРѕСЂРґРёРЅР°С‚С‹ РїРµСЂРµС…РѕРґР° {} РЅРµРІР°Р»РёРґРЅС‹",
-                    tr.id
-                ));
+                return Err(anyhow!("Координаты перехода {} невалидны", tr.id));
             }
         }
 
@@ -709,7 +697,7 @@ impl PetriNetModel {
         ] {
             if matrix.len() != self.places.len() {
                 return Err(anyhow!(
-                    "РњР°С‚СЂРёС†Р° {} РёРјРµРµС‚ РЅРµРєРѕСЂСЂРµРєС‚РЅРѕРµ С‡РёСЃР»Рѕ СЃС‚СЂРѕРє: {} РІРјРµСЃС‚Рѕ {}",
+                    "Матрица {} имеет некорректное число строк: {} вместо {}",
                     row_name,
                     matrix.len(),
                     self.places.len()
@@ -718,7 +706,7 @@ impl PetriNetModel {
             for row in matrix {
                 if row.len() != self.transitions.len() {
                     return Err(anyhow!(
-                        "РњР°С‚СЂРёС†Р° {} РёРјРµРµС‚ РЅРµРєРѕСЂСЂРµРєС‚РЅРѕРµ С‡РёСЃР»Рѕ СЃС‚РѕР»Р±С†РѕРІ",
+                        "Матрица {} имеет некорректное число столбцов",
                         row_name
                     ));
                 }
@@ -731,31 +719,25 @@ impl PetriNetModel {
             || self.tables.mpr.len() != self.transitions.len()
         {
             return Err(anyhow!(
-                "Р Р°Р·РјРµСЂС‹ С‚Р°Р±Р»РёС† РЅРµ СЃРѕРіР»Р°СЃРѕРІР°РЅС‹ СЃ С‡РёСЃР»Р°РјРё РјРµСЃС‚/РїРµСЂРµС…РѕРґРѕРІ"
+                "Размеры таблиц не согласованы с числами мест/переходов"
             ));
         }
 
         for (idx, v) in self.tables.mz.iter().enumerate() {
             if !v.is_finite() || *v < 0.0 {
-                return Err(anyhow!(
-                    "Mz[{}] СЃРѕРґРµСЂР¶РёС‚ РЅРµРґРѕРїСѓСЃС‚РёРјРѕРµ Р·РЅР°С‡РµРЅРёРµ",
-                    idx
-                ));
+                return Err(anyhow!("Mz[{}] содержит недопустимое значение", idx));
             }
         }
 
         for arc in &self.arcs {
             if arc.weight == 0 {
-                return Err(anyhow!(
-                    "Р’РµСЃ РґСѓРіРё {} РґРѕР»Р¶РµРЅ Р±С‹С‚СЊ > 0",
-                    arc.id
-                ));
+                return Err(anyhow!("Вес дуги {} должен быть > 0", arc.id));
             }
             match (arc.from, arc.to) {
                 (NodeRef::Place(p), NodeRef::Transition(t)) => {
                     if !place_ids.contains(&p) || !transition_ids.contains(&t) {
                         return Err(anyhow!(
-                            "Р”СѓРіР° {} СЃСЃС‹Р»Р°РµС‚СЃСЏ РЅР° РѕС‚СЃСѓС‚СЃС‚РІСѓСЋС‰РёРµ РІРµСЂС€РёРЅС‹",
+                            "Дуга {} ссылается на отсутствующие вершины",
                             arc.id
                         ));
                     }
@@ -763,30 +745,25 @@ impl PetriNetModel {
                 (NodeRef::Transition(t), NodeRef::Place(p)) => {
                     if !place_ids.contains(&p) || !transition_ids.contains(&t) {
                         return Err(anyhow!(
-                            "Р”СѓРіР° {} СЃСЃС‹Р»Р°РµС‚СЃСЏ РЅР° РѕС‚СЃСѓС‚СЃС‚РІСѓСЋС‰РёРµ РІРµСЂС€РёРЅС‹",
+                            "Дуга {} ссылается на отсутствующие вершины",
                             arc.id
                         ));
                     }
                 }
-                _ => {
-                    return Err(anyhow!(
-                        "Р”СѓРіР° {} РЅР°СЂСѓС€Р°РµС‚ РґРІСѓРґРѕР»СЊРЅРѕСЃС‚СЊ РіСЂР°С„Р°",
-                        arc.id
-                    ))
-                }
+                _ => return Err(anyhow!("Дуга {} нарушает двудольность графа", arc.id)),
             }
         }
 
         for inh in &self.inhibitor_arcs {
             if inh.threshold == 0 {
                 return Err(anyhow!(
-                    "РџРѕСЂРѕРі РёРЅРіРёР±РёС‚РѕСЂРЅРѕР№ РґСѓРіРё {} РґРѕР»Р¶РµРЅ Р±С‹С‚СЊ > 0",
+                    "Порог ингибиторной дуги {} должен быть > 0",
                     inh.id
                 ));
             }
             if !place_ids.contains(&inh.place_id) || !transition_ids.contains(&inh.transition_id) {
                 return Err(anyhow!(
-                    "РРЅРіРёР±РёС‚РѕСЂРЅР°СЏ РґСѓРіР° {} СЃСЃС‹Р»Р°РµС‚СЃСЏ РЅР° РѕС‚СЃСѓС‚СЃС‚РІСѓСЋС‰РёРµ РІРµСЂС€РёРЅС‹",
+                    "Ингибиторная дуга {} ссылается на отсутствующие вершины",
                     inh.id
                 ));
             }

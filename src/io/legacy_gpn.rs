@@ -1476,7 +1476,7 @@ fn encode_legacy_cp1251(s: &str) -> Vec<u8> {
     for ch in s.chars() {
         let b = match ch {
             '\u{0000}'..='\u{007F}' => ch as u8,
-            '\u{0401}' => 0xA8, // РЃ
+            '\u{0401}' => 0xA8, // Ё
             '\u{0451}' => 0xB8, // С‘
             '\u{0410}'..='\u{044F}' => (0xC0u32 + (ch as u32 - 0x0410)) as u8, // А..я
             _ => b'?',          // unsupported in our legacy subset
