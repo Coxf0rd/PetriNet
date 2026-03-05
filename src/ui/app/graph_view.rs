@@ -2,7 +2,7 @@ use super::*;
 
 impl PetriApp {
     pub(super) fn draw_graph_view(&mut self, ui: &mut egui::Ui) {
-        ui.heading("Р“СЂР°С„");
+        ui.heading("Р В РІР‚СљР РЋР вЂљР В Р’В°Р РЋРІР‚С›");
         let desired = ui.available_size_before_wrap();
         let (rect, response) = ui.allocate_exact_size(desired, Sense::click_and_drag());
         let painter = ui.painter_at(rect);
@@ -133,7 +133,12 @@ impl PetriApp {
                         self.text_blocks.push(CanvasTextBlock {
                             id,
                             pos: snapped,
-                            text: self.tr("Текст", "Text").to_string(),
+                            text: self
+                                .tr("\u{422}\u{435}\u{43A}\u{441}\u{442}", "Text")
+                                .to_string(),
+                            font_name: "MS Sans Serif".to_string(),
+                            font_size: 10.0,
+                            color: NodeColor::Default,
                         });
                         self.clear_selection();
                         self.canvas.selected_text = Some(id);
@@ -624,20 +629,27 @@ impl PetriApp {
                             self.place_props_id = Some(p);
                             self.show_place_props = true;
                             self.show_transition_props = false;
+                            self.show_text_props = false;
                         }
                         NodeRef::Transition(t) => {
                             self.canvas.selected_transition = Some(t);
                             self.transition_props_id = Some(t);
                             self.show_transition_props = true;
                             self.show_place_props = false;
+                            self.show_text_props = false;
                         }
                     }
                 } else if let Some(text_id) = self.text_at(rect, click) {
                     self.clear_selection();
                     self.canvas.selected_text = Some(text_id);
+                    self.text_props_id = Some(text_id);
+                    self.show_text_props = true;
+                    self.show_place_props = false;
+                    self.show_transition_props = false;
                 } else if let Some(frame_id) = self.frame_at(rect, click) {
                     self.clear_selection();
                     self.canvas.selected_frame = Some(frame_id);
+                    self.show_text_props = false;
                 }
             }
         }
@@ -943,17 +955,19 @@ impl PetriApp {
 
         for text in &self.text_blocks {
             let center = self.world_to_screen(rect, text.pos);
-            let color = if self.canvas.selected_text == Some(text.id) {
+            let draw_color = if self.canvas.selected_text == Some(text.id) {
                 Color32::from_rgb(255, 140, 0)
             } else {
-                Color32::from_rgb(40, 40, 40)
+                Self::color_to_egui(text.color, Color32::from_rgb(40, 40, 40))
             };
+            let family = Self::text_family_from_name(&text.font_name);
+            let font_id = egui::FontId::new(text.font_size.max(6.0) * self.canvas.zoom, family);
             painter.text(
                 center,
                 egui::Align2::CENTER_CENTER,
                 &text.text,
-                egui::TextStyle::Body.resolve(ui.style()),
-                color,
+                font_id,
+                draw_color,
             );
         }
 
@@ -979,7 +993,7 @@ impl PetriApp {
                     painter.text(
                         preview,
                         egui::Align2::CENTER_CENTER,
-                        self.tr("РўРµРєСЃС‚", "Text"),
+                        self.tr("\u{422}\u{435}\u{43A}\u{441}\u{442}", "Text"),
                         egui::TextStyle::Body.resolve(ui.style()),
                         Color32::from_rgb(60, 120, 220),
                     );
@@ -1061,7 +1075,7 @@ impl PetriApp {
             if let Some(idx) = self.place_idx_by_id(p) {
                 let place = &mut self.net.places[idx];
                 ui.separator();
-                ui.label("Р’С‹Р±СЂР°РЅРЅРѕРµ РјРµСЃС‚Рѕ");
+                ui.label("Р В РІР‚в„ўР РЋРІР‚в„–Р В Р’В±Р РЋР вЂљР В Р’В°Р В Р вЂ¦Р В Р вЂ¦Р В РЎвЂўР В Р’Вµ Р В РЎВР В Р’ВµР РЋР С“Р РЋРІР‚С™Р В РЎвЂў");
                 ui.text_edit_singleline(&mut place.name);
             }
         }
@@ -1069,23 +1083,23 @@ impl PetriApp {
             if let Some(idx) = self.transition_idx_by_id(t) {
                 let tr = &mut self.net.transitions[idx];
                 ui.separator();
-                ui.label("Р’С‹Р±СЂР°РЅРЅС‹Р№ РїРµСЂРµС…РѕРґ");
+                ui.label("Р В РІР‚в„ўР РЋРІР‚в„–Р В Р’В±Р РЋР вЂљР В Р’В°Р В Р вЂ¦Р В Р вЂ¦Р РЋРІР‚в„–Р В РІвЂћвЂ“ Р В РЎвЂ”Р В Р’ВµР РЋР вЂљР В Р’ВµР РЋРІР‚В¦Р В РЎвЂўР В РўвЂ");
                 ui.text_edit_singleline(&mut tr.name);
             }
         }
         if let Some(text_id) = self.canvas.selected_text {
             if let Some(idx) = self.text_idx_by_id(text_id) {
                 ui.separator();
-                ui.label("Р’С‹Р±СЂР°РЅРЅС‹Р№ С‚РµРєСЃС‚");
+                ui.label("Р В РІР‚в„ўР РЋРІР‚в„–Р В Р’В±Р РЋР вЂљР В Р’В°Р В Р вЂ¦Р В Р вЂ¦Р РЋРІР‚в„–Р В РІвЂћвЂ“ Р РЋРІР‚С™Р В Р’ВµР В РЎвЂќР РЋР С“Р РЋРІР‚С™");
                 ui.text_edit_singleline(&mut self.text_blocks[idx].text);
             }
         }
         if let Some(frame_id) = self.canvas.selected_frame {
             if let Some(idx) = self.frame_idx_by_id(frame_id) {
                 ui.separator();
-                ui.label("Р’С‹Р±СЂР°РЅРЅР°СЏ СЂР°РјРєР°");
+                ui.label("Р В РІР‚в„ўР РЋРІР‚в„–Р В Р’В±Р РЋР вЂљР В Р’В°Р В Р вЂ¦Р В Р вЂ¦Р В Р’В°Р РЋР РЏ Р РЋР вЂљР В Р’В°Р В РЎВР В РЎвЂќР В Р’В°");
                 ui.horizontal(|ui| {
-                    ui.label("РЁРёСЂРёРЅР°");
+                    ui.label("Р В Р РѓР В РЎвЂР РЋР вЂљР В РЎвЂР В Р вЂ¦Р В Р’В°");
                     ui.add(
                         egui::DragValue::new(&mut self.decorative_frames[idx].width)
                             .speed(1.0)
@@ -1093,7 +1107,7 @@ impl PetriApp {
                     );
                 });
                 ui.horizontal(|ui| {
-                    ui.label("Р’С‹СЃРѕС‚Р°");
+                    ui.label("Р В РІР‚в„ўР РЋРІР‚в„–Р РЋР С“Р В РЎвЂўР РЋРІР‚С™Р В Р’В°");
                     ui.add(
                         egui::DragValue::new(&mut self.decorative_frames[idx].height)
                             .speed(1.0)
