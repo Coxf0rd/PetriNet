@@ -256,6 +256,21 @@ struct UndoSnapshot {
     next_frame_id: u64,
 }
 
+#[derive(Debug, Clone)]
+struct DebugAnimationEvent {
+    transition_idx: usize,
+    start_time: f64,
+    end_time: f64,
+    pre_places: Vec<(usize, u32)>,
+    post_places: Vec<(usize, u32)>,
+}
+
+impl DebugAnimationEvent {
+    fn duration(&self) -> f64 {
+        self.end_time - self.start_time
+    }
+}
+
 fn sanitize_f64(value: &mut f64, min: f64, max: f64) -> bool {
     if !value.is_finite() {
         *value = min;
@@ -338,6 +353,11 @@ pub struct PetriApp {
     debug_playing: bool,
     debug_interval_ms: u64,
     last_debug_tick: Option<Instant>,
+    debug_animation_enabled: bool,
+    debug_animation_clock: f64,
+    debug_animation_last_update: Option<Instant>,
+    debug_animation_events: Vec<DebugAnimationEvent>,
+    debug_animation_total_time: f64,
     show_proof: bool,
     text_blocks: Vec<CanvasTextBlock>,
     next_text_id: u64,
@@ -398,6 +418,91 @@ impl PetriApp {
     const FRAME_MIN_SIDE: f32 = 10.0;
     const FRAME_RESIZE_HANDLE_PX: f32 = 10.0;
     const MAX_PLOT_POINTS: usize = 2_000;
+    const DEBUG_ANIMATION_MIN_DURATION: f64 = 0.1;
+
+    pub(in crate::ui::app) fn refresh_debug_animation_state(&mut self) {
+        if let Some(result) = self.sim_result.as_ref() {
+            let events = Self::build_debug_animation_events(&self.net, result);
+            if events.is_empty() {
+                self.debug_animation_events = events;
+                self.debug_animation_total_time = 0.0;
+            } else {
+                let total_time = events
+                    .last()
+                    .map(|event| event.end_time)
+                    .unwrap_or(0.0)
+                    .max(Self::DEBUG_ANIMATION_MIN_DURATION);
+                self.debug_animation_events = events;
+                self.debug_animation_total_time = total_time;
+            }
+        } else {
+            self.debug_animation_events.clear();
+            self.debug_animation_total_time = 0.0;
+        }
+        self.restart_debug_animation_clock();
+    }
+
+    pub(in crate::ui::app) fn restart_debug_animation_clock(&mut self) {
+        self.debug_animation_clock = 0.0;
+        self.debug_animation_last_update = None;
+    }
+
+    fn build_debug_animation_events(
+        net: &PetriNet,
+        result: &SimulationResult,
+    ) -> Vec<DebugAnimationEvent> {
+        let mut events = Vec::new();
+        for (idx, entry) in result.logs.iter().enumerate() {
+            let Some(transition_idx) = entry.fired_transition else {
+                continue;
+            };
+            let mut next_time = entry.time + Self::DEBUG_ANIMATION_MIN_DURATION;
+            for next_entry in result.logs.iter().skip(idx + 1) {
+                if next_entry.time > entry.time {
+                    next_time = next_entry.time;
+                    break;
+                }
+            }
+            let duration = (next_time - entry.time).max(Self::DEBUG_ANIMATION_MIN_DURATION);
+            events.push(DebugAnimationEvent {
+                transition_idx,
+                start_time: entry.time,
+                end_time: entry.time + duration,
+                pre_places: Self::transition_place_weights(net, transition_idx, true),
+                post_places: Self::transition_place_weights(net, transition_idx, false),
+            });
+        }
+        events
+    }
+
+    fn transition_place_weights(
+        net: &PetriNet,
+        transition_idx: usize,
+        incoming: bool,
+    ) -> Vec<(usize, u32)> {
+        let mut weights = Vec::new();
+        for place_idx in 0..net.places.len() {
+            let weight = if incoming {
+                net.tables
+                    .pre
+                    .get(place_idx)
+                    .and_then(|row| row.get(transition_idx))
+                    .copied()
+                    .unwrap_or(0)
+            } else {
+                net.tables
+                    .post
+                    .get(place_idx)
+                    .and_then(|row| row.get(transition_idx))
+                    .copied()
+                    .unwrap_or(0)
+            };
+            if weight > 0 {
+                weights.push((place_idx, weight));
+            }
+        }
+        weights
+    }
 }
 
 impl eframe::App for PetriApp {

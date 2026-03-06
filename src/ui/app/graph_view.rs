@@ -2,6 +2,7 @@ use super::*;
 
 impl PetriApp {
     pub(super) fn draw_graph_view(&mut self, ui: &mut egui::Ui) {
+        self.update_debug_animation_clock(ui.ctx());
         ui.heading("Граф");
         let desired = ui.available_size_before_wrap();
         let (rect, response) = ui.allocate_exact_size(desired, Sense::click_and_drag());
@@ -1144,6 +1145,8 @@ impl PetriApp {
             }
         }
 
+        self.draw_debug_animation_overlay(rect, &painter);
+
         if let Some(p) = self.canvas.selected_place {
             if let Some(idx) = self.place_idx_by_id(p) {
                 let place = &mut self.net.places[idx];
@@ -1188,6 +1191,199 @@ impl PetriApp {
                     );
                 });
             }
+        }
+    }
+
+    fn update_debug_animation_clock(&mut self, ctx: &egui::Context) {
+        if !self.debug_animation_enabled
+            || self.debug_animation_events.is_empty()
+            || self.debug_animation_total_time <= 0.0
+        {
+            self.debug_animation_last_update = None;
+            return;
+        }
+        let now = Instant::now();
+        if let Some(last) = self.debug_animation_last_update {
+            let delta = now.duration_since(last).as_secs_f64();
+            self.debug_animation_clock += delta;
+        }
+        self.debug_animation_last_update = Some(now);
+        self.debug_animation_clock = self
+            .debug_animation_clock
+            .rem_euclid(self.debug_animation_total_time);
+        ctx.request_repaint_after(Duration::from_millis(16));
+    }
+
+    fn draw_debug_animation_overlay(&self, rect: Rect, painter: &egui::Painter) {
+        if !self.debug_animation_enabled
+            || self.debug_animation_events.is_empty()
+            || self.debug_animation_total_time <= 0.0
+        {
+            return;
+        }
+        let timeline_pos = self
+            .debug_animation_clock
+            .rem_euclid(self.debug_animation_total_time);
+        for event in &self.debug_animation_events {
+            if timeline_pos < event.start_time || timeline_pos >= event.end_time {
+                continue;
+            }
+            let duration = event.duration();
+            if duration <= 0.0 {
+                continue;
+            }
+            let relative = ((timeline_pos - event.start_time) / duration) as f32;
+            self.draw_debug_animation_event(event, relative, rect, painter);
+        }
+    }
+
+    fn draw_debug_animation_event(
+        &self,
+        event: &DebugAnimationEvent,
+        relative: f32,
+        rect: Rect,
+        painter: &egui::Painter,
+    ) {
+        const PRE_FRACTION: f32 = 0.35;
+        const TRANSITION_FRACTION: f32 = 0.2;
+        const POST_FRACTION: f32 = 1.0 - PRE_FRACTION - TRANSITION_FRACTION;
+        let transition = match self.net.transitions.get(event.transition_idx) {
+            Some(tr) => tr,
+            None => return,
+        };
+        let tr_pos = self.world_to_screen(rect, transition.pos);
+        let tr_dims = Self::transition_dimensions(transition.size) * self.canvas.zoom;
+        let tr_rect = Rect::from_min_size(tr_pos, tr_dims);
+        let tr_center = tr_rect.center();
+        let token_color = Self::color_to_egui(transition.color, Color32::from_rgb(200, 0, 0));
+        let token_radius = 4.0 * self.canvas.zoom;
+        let token_spacing = token_radius * 2.2;
+
+        if relative < PRE_FRACTION {
+            let progress = (relative / PRE_FRACTION).clamp(0.0, 1.0);
+            self.draw_debug_animation_tokens_along_pre(
+                event,
+                rect,
+                painter,
+                tr_rect,
+                tr_center,
+                progress,
+                token_radius,
+                token_spacing,
+                token_color,
+            );
+            return;
+        }
+        if relative < PRE_FRACTION + TRANSITION_FRACTION {
+            let progress = ((relative - PRE_FRACTION) / TRANSITION_FRACTION).clamp(0.0, 1.0);
+            let count = event
+                .pre_places
+                .iter()
+                .map(|(_, w)| *w as usize)
+                .sum::<usize>()
+                .max(1)
+                .min(4);
+            let angle_offset = progress * std::f32::consts::TAU;
+            let radius = token_spacing * 0.35;
+            for i in 0..count {
+                let angle = (i as f32) * (std::f32::consts::TAU / count as f32) + angle_offset;
+                let offset = Vec2::new(angle.cos(), angle.sin()) * radius;
+                painter.circle_filled(tr_center + offset, token_radius, token_color);
+            }
+            return;
+        }
+        let post_progress =
+            ((relative - PRE_FRACTION - TRANSITION_FRACTION) / POST_FRACTION).clamp(0.0, 1.0);
+        self.draw_debug_animation_tokens_along_post(
+            event,
+            rect,
+            painter,
+            tr_rect,
+            tr_center,
+            post_progress,
+            token_radius,
+            token_spacing,
+            token_color,
+        );
+    }
+
+    fn draw_debug_animation_tokens_along_pre(
+        &self,
+        event: &DebugAnimationEvent,
+        rect: Rect,
+        painter: &egui::Painter,
+        tr_rect: Rect,
+        tr_center: Pos2,
+        progress: f32,
+        token_radius: f32,
+        token_spacing: f32,
+        color: Color32,
+    ) {
+        for &(place_idx, weight) in &event.pre_places {
+            if weight == 0 {
+                continue;
+            }
+            let place = match self.net.places.get(place_idx) {
+                Some(place) => place,
+                None => continue,
+            };
+            let place_center = self.world_to_screen(rect, place.pos);
+            let place_radius = Self::place_radius(place.size) * self.canvas.zoom;
+            let dir = Self::normalized_direction(tr_center - place_center);
+            let start = place_center + dir * place_radius;
+            let end = Self::rect_border_point(tr_rect, -dir);
+            let perp = Vec2::new(-dir.y, dir.x);
+            let count = (weight as usize).min(3).max(1);
+            let offset_base = (count as f32 - 1.0) * 0.5;
+            let travel = start + (end - start) * progress;
+            for i in 0..count {
+                let offset = perp * token_spacing * (i as f32 - offset_base);
+                painter.circle_filled(travel + offset, token_radius, color);
+            }
+        }
+    }
+
+    fn draw_debug_animation_tokens_along_post(
+        &self,
+        event: &DebugAnimationEvent,
+        rect: Rect,
+        painter: &egui::Painter,
+        tr_rect: Rect,
+        tr_center: Pos2,
+        progress: f32,
+        token_radius: f32,
+        token_spacing: f32,
+        color: Color32,
+    ) {
+        for &(place_idx, weight) in &event.post_places {
+            if weight == 0 {
+                continue;
+            }
+            let place = match self.net.places.get(place_idx) {
+                Some(place) => place,
+                None => continue,
+            };
+            let place_center = self.world_to_screen(rect, place.pos);
+            let place_radius = Self::place_radius(place.size) * self.canvas.zoom;
+            let dir = Self::normalized_direction(place_center - tr_center);
+            let start = Self::rect_border_point(tr_rect, dir);
+            let end = place_center - dir * place_radius;
+            let perp = Vec2::new(-dir.y, dir.x);
+            let count = (weight as usize).min(3).max(1);
+            let offset_base = (count as f32 - 1.0) * 0.5;
+            let travel = start + (end - start) * progress;
+            for i in 0..count {
+                let offset = perp * token_spacing * (i as f32 - offset_base);
+                painter.circle_filled(travel + offset, token_radius, color);
+            }
+        }
+    }
+
+    fn normalized_direction(delta: Vec2) -> Vec2 {
+        if delta.length_sq() < f32::EPSILON {
+            Vec2::X
+        } else {
+            delta.normalized()
         }
     }
 }

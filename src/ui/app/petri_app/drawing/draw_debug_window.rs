@@ -73,6 +73,27 @@ impl PetriApp {
                 ui.add(
                     egui::Slider::new(&mut self.debug_step, 0..=steps - 1).text(t("Шаг", "Step")),
                 );
+                let animation_response = ui.checkbox(
+                    &mut self.debug_animation_enabled,
+                    t("Включить анимацию", "Enable animation"),
+                );
+                if animation_response.changed() && self.debug_animation_enabled {
+                    self.restart_debug_animation_clock();
+                }
+                if self.debug_animation_enabled {
+                    if self.debug_animation_events.is_empty() {
+                        ui.label(t(
+                            "Сначала запустите симуляцию, чтобы увидеть анимацию.",
+                            "Run a simulation first to see the animation.",
+                        ));
+                    }
+                    if ui
+                        .button(t("Перезапустить анимацию", "Restart animation"))
+                        .clicked()
+                    {
+                        self.restart_debug_animation_clock();
+                    }
+                }
                 if let Some(&log_idx) = visible_steps.get(self.debug_step) {
                     if let Some(entry) = result.logs.get(log_idx) {
                         ui.separator();

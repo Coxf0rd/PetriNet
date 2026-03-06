@@ -410,6 +410,7 @@ impl PetriApp {
                         false,
                         self.net.ui.marker_count_stats,
                     )));
+                    self.refresh_debug_animation_state();
                     self.debug_step = 0;
                     self.debug_playing = false;
                     self.last_debug_tick = None;
