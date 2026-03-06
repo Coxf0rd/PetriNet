@@ -267,7 +267,8 @@ struct DebugAnimationEvent {
     transition_idx: usize,
     step_idx: usize,
     duration: f64,
-    token_color: Color32,
+    entry_color: Color32,
+    exit_color: Color32,
     pre_arcs: Vec<DebugAnimationArc>,
     post_arcs: Vec<DebugAnimationArc>,
 }
@@ -456,10 +457,15 @@ impl PetriApp {
         if self.debug_step >= visible_steps.len() {
             self.debug_step = visible_steps.len() - 1;
         }
-        let event_idx = self
-            .debug_animation_events
-            .iter()
-            .position(|event| event.step_idx == self.debug_step);
+        let target_step = self
+            .debug_step
+            .checked_add(1)
+            .filter(|next| *next < visible_steps.len());
+        let event_idx = target_step.and_then(|step| {
+            self.debug_animation_events
+                .iter()
+                .position(|event| event.step_idx == step)
+        });
         self.set_active_debug_animation_event(event_idx, visible_steps.len());
     }
     fn set_active_debug_animation_event(&mut self, event_idx: Option<usize>, visible_len: usize) {
@@ -522,24 +528,21 @@ impl PetriApp {
             }
             let duration = (next_time - entry.time).max(Self::DEBUG_ANIMATION_MIN_DURATION);
             let step_idx = *log_to_step.get(&idx).unwrap_or(&visible_steps.len());
-            let event_step = step_idx
-                .saturating_sub(1)
-                .min(visible_steps.len().saturating_sub(1));
             let pre_arcs = Self::transition_arcs(net, transition_idx, true);
             let post_arcs = Self::transition_arcs(net, transition_idx, false);
-            let incoming_color = Self::marker_color_for_arcs(net, &pre_arcs, current_marker_color)
-                .unwrap_or(current_marker_color);
-            let outgoing_color = Self::marker_color_for_arcs(net, &post_arcs, incoming_color)
-                .unwrap_or(incoming_color);
+            let entry_color = current_marker_color;
+            let exit_color =
+                Self::marker_color_for_arcs(net, &post_arcs, entry_color).unwrap_or(entry_color);
             events.push(DebugAnimationEvent {
                 transition_idx,
-                step_idx: event_step,
+                step_idx,
                 duration,
-                token_color: incoming_color,
+                entry_color,
+                exit_color,
                 pre_arcs,
                 post_arcs,
             });
-            current_marker_color = outgoing_color;
+            current_marker_color = exit_color;
         }
         events
     }
