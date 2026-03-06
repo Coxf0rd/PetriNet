@@ -947,7 +947,8 @@ impl PetriApp {
             }
         }
 
-        let debug_marking = if self.show_debug {
+        let use_debug_colors = self.debug_animation_enabled;
+        let debug_marking = if use_debug_colors {
             self.sim_result
                 .as_ref()
                 .and_then(|res| {
@@ -961,11 +962,14 @@ impl PetriApp {
         } else {
             Vec::new()
         };
-        let debug_place_colors = self
-            .debug_place_colors
-            .get(self.debug_step)
-            .cloned()
-            .unwrap_or_else(|| Vec::new());
+        let debug_place_colors = if use_debug_colors {
+            self.debug_place_colors
+                .get(self.debug_step)
+                .cloned()
+                .unwrap_or_else(|| Vec::new())
+        } else {
+            Vec::new()
+        };
 
         for (place_idx, place) in self.net.places.iter().enumerate() {
             let center = self.world_to_screen(rect, place.pos);
@@ -1002,7 +1006,7 @@ impl PetriApp {
                 },
             );
 
-            let (tokens, token_colors) = if self.show_debug {
+            let (tokens, token_colors) = if use_debug_colors {
                 (
                     debug_place_colors
                         .get(place_idx)
@@ -1024,7 +1028,7 @@ impl PetriApp {
                 )
             };
             if tokens > 0 {
-                if self.show_debug {
+                if use_debug_colors {
                     if tokens > 5 {
                         painter.text(
                             center,
