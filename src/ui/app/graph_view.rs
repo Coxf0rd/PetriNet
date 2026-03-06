@@ -67,6 +67,9 @@ impl PetriApp {
                 }
             });
         }
+        if self.tool == Tool::Arc && !ui.ctx().input(|i| i.pointer.any_down()) {
+            self.canvas.arc_start = None;
+        }
 
         if response.double_clicked_by(egui::PointerButton::Primary) {
             if let Some(click) = response.interact_pointer_pos() {
@@ -189,19 +192,29 @@ impl PetriApp {
                         if shift_pressed {
                             self.promote_single_selection_to_multi();
                             if let Some(text_id) = self.text_at(rect, click) {
-                                if self.canvas.selected_text == Some(text_id) {
-                                    self.canvas.selected_text = None;
+                                let added = Self::toggle_selected_id(
+                                    &mut self.canvas.selected_texts,
+                                    text_id,
+                                );
+                                self.canvas.selected_frames.clear();
+                                self.canvas.selected_frame = None;
+                                self.canvas.selected_text = if added {
+                                    Some(text_id)
                                 } else {
-                                    self.canvas.selected_text = Some(text_id);
-                                    self.canvas.selected_frame = None;
-                                }
+                                    self.canvas.selected_texts.last().copied()
+                                };
                             } else if let Some(frame_id) = self.frame_at(rect, click) {
-                                if self.canvas.selected_frame == Some(frame_id) {
-                                    self.canvas.selected_frame = None;
+                                let added = Self::toggle_selected_id(
+                                    &mut self.canvas.selected_frames,
+                                    frame_id,
+                                );
+                                self.canvas.selected_texts.clear();
+                                self.canvas.selected_text = None;
+                                self.canvas.selected_frame = if added {
+                                    Some(frame_id)
                                 } else {
-                                    self.canvas.selected_frame = Some(frame_id);
-                                    self.canvas.selected_text = None;
-                                }
+                                    self.canvas.selected_frames.last().copied()
+                                };
                             } else if let Some(n) = self.node_at(rect, click) {
                                 match n {
                                     NodeRef::Place(p) => {
@@ -218,11 +231,15 @@ impl PetriApp {
                                     }
                                 }
                                 self.canvas.selected_text = None;
+                                self.canvas.selected_texts.clear();
                                 self.canvas.selected_frame = None;
+                                self.canvas.selected_frames.clear();
                             } else if let Some(arc_id) = self.arc_at(rect, click) {
                                 Self::toggle_selected_id(&mut self.canvas.selected_arcs, arc_id);
                                 self.canvas.selected_text = None;
+                                self.canvas.selected_texts.clear();
                                 self.canvas.selected_frame = None;
+                                self.canvas.selected_frames.clear();
                             }
                             self.sync_primary_selection_from_multi();
                         } else {
@@ -475,13 +492,13 @@ impl PetriApp {
                                     self.net.transitions[idx].pos[1] += dy;
                                 }
                             }
-                            if let Some(text_id) = self.canvas.selected_text {
+                            for text_id in self.collect_selected_text_ids() {
                                 if let Some(idx) = self.text_idx_by_id(text_id) {
                                     self.text_blocks[idx].pos[0] += dx;
                                     self.text_blocks[idx].pos[1] += dy;
                                 }
                             }
-                            if let Some(frame_id) = self.canvas.selected_frame {
+                            for frame_id in self.collect_selected_frame_ids() {
                                 if let Some(idx) = self.frame_idx_by_id(frame_id) {
                                     self.decorative_frames[idx].pos[0] += dx;
                                     self.decorative_frames[idx].pos[1] += dy;
@@ -520,13 +537,13 @@ impl PetriApp {
                         self.net.transitions[idx].pos[1] = snap(self.net.transitions[idx].pos[1]);
                     }
                 }
-                if let Some(text_id) = self.canvas.selected_text {
+                for text_id in self.collect_selected_text_ids() {
                     if let Some(idx) = self.text_idx_by_id(text_id) {
                         self.text_blocks[idx].pos[0] = snap(self.text_blocks[idx].pos[0]);
                         self.text_blocks[idx].pos[1] = snap(self.text_blocks[idx].pos[1]);
                     }
                 }
-                if let Some(frame_id) = self.canvas.selected_frame {
+                for frame_id in self.collect_selected_frame_ids() {
                     if let Some(idx) = self.frame_idx_by_id(frame_id) {
                         self.decorative_frames[idx].pos[0] =
                             snap(self.decorative_frames[idx].pos[0]);
@@ -589,6 +606,26 @@ impl PetriApp {
                     .map(|inh| inh.id)
                     .collect();
                 hit_arcs.extend(selected_inhibitor_ids);
+                let hit_text_ids: Vec<u64> = self
+                    .text_blocks
+                    .iter()
+                    .filter(|text| norm.contains(self.world_to_screen(rect, text.pos)))
+                    .map(|text| text.id)
+                    .collect();
+                let hit_frame_ids: Vec<u64> = self
+                    .decorative_frames
+                    .iter()
+                    .filter(|frame| {
+                        let min = self.world_to_screen(rect, frame.pos);
+                        let size = Vec2::new(
+                            frame.width.max(Self::FRAME_MIN_SIDE),
+                            frame.height.max(Self::FRAME_MIN_SIDE),
+                        ) * self.canvas.zoom;
+                        let frame_rect = Rect::from_min_size(min, size);
+                        norm.intersects(frame_rect)
+                    })
+                    .map(|frame| frame.id)
+                    .collect();
 
                 if self.canvas.selection_toggle_mode {
                     self.promote_single_selection_to_multi();
@@ -604,17 +641,25 @@ impl PetriApp {
                     for arc_id in hit_arcs {
                         Self::toggle_selected_id(&mut self.canvas.selected_arcs, arc_id);
                     }
+                    for text_id in hit_text_ids {
+                        Self::toggle_selected_id(&mut self.canvas.selected_texts, text_id);
+                    }
+                    for frame_id in hit_frame_ids {
+                        Self::toggle_selected_id(&mut self.canvas.selected_frames, frame_id);
+                    }
                     self.sync_primary_selection_from_multi();
                 } else {
                     self.canvas.selected_places = hit_places;
                     self.canvas.selected_transitions = hit_transitions;
                     self.canvas.selected_arcs = hit_arcs;
+                    self.canvas.selected_texts = hit_text_ids;
+                    self.canvas.selected_frames = hit_frame_ids;
                     self.canvas.selected_place = None;
                     self.canvas.selected_transition = None;
                     self.canvas.selected_arc = self.canvas.selected_arcs.first().copied();
+                    self.canvas.selected_text = self.canvas.selected_texts.first().copied();
+                    self.canvas.selected_frame = self.canvas.selected_frames.first().copied();
                 }
-                self.canvas.selected_text = None;
-                self.canvas.selected_frame = None;
                 self.canvas.selection_toggle_mode = false;
             }
             self.canvas.selection_start = None;
@@ -650,6 +695,16 @@ impl PetriApp {
                     self.show_text_props = true;
                     self.show_place_props = false;
                     self.show_transition_props = false;
+                } else if let Some(arc_id) = self.arc_at(rect, click) {
+                    self.clear_selection();
+                    self.canvas.selected_arc = Some(arc_id);
+                    self.canvas.selected_arcs.clear();
+                    self.canvas.selected_arcs.push(arc_id);
+                    self.arc_props_id = Some(arc_id);
+                    self.show_arc_props = true;
+                    self.show_place_props = false;
+                    self.show_transition_props = false;
+                    self.show_text_props = false;
                 } else if let Some(frame_id) = self.frame_at(rect, click) {
                     self.clear_selection();
                     self.canvas.selected_frame = Some(frame_id);

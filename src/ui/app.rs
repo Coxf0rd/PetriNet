@@ -78,7 +78,9 @@ struct CanvasState {
     selected_arc: Option<u64>,
     selected_arcs: Vec<u64>,
     selected_text: Option<u64>,
+    selected_texts: Vec<u64>,
     selected_frame: Option<u64>,
+    selected_frames: Vec<u64>,
     arc_start: Option<NodeRef>,
     cursor_world: [f32; 2],
     selection_start: Option<Pos2>,
@@ -104,7 +106,9 @@ impl Default for CanvasState {
             selected_arc: None,
             selected_arcs: Vec::new(),
             selected_text: None,
+            selected_texts: Vec::new(),
             selected_frame: None,
+            selected_frames: Vec::new(),
             arc_start: None,
             cursor_world: [0.0, 0.0],
             selection_start: None,
@@ -273,6 +277,8 @@ pub struct PetriApp {
     show_transition_props: bool,
     text_props_id: Option<u64>,
     show_text_props: bool,
+    arc_props_id: Option<u64>,
+    show_arc_props: bool,
     show_debug: bool,
     debug_step: usize,
     debug_playing: bool,
@@ -410,6 +416,8 @@ impl PetriApp {
             show_transition_props: false,
             text_props_id: None,
             show_text_props: false,
+            arc_props_id: None,
+            show_arc_props: false,
             show_debug: false,
             debug_step: 0,
             debug_playing: false,
@@ -492,6 +500,8 @@ impl PetriApp {
                 show_transition_props: false,
                 text_props_id: None,
                 show_text_props: false,
+                arc_props_id: None,
+                show_arc_props: false,
                 show_debug: false,
                 debug_step: 0,
                 debug_playing: false,
@@ -1361,6 +1371,14 @@ impl PetriApp {
         self.net.transitions.iter().position(|t| t.id == id)
     }
 
+    fn arc_idx_by_id(&self, id: u64) -> Option<usize> {
+        self.net.arcs.iter().position(|arc| arc.id == id)
+    }
+
+    fn inhibitor_arc_idx_by_id(&self, id: u64) -> Option<usize> {
+        self.net.inhibitor_arcs.iter().position(|arc| arc.id == id)
+    }
+
     fn parse_place_auto_index(name: &str) -> Option<usize> {
         let trimmed = name.trim();
         let mut chars = trimmed.chars();
@@ -1929,7 +1947,9 @@ impl PetriApp {
         self.canvas.selected_arc = None;
         self.canvas.selected_arcs.clear();
         self.canvas.selected_text = None;
+        self.canvas.selected_texts.clear();
         self.canvas.selected_frame = None;
+        self.canvas.selected_frames.clear();
         self.canvas.frame_draw_start_world = None;
         self.canvas.frame_draw_current_world = None;
         self.canvas.frame_resize_id = None;
@@ -1952,12 +1972,24 @@ impl PetriApp {
                 self.canvas.selected_arcs.push(arc_id);
             }
         }
+        if let Some(text_id) = self.canvas.selected_text.take() {
+            if !self.canvas.selected_texts.contains(&text_id) {
+                self.canvas.selected_texts.push(text_id);
+            }
+        }
+        if let Some(frame_id) = self.canvas.selected_frame.take() {
+            if !self.canvas.selected_frames.contains(&frame_id) {
+                self.canvas.selected_frames.push(frame_id);
+            }
+        }
     }
 
     fn sync_primary_selection_from_multi(&mut self) {
         self.canvas.selected_place = self.canvas.selected_places.last().copied();
         self.canvas.selected_transition = self.canvas.selected_transitions.last().copied();
         self.canvas.selected_arc = self.canvas.selected_arcs.last().copied();
+        self.canvas.selected_text = self.canvas.selected_texts.last().copied();
+        self.canvas.selected_frame = self.canvas.selected_frames.last().copied();
     }
 
     fn toggle_selected_id(ids: &mut Vec<u64>, id: u64) -> bool {
@@ -1980,8 +2012,14 @@ impl PetriApp {
             .selected_arcs
             .extend(self.net.inhibitor_arcs.iter().map(|arc| arc.id));
         self.canvas.selected_arc = self.canvas.selected_arcs.first().copied();
-        self.canvas.selected_text = None;
-        self.canvas.selected_frame = None;
+        self.canvas.selected_texts = self.text_blocks.iter().map(|text| text.id).collect();
+        self.canvas.selected_text = self.canvas.selected_texts.first().copied();
+        self.canvas.selected_frames = self
+            .decorative_frames
+            .iter()
+            .map(|frame| frame.id)
+            .collect();
+        self.canvas.selected_frame = self.canvas.selected_frames.first().copied();
     }
 
     fn push_undo_snapshot(&mut self) {
@@ -2011,9 +2049,13 @@ impl PetriApp {
     }
 
     fn delete_selected(&mut self) {
-        if let Some(text_id) = self.canvas.selected_text.take() {
+        let text_ids = self.collect_selected_text_ids();
+        if !text_ids.is_empty() {
             self.push_undo_snapshot();
-            self.text_blocks.retain(|item| item.id != text_id);
+            let text_set: HashSet<u64> = text_ids.into_iter().collect();
+            self.text_blocks.retain(|item| !text_set.contains(&item.id));
+            self.canvas.selected_texts.clear();
+            self.canvas.selected_text = None;
             return;
         }
         let mut arc_ids = self.canvas.selected_arcs.clone();
@@ -2030,9 +2072,14 @@ impl PetriApp {
             self.net.rebuild_matrices_from_arcs();
             return;
         }
-        if let Some(frame_id) = self.canvas.selected_frame.take() {
+        let frame_ids = self.collect_selected_frame_ids();
+        if !frame_ids.is_empty() {
             self.push_undo_snapshot();
-            self.decorative_frames.retain(|item| item.id != frame_id);
+            let frame_set: HashSet<u64> = frame_ids.into_iter().collect();
+            self.decorative_frames
+                .retain(|item| !frame_set.contains(&item.id));
+            self.canvas.selected_frames.clear();
+            self.canvas.selected_frame = None;
             return;
         }
 
@@ -2091,6 +2138,26 @@ impl PetriApp {
         arc_ids
     }
 
+    fn collect_selected_text_ids(&self) -> Vec<u64> {
+        let mut text_ids = self.canvas.selected_texts.clone();
+        if let Some(id) = self.canvas.selected_text {
+            text_ids.push(id);
+        }
+        text_ids.sort_unstable();
+        text_ids.dedup();
+        text_ids
+    }
+
+    fn collect_selected_frame_ids(&self) -> Vec<u64> {
+        let mut frame_ids = self.canvas.selected_frames.clone();
+        if let Some(id) = self.canvas.selected_frame {
+            frame_ids.push(id);
+        }
+        frame_ids.sort_unstable();
+        frame_ids.dedup();
+        frame_ids
+    }
+
     fn ensure_unique_place_name(&self, desired: &str, exclude_id: u64) -> String {
         let base = desired.trim();
         if base.is_empty() {
@@ -2132,7 +2199,7 @@ impl PetriApp {
     fn copy_selected_objects(&mut self) {
         let mut place_ids = self.collect_selected_place_ids();
         let mut transition_ids = self.collect_selected_transition_ids();
-        let text_ids: Vec<u64> = self.canvas.selected_text.into_iter().collect();
+        let text_ids = self.collect_selected_text_ids();
 
         // Fallback: if nothing is selected on canvas, allow copying currently opened properties target.
         if place_ids.is_empty() && transition_ids.is_empty() && text_ids.is_empty() {
@@ -2593,6 +2660,14 @@ impl PetriApp {
         }
 
         best_id
+    }
+
+    fn arc_place_transition_pair(from: NodeRef, to: NodeRef) -> Option<(u64, u64)> {
+        match (from, to) {
+            (NodeRef::Place(pid), NodeRef::Transition(tid))
+            | (NodeRef::Transition(tid), NodeRef::Place(pid)) => Some((pid, tid)),
+            _ => None,
+        }
     }
 
     fn draw_menu(&mut self, ctx: &egui::Context) {
@@ -3201,6 +3276,164 @@ impl PetriApp {
         open
     }
 
+    fn draw_arc_props_window(&mut self, ctx: &egui::Context, arc_id: u64, title: String) -> bool {
+        let is_ru = matches!(self.net.ui.language, Language::Ru);
+        let t = |ru: &'static str, en: &'static str| if is_ru { ru } else { en };
+
+        #[derive(Clone, Copy)]
+        enum SelectedArc {
+            Regular(usize),
+            Inhibitor(usize),
+        }
+
+        let variant = if let Some(idx) = self.arc_idx_by_id(arc_id) {
+            SelectedArc::Regular(idx)
+        } else if let Some(idx) = self.inhibitor_arc_idx_by_id(arc_id) {
+            SelectedArc::Inhibitor(idx)
+        } else {
+            return false;
+        };
+
+        let mut weight = match variant {
+            SelectedArc::Regular(idx) => self.net.arcs[idx].weight,
+            SelectedArc::Inhibitor(_) => 1,
+        };
+        let mut threshold = match variant {
+            SelectedArc::Inhibitor(idx) => self.net.inhibitor_arcs[idx].threshold,
+            SelectedArc::Regular(_) => 1,
+        };
+        let mut color = match variant {
+            SelectedArc::Regular(idx) => self.net.arcs[idx].color,
+            SelectedArc::Inhibitor(idx) => self.net.inhibitor_arcs[idx].color,
+        };
+        let mut is_inhibitor = matches!(variant, SelectedArc::Inhibitor(_));
+
+        let color_combo = |ui: &mut egui::Ui, value: &mut NodeColor| {
+            egui::ComboBox::from_id_source(ui.next_auto_id())
+                .selected_text(Self::node_color_text(*value, is_ru))
+                .show_ui(ui, |ui| {
+                    ui.selectable_value(
+                        value,
+                        NodeColor::Default,
+                        Self::node_color_text(NodeColor::Default, is_ru),
+                    );
+                    ui.selectable_value(
+                        value,
+                        NodeColor::Blue,
+                        Self::node_color_text(NodeColor::Blue, is_ru),
+                    );
+                    ui.selectable_value(
+                        value,
+                        NodeColor::Red,
+                        Self::node_color_text(NodeColor::Red, is_ru),
+                    );
+                    ui.selectable_value(
+                        value,
+                        NodeColor::Green,
+                        Self::node_color_text(NodeColor::Green, is_ru),
+                    );
+                    ui.selectable_value(
+                        value,
+                        NodeColor::Yellow,
+                        Self::node_color_text(NodeColor::Yellow, is_ru),
+                    );
+                });
+        };
+
+        let mut open = true;
+        egui::Window::new(title)
+            .id(egui::Id::new("arc_props_window"))
+            .open(&mut open)
+            .resizable(false)
+            .show(ctx, |ui| {
+                ui.label(format!("ID: A{}", arc_id));
+                ui.separator();
+                ui.checkbox(&mut is_inhibitor, t("Ингибиторная дуга", "Inhibitor arc"));
+                if is_inhibitor {
+                    ui.horizontal(|ui| {
+                        ui.label(t("Порог", "Threshold"));
+                        ui.add(egui::DragValue::new(&mut threshold).range(1..=u32::MAX));
+                    });
+                } else {
+                    ui.horizontal(|ui| {
+                        ui.label(t("Кратность", "Weight"));
+                        ui.add(egui::DragValue::new(&mut weight).range(1..=u32::MAX));
+                    });
+                }
+                ui.horizontal(|ui| {
+                    ui.label(t("Цвет", "Color"));
+                    color_combo(ui, &mut color);
+                });
+            });
+
+        let new_weight = weight.max(1);
+        let new_threshold = threshold.max(1);
+        let mut should_rebuild = false;
+        match variant {
+            SelectedArc::Regular(idx) => {
+                if is_inhibitor {
+                    let (from, to) = (self.net.arcs[idx].from, self.net.arcs[idx].to);
+                    if let Some((place_id, transition_id)) =
+                        Self::arc_place_transition_pair(from, to)
+                    {
+                        let arc = self.net.arcs.remove(idx);
+                        self.net.inhibitor_arcs.push(crate::model::InhibitorArc {
+                            id: arc.id,
+                            place_id,
+                            transition_id,
+                            threshold: new_threshold,
+                            color,
+                            visible: arc.visible,
+                        });
+                        self.canvas.selected_arc = Some(arc.id);
+                        if !self.canvas.selected_arcs.contains(&arc.id) {
+                            self.canvas.selected_arcs.push(arc.id);
+                        }
+                        should_rebuild = true;
+                    }
+                } else {
+                    let arc = &mut self.net.arcs[idx];
+                    if arc.weight != new_weight {
+                        should_rebuild = true;
+                    }
+                    arc.weight = new_weight;
+                    arc.color = color;
+                }
+            }
+            SelectedArc::Inhibitor(idx) => {
+                if !is_inhibitor {
+                    let inh = self.net.inhibitor_arcs.remove(idx);
+                    self.net.arcs.push(crate::model::Arc {
+                        id: inh.id,
+                        from: NodeRef::Place(inh.place_id),
+                        to: NodeRef::Transition(inh.transition_id),
+                        weight: new_weight,
+                        color,
+                        visible: inh.visible,
+                    });
+                    self.canvas.selected_arc = Some(inh.id);
+                    if !self.canvas.selected_arcs.contains(&inh.id) {
+                        self.canvas.selected_arcs.push(inh.id);
+                    }
+                    should_rebuild = true;
+                } else {
+                    let inh = &mut self.net.inhibitor_arcs[idx];
+                    if inh.threshold != new_threshold {
+                        should_rebuild = true;
+                    }
+                    inh.threshold = new_threshold;
+                    inh.color = color;
+                }
+            }
+        }
+
+        if should_rebuild {
+            self.net.rebuild_matrices_from_arcs();
+        }
+
+        open
+    }
+
     fn draw_transition_properties(&mut self, ctx: &egui::Context) {
         if !self.show_transition_props {
             return;
@@ -3220,6 +3453,27 @@ impl PetriApp {
                 self.draw_transition_props_window(ctx, transition_id, title);
         } else {
             self.show_transition_props = false;
+        }
+    }
+
+    fn draw_arc_properties(&mut self, ctx: &egui::Context) {
+        if !self.show_arc_props {
+            return;
+        }
+        if let Some(id) = self
+            .canvas
+            .selected_arc
+            .or_else(|| self.canvas.selected_arcs.last().copied())
+        {
+            self.arc_props_id = Some(id);
+        }
+        if let Some(arc_id) = self.arc_props_id {
+            let title = self
+                .tr("РЎРІРѕР№СЃС‚РІР° РґСѓРіРё", "Arc Properties")
+                .to_string();
+            self.show_arc_props = self.draw_arc_props_window(ctx, arc_id, title);
+        } else {
+            self.show_arc_props = false;
         }
     }
     fn draw_text_props_window(&mut self, ctx: &egui::Context, text_id: u64, title: String) -> bool {
@@ -3384,7 +3638,11 @@ impl PetriApp {
                 if let Some(&log_idx) = visible_steps.get(self.debug_step) {
                     if let Some(entry) = result.logs.get(log_idx) {
                         ui.separator();
-                        ui.label(format!("t = {:.3}", entry.time));
+                        ui.horizontal(|ui| {
+                            ui.label(t("Текущее время", "Current time"));
+                            ui.label("t");
+                            ui.label(format!("= {:.3}", entry.time));
+                        });
                         ui.label(format!(
                             "{}: {}",
                             t("Переход", "Transition"),
@@ -3901,6 +4159,9 @@ impl eframe::App for PetriApp {
         self.draw_place_stats_dialog(ctx);
         if self.show_transition_props {
             self.draw_transition_properties(ctx);
+        }
+        if self.show_arc_props {
+            self.draw_arc_properties(ctx);
         }
         if self.show_text_props {
             self.draw_text_properties(ctx);

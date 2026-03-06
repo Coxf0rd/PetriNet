@@ -337,15 +337,16 @@ impl PetriApp {
                         );
                     });
                     ui.horizontal(|ui| {
-                        let mut unlimited = self.new_place_capacity.is_none();
-                        ui.checkbox(&mut unlimited, t("Без ограничений", "Unlimited"));
-                        if unlimited {
-                            self.new_place_capacity = None;
-                        } else {
-                            let mut cap = self.new_place_capacity.unwrap_or(1).max(1);
-                            ui.label(t("Емкость", "Capacity"));
-                            ui.add(egui::DragValue::new(&mut cap).range(1..=u32::MAX));
-                            self.new_place_capacity = Some(cap);
+                        let mut cap = self.new_place_capacity.unwrap_or(0);
+                        ui.label(t(
+                            "Макс. емкость (0 = без ограничений)",
+                            "Capacity (0 = unlimited)",
+                        ));
+                        if ui
+                            .add(egui::DragValue::new(&mut cap).range(0..=u32::MAX))
+                            .changed()
+                        {
+                            self.new_place_capacity = if cap == 0 { None } else { Some(cap) };
                         }
                     });
                 });
