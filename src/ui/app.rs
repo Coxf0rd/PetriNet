@@ -562,7 +562,6 @@ impl PetriApp {
             let mut post_arcs = Self::transition_arcs(net, transition_idx, false);
             let mut moving_colors = VecDeque::new();
             let mut entry_color = default_marker_color;
-            let mut color_change_place_idx = None;
             for arc in pre_arcs.iter_mut() {
                 for _ in 0..arc.weight {
                     let token_color = place_token_colors[arc.place_idx]
@@ -581,24 +580,24 @@ impl PetriApp {
             ) {
                 entry_color = color;
             }
+            let mut color_change_place_idx = None;
             for arc in post_arcs.iter_mut() {
                 let mut assigned = Vec::new();
                 for _ in 0..arc.weight {
                     let token_color = moving_colors.pop_front().unwrap_or(entry_color);
-                    let assigned_color = if let Some(place) = net.places.get(arc.place_idx) {
-                        if place.marker_color_on_pass {
-                            let colored = Self::color_to_egui(place.color, token_color);
-                            color_change_place_idx = Some(arc.place_idx);
-                            colored
+                    assigned.push(token_color);
+                    if let Some(slot) = place_token_colors.get_mut(arc.place_idx) {
+                        let outgoing_color = if let Some(place) = net.places.get(arc.place_idx) {
+                            if place.marker_color_on_pass {
+                                color_change_place_idx = Some(arc.place_idx);
+                                Self::color_to_egui(place.color, token_color)
+                            } else {
+                                token_color
+                            }
                         } else {
                             token_color
-                        }
-                    } else {
-                        token_color
-                    };
-                    assigned.push(assigned_color);
-                    if let Some(slot) = place_token_colors.get_mut(arc.place_idx) {
-                        slot.push(assigned_color);
+                        };
+                        slot.push(outgoing_color);
                     }
                 }
                 arc.token_colors = assigned;
