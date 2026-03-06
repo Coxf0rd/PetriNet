@@ -273,6 +273,7 @@ struct DebugAnimationEvent {
     exit_color: Color32,
     pre_arcs: Vec<DebugAnimationArc>,
     post_arcs: Vec<DebugAnimationArc>,
+    token_counts: Vec<(Color32, u32)>,
 }
 
 impl DebugAnimationEvent {
@@ -570,6 +571,7 @@ impl PetriApp {
                     moving_colors.push_back(token_color);
                 }
             }
+            let token_count_vec: Vec<Color32> = moving_colors.iter().copied().collect();
             if let Some(color) = moving_colors.front().copied() {
                 entry_color = color;
             } else if let Some((color, _)) = Self::marker_color_from_places(
@@ -615,6 +617,7 @@ impl PetriApp {
                 exit_color,
                 pre_arcs,
                 post_arcs,
+                token_counts: Self::aggregate_token_counts(&token_count_vec),
             });
         }
 
@@ -678,6 +681,16 @@ impl PetriApp {
             }
         }
         None
+    }
+
+    fn aggregate_token_counts(colors: &[Color32]) -> Vec<(Color32, u32)> {
+        let mut map = HashMap::new();
+        for &color in colors {
+            *map.entry(color).or_insert(0) += 1;
+        }
+        let mut counts = map.into_iter().collect::<Vec<_>>();
+        counts.sort_by(|a, b| b.1.cmp(&a.1));
+        counts
     }
 
     fn place_index_by_id(net: &PetriNet, place_id: u64) -> Option<usize> {

@@ -1204,6 +1204,25 @@ impl PetriApp {
                 _ => {}
             }
         }
+        if use_debug_colors && response.hovered() {
+            if response.hover_pos().is_some() {
+                if let Some(event) = active_event {
+                    if !event.token_counts.is_empty() {
+                        let tooltip_id = egui::Id::new("debug_token_counts_tooltip");
+                        let tooltip_layer = egui::LayerId::new(egui::Order::Tooltip, tooltip_id);
+                        egui::show_tooltip(ui.ctx(), tooltip_layer, tooltip_id, |ui| {
+                            ui.label(self.tr("Состав маркеров", "Token breakdown"));
+                            for (color, count) in event.token_counts.iter() {
+                                ui.horizontal(|ui| {
+                                    ui.colored_label(*color, "●");
+                                    ui.label(count.to_string());
+                                });
+                            }
+                        });
+                    }
+                }
+            }
+        }
         if self.tool == Tool::Arc {
             if let (Some(first), Some(pointer)) = (self.canvas.arc_start, response.hover_pos()) {
                 let start = match first {
