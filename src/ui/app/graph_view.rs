@@ -994,10 +994,14 @@ impl PetriApp {
 
             let (tokens, token_colors) = if self.show_debug {
                 (
-                    debug_marking
+                    debug_place_colors
                         .get(place_idx)
-                        .copied()
-                        .unwrap_or_else(|| self.net.tables.m0.get(place_idx).copied().unwrap_or(0)),
+                        .map(|colors| colors.len() as u32)
+                        .unwrap_or_else(|| {
+                            debug_marking.get(place_idx).copied().unwrap_or_else(|| {
+                                self.net.tables.m0.get(place_idx).copied().unwrap_or(0)
+                            })
+                        }),
                     debug_place_colors
                         .get(place_idx)
                         .cloned()
@@ -1011,23 +1015,7 @@ impl PetriApp {
             };
             if tokens > 0 {
                 if self.show_debug {
-                    let draw_tokens = tokens.min(4);
-                    for i in 0..draw_tokens {
-                        let angle =
-                            (i as f32) * std::f32::consts::TAU / (draw_tokens.max(1) as f32);
-                        let dot_pos =
-                            center + Vec2::new(angle.cos(), angle.sin()) * (radius * 0.55);
-                        let color = token_colors
-                            .get(i as usize)
-                            .copied()
-                            .unwrap_or(Color32::from_rgb(200, 0, 0));
-                        painter.circle_filled(
-                            dot_pos,
-                            3.0 * self.canvas.zoom.clamp(0.7, 1.2),
-                            color,
-                        );
-                    }
-                    if tokens > 4 {
+                    if tokens > 5 {
                         painter.text(
                             center,
                             egui::Align2::CENTER_CENTER,
@@ -1038,6 +1026,23 @@ impl PetriApp {
                                 .copied()
                                 .unwrap_or(Color32::from_rgb(200, 0, 0)),
                         );
+                    } else {
+                        let draw_tokens = tokens as usize;
+                        for i in 0..draw_tokens {
+                            let angle =
+                                (i as f32) * std::f32::consts::TAU / (draw_tokens.max(1) as f32);
+                            let dot_pos =
+                                center + Vec2::new(angle.cos(), angle.sin()) * (radius * 0.55);
+                            let color = token_colors
+                                .get(i)
+                                .copied()
+                                .unwrap_or(Color32::from_rgb(200, 0, 0));
+                            painter.circle_filled(
+                                dot_pos,
+                                3.0 * self.canvas.zoom.clamp(0.7, 1.2),
+                                color,
+                            );
+                        }
                     }
                 } else if tokens <= 4 {
                     let draw_tokens = tokens;
