@@ -271,7 +271,7 @@ struct DebugAnimationEvent {
     exit_color: Color32,
     pre_arcs: Vec<DebugAnimationArc>,
     post_arcs: Vec<DebugAnimationArc>,
-    touched_places: Vec<usize>,
+    color_change_place_idx: Option<usize>,
 }
 
 impl DebugAnimationEvent {
@@ -539,9 +539,11 @@ impl PetriApp {
             let pre_arcs = Self::transition_arcs(net, transition_idx, true);
             let post_arcs = Self::transition_arcs(net, transition_idx, false);
             let entry_color = current_marker_color;
-            let exit_color =
-                Self::marker_color_from_places(net, entry.touched_places.as_slice(), entry_color)
-                    .unwrap_or(entry_color);
+            let color_change_info =
+                Self::marker_color_from_places(net, entry.touched_places.as_slice(), entry_color);
+            let exit_color = color_change_info
+                .map(|(color, _)| color)
+                .unwrap_or(entry_color);
             if let Some(pos) = step_pos {
                 if let Some(slot) = color_updates.get_mut(pos) {
                     *slot = Some(exit_color);
@@ -556,7 +558,7 @@ impl PetriApp {
                     exit_color,
                     pre_arcs,
                     post_arcs,
-                    touched_places: entry.touched_places.clone(),
+                    color_change_place_idx: color_change_info.map(|(_, idx)| idx),
                 });
             }
             current_marker_color = exit_color;
@@ -614,11 +616,11 @@ impl PetriApp {
         net: &PetriNet,
         touched_places: &[usize],
         fallback: Color32,
-    ) -> Option<Color32> {
+    ) -> Option<(Color32, usize)> {
         for &place_idx in touched_places.iter().rev() {
             if let Some(place) = net.places.get(place_idx) {
                 if place.marker_color_on_pass {
-                    return Some(Self::color_to_egui(place.color, fallback));
+                    return Some((Self::color_to_egui(place.color, fallback), place_idx));
                 }
             }
         }

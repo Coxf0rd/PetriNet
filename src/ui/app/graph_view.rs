@@ -1002,9 +1002,7 @@ impl PetriApp {
                     .copied()
                     .unwrap_or(Color32::from_rgb(200, 0, 0));
                 if let Some(event) = active_event {
-                    if self.net.places[place_idx].marker_color_on_pass
-                        && event.touched_places.contains(&place_idx)
-                    {
+                    if event.color_change_place_idx == Some(place_idx) {
                         event.exit_color
                     } else {
                         base_color
@@ -1337,6 +1335,11 @@ impl PetriApp {
         let tr_center = tr_rect.center();
         let entry_color = event.entry_color;
         let exit_color = event.exit_color;
+        let transition_token_color = event
+            .color_change_place_idx
+            .and_then(|idx| self.net.places.get(idx))
+            .map(|place| Self::color_to_egui(place.color, entry_color))
+            .unwrap_or(exit_color);
         let token_radius = 4.0 * self.canvas.zoom;
         let token_spacing = token_radius * 2.2;
 
@@ -1372,7 +1375,7 @@ impl PetriApp {
             for i in 0..count {
                 let angle = (i as f32) * (std::f32::consts::TAU / count as f32) + angle_offset;
                 let offset = Vec2::new(angle.cos(), angle.sin()) * radius;
-                painter.circle_filled(tr_center + offset, token_radius, exit_color);
+                painter.circle_filled(tr_center + offset, token_radius, transition_token_color);
             }
             return;
         }
