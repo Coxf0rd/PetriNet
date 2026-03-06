@@ -937,6 +937,20 @@ impl PetriApp {
             }
         }
 
+        let debug_marking = if self.show_debug {
+            self.sim_result
+                .as_ref()
+                .and_then(|res| {
+                    let visible = Self::debug_visible_log_indices(res);
+                    visible
+                        .get(self.debug_step)
+                        .and_then(|&log_idx| res.logs.get(log_idx))
+                        .map(|entry| entry.marking.clone())
+                })
+                .unwrap_or_default()
+        } else {
+            Vec::new()
+        };
         let debug_place_colors = self
             .debug_place_colors
             .get(self.debug_step)
@@ -980,10 +994,10 @@ impl PetriApp {
 
             let (tokens, token_colors) = if self.show_debug {
                 (
-                    debug_place_colors
+                    debug_marking
                         .get(place_idx)
-                        .map(|colors| colors.len() as u32)
-                        .unwrap_or_default(),
+                        .copied()
+                        .unwrap_or_else(|| self.net.tables.m0.get(place_idx).copied().unwrap_or(0)),
                     debug_place_colors
                         .get(place_idx)
                         .cloned()
