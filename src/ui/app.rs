@@ -273,7 +273,6 @@ struct DebugAnimationEvent {
     exit_color: Color32,
     pre_arcs: Vec<DebugAnimationArc>,
     post_arcs: Vec<DebugAnimationArc>,
-    color_change_place_idx: Option<usize>,
 }
 
 impl DebugAnimationEvent {
@@ -580,16 +579,13 @@ impl PetriApp {
             ) {
                 entry_color = color;
             }
-            let mut color_change_place_idx = None;
             for arc in post_arcs.iter_mut() {
                 let mut assigned = Vec::new();
                 for _ in 0..arc.weight {
                     let token_color = moving_colors.pop_front().unwrap_or(entry_color);
-                    assigned.push(token_color);
                     if let Some(slot) = place_token_colors.get_mut(arc.place_idx) {
                         let outgoing_color = if let Some(place) = net.places.get(arc.place_idx) {
                             if place.marker_color_on_pass {
-                                color_change_place_idx = Some(arc.place_idx);
                                 Self::color_to_egui(place.color, token_color)
                             } else {
                                 token_color
@@ -598,6 +594,9 @@ impl PetriApp {
                             token_color
                         };
                         slot.push(outgoing_color);
+                        assigned.push(outgoing_color);
+                    } else {
+                        assigned.push(token_color);
                     }
                 }
                 arc.token_colors = assigned;
@@ -618,7 +617,6 @@ impl PetriApp {
                 exit_color,
                 pre_arcs,
                 post_arcs,
-                color_change_place_idx,
             });
         }
 

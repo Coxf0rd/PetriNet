@@ -1377,11 +1377,7 @@ impl PetriApp {
         let tr_center = tr_rect.center();
         let entry_color = event.entry_color;
         let exit_color = event.exit_color;
-        let transition_token_color = event
-            .color_change_place_idx
-            .and_then(|idx| self.net.places.get(idx))
-            .map(|place| Self::color_to_egui(place.color, entry_color))
-            .unwrap_or(exit_color);
+        let transition_token_color = entry_color;
         let token_radius = 4.0 * self.canvas.zoom;
         let token_spacing = token_radius * 2.2;
 
