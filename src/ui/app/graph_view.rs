@@ -1324,7 +1324,8 @@ impl PetriApp {
         let tr_dims = Self::transition_dimensions(transition.size) * self.canvas.zoom;
         let tr_rect = Rect::from_min_size(tr_pos, tr_dims);
         let tr_center = tr_rect.center();
-        let token_color = Self::color_to_egui(transition.color, Color32::from_rgb(200, 0, 0));
+        let transition_color = Self::color_to_egui(transition.color, Color32::from_rgb(200, 0, 0));
+        let token_color = self.debug_animation_token_color(event, transition_color);
         let token_radius = 4.0 * self.canvas.zoom;
         let token_spacing = token_radius * 2.2;
 
@@ -1447,8 +1448,47 @@ impl PetriApp {
             let travel = start + (end - start) * progress;
             for i in 0..count {
                 let offset = perp * token_spacing * (i as f32 - offset_base);
-                painter.circle_filled(travel + offset, token_radius, token_color);
+                let arc_token_color = if toward_transition {
+                    self.debug_animation_arc_marker_color(arc, token_color)
+                        .unwrap_or(token_color)
+                } else {
+                    token_color
+                };
+                painter.circle_filled(travel + offset, token_radius, arc_token_color);
             }
+        }
+    }
+
+    fn debug_animation_token_color(
+        &self,
+        event: &DebugAnimationEvent,
+        fallback: Color32,
+    ) -> Color32 {
+        for arc in &event.pre_arcs {
+            if let Some(color) = self.debug_animation_arc_marker_color(arc, fallback) {
+                return color;
+            }
+        }
+        fallback
+    }
+
+    fn debug_animation_arc_marker_color(
+        &self,
+        arc: &DebugAnimationArc,
+        fallback: Color32,
+    ) -> Option<Color32> {
+        let arc_idx = self.arc_idx_by_id(arc.arc_id)?;
+        let arc_data = self.net.arcs.get(arc_idx)?;
+        let place_id = match arc_data.from {
+            NodeRef::Place(id) => id,
+            _ => return None,
+        };
+        let place_idx = self.place_idx_by_id(place_id)?;
+        let place = &self.net.places[place_idx];
+        if place.marker_color_on_pass {
+            Some(Self::color_to_egui(place.color, fallback))
+        } else {
+            None
         }
     }
 
