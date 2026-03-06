@@ -324,6 +324,48 @@ impl Tables {
             row.resize(transitions, 0);
         }
     }
+
+    pub(crate) fn remove_place_row(&mut self, idx: usize) {
+        if idx < self.m0.len() {
+            self.m0.remove(idx);
+        }
+        if idx < self.mo.len() {
+            self.mo.remove(idx);
+        }
+        if idx < self.mz.len() {
+            self.mz.remove(idx);
+        }
+        if idx < self.pre.len() {
+            self.pre.remove(idx);
+        }
+        if idx < self.post.len() {
+            self.post.remove(idx);
+        }
+        if idx < self.inhibitor.len() {
+            self.inhibitor.remove(idx);
+        }
+    }
+
+    pub(crate) fn remove_transition_column(&mut self, idx: usize) {
+        if idx < self.mpr.len() {
+            self.mpr.remove(idx);
+        }
+        for row in &mut self.pre {
+            if idx < row.len() {
+                row.remove(idx);
+            }
+        }
+        for row in &mut self.post {
+            if idx < row.len() {
+                row.remove(idx);
+            }
+        }
+        for row in &mut self.inhibitor {
+            if idx < row.len() {
+                row.remove(idx);
+            }
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

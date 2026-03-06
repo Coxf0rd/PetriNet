@@ -157,6 +157,7 @@ impl PetriApp {
                             match node {
                                 NodeRef::Place(p) => {
                                     if let Some(idx) = self.place_idx_by_id(p) {
+                                        self.net.tables.remove_place_row(idx);
                                         self.net.places.remove(idx);
                                         self.net.set_counts(
                                             self.net.places.len(),
@@ -166,6 +167,7 @@ impl PetriApp {
                                 }
                                 NodeRef::Transition(t) => {
                                     if let Some(idx) = self.transition_idx_by_id(t) {
+                                        self.net.tables.remove_transition_column(idx);
                                         self.net.transitions.remove(idx);
                                         self.net.set_counts(
                                             self.net.places.len(),
