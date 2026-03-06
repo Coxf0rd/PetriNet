@@ -457,15 +457,10 @@ impl PetriApp {
         if self.debug_step >= visible_steps.len() {
             self.debug_step = visible_steps.len() - 1;
         }
-        let target_step = self
-            .debug_step
-            .checked_add(1)
-            .filter(|next| *next < visible_steps.len());
-        let event_idx = target_step.and_then(|step| {
-            self.debug_animation_events
-                .iter()
-                .position(|event| event.step_idx == step)
-        });
+        let event_idx = self
+            .debug_animation_events
+            .iter()
+            .position(|event| event.step_idx == self.debug_step);
         self.set_active_debug_animation_event(event_idx, visible_steps.len());
     }
     fn set_active_debug_animation_event(&mut self, event_idx: Option<usize>, visible_len: usize) {
@@ -527,21 +522,25 @@ impl PetriApp {
                 }
             }
             let duration = (next_time - entry.time).max(Self::DEBUG_ANIMATION_MIN_DURATION);
-            let step_idx = *log_to_step.get(&idx).unwrap_or(&visible_steps.len());
+            let step_pos = log_to_step.get(&idx).copied();
+            let step_idx = step_pos.map(|pos| pos.saturating_sub(1));
             let pre_arcs = Self::transition_arcs(net, transition_idx, true);
             let post_arcs = Self::transition_arcs(net, transition_idx, false);
             let entry_color = current_marker_color;
             let exit_color =
-                Self::marker_color_for_arcs(net, &post_arcs, entry_color).unwrap_or(entry_color);
-            events.push(DebugAnimationEvent {
-                transition_idx,
-                step_idx,
-                duration,
-                entry_color,
-                exit_color,
-                pre_arcs,
-                post_arcs,
-            });
+                Self::marker_color_from_places(net, entry.touched_places.as_slice(), entry_color)
+                    .unwrap_or(entry_color);
+            if let Some(step_idx) = step_idx {
+                events.push(DebugAnimationEvent {
+                    transition_idx,
+                    step_idx,
+                    duration,
+                    entry_color,
+                    exit_color,
+                    pre_arcs,
+                    post_arcs,
+                });
+            }
             current_marker_color = exit_color;
         }
         events
@@ -585,22 +584,16 @@ impl PetriApp {
             .collect()
     }
 
-    fn marker_color_for_arcs(
+    fn marker_color_from_places(
         net: &PetriNet,
-        arcs: &[DebugAnimationArc],
+        touched_places: &[usize],
         fallback: Color32,
     ) -> Option<Color32> {
-        for arc in arcs {
-            let arc_idx = net.arcs.iter().position(|entry| entry.id == arc.arc_id)?;
-            let arc_data = net.arcs.get(arc_idx)?;
-            let place_id = match arc_data.from {
-                NodeRef::Place(id) => id,
-                _ => continue,
-            };
-            let place_idx = net.places.iter().position(|place| place.id == place_id)?;
-            let place = &net.places[place_idx];
-            if place.marker_color_on_pass {
-                return Some(Self::color_to_egui(place.color, fallback));
+        for &place_idx in touched_places.iter().rev() {
+            if let Some(place) = net.places.get(place_idx) {
+                if place.marker_color_on_pass {
+                    return Some(Self::color_to_egui(place.color, fallback));
+                }
             }
         }
         None
