@@ -105,6 +105,10 @@ impl PetriApp {
                 if animation_response.changed() {
                     self.sync_debug_animation_for_step();
                 }
+                ui.checkbox(
+                    &mut self.debug_arc_animation,
+                    t("Анимация по дугам", "Arc flow animation"),
+                );
                 if self.debug_animation_enabled {
                     if self.debug_animation_events.is_empty() {
                         ui.label(t(

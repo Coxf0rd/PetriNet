@@ -360,6 +360,7 @@ pub struct PetriApp {
     debug_step: usize,
     debug_playing: bool,
     debug_interval_ms: u64,
+    debug_arc_animation: bool,
     last_debug_tick: Option<Instant>,
     debug_animation_enabled: bool,
     debug_animation_clock: f64,

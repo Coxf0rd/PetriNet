@@ -746,6 +746,23 @@ impl PetriApp {
                 painter.rect_stroke(handle, 0.0, Stroke::new(1.0, Color32::from_rgb(80, 40, 0)));
             }
         }
+        let debug_fired_transition_for_arcs = if self.show_debug && self.debug_arc_animation {
+            self.sim_result.as_ref().and_then(|res| {
+                let visible = Self::debug_visible_log_indices(res);
+                if visible.is_empty() {
+                    return None;
+                }
+                let step = self.debug_step.min(visible.len() - 1);
+                res.logs.get(visible[step]).and_then(|entry| {
+                    entry
+                        .fired_transition
+                        .and_then(|idx| self.net.transitions.get(idx).map(|tr| tr.id))
+                })
+            })
+        } else {
+            None
+        };
+
         for arc in &self.net.arcs {
             if !self.arc_visible_by_mode(arc.color, arc.visible) {
                 continue;
@@ -845,6 +862,35 @@ impl PetriApp {
             let right = tip - dir * 10.0 + Vec2::new(dir.y, -dir.x) * 5.0;
             painter.line_segment([tip, left], arc_stroke);
             painter.line_segment([tip, right], arc_stroke);
+
+            if self.show_debug && self.debug_arc_animation {
+                let is_debug_arc = match (arc.from, arc.to, debug_fired_transition_for_arcs) {
+                    (NodeRef::Place(_), NodeRef::Transition(tid), Some(fired_tid)) => {
+                        tid == fired_tid
+                    }
+                    (NodeRef::Transition(tid), NodeRef::Place(_), Some(fired_tid)) => {
+                        tid == fired_tid
+                    }
+                    _ => false,
+                };
+                if is_debug_arc {
+                    let phase = if self.debug_playing {
+                        (ui.ctx().input(|i| i.time as f32) * 0.8).fract()
+                    } else {
+                        0.5
+                    };
+                    let marker = from + (to - from) * phase;
+                    painter.circle_filled(
+                        marker,
+                        3.0 * self.canvas.zoom.clamp(0.8, 1.4),
+                        Color32::from_rgb(20, 120, 255),
+                    );
+                    if self.debug_playing {
+                        ui.ctx()
+                            .request_repaint_after(std::time::Duration::from_millis(16));
+                    }
+                }
+            }
         }
 
         for inh in &self.net.inhibitor_arcs {
