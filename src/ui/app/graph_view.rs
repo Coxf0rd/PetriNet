@@ -844,13 +844,21 @@ impl PetriApp {
             }
 
             let arc_color = Self::color_to_egui(arc.color, Color32::DARK_GRAY);
-            let arc_stroke = if self.canvas.selected_arc == Some(arc.id)
+            let mut arc_stroke = if self.canvas.selected_arc == Some(arc.id)
                 || self.canvas.selected_arcs.contains(&arc.id)
             {
                 Stroke::new(3.0, Color32::from_rgb(255, 140, 0))
             } else {
                 Stroke::new(2.0, arc_color)
             };
+            let is_debug_arc = match (arc.from, arc.to, debug_fired_transition_for_arcs) {
+                (NodeRef::Place(_), NodeRef::Transition(tid), Some(fired_tid)) => tid == fired_tid,
+                (NodeRef::Transition(tid), NodeRef::Place(_), Some(fired_tid)) => tid == fired_tid,
+                _ => false,
+            };
+            if is_debug_arc && self.debug_arc_animation && self.debug_animation_enabled {
+                arc_stroke = Stroke::new(3.0, Color32::from_rgb(30, 150, 240));
+            }
             painter.line_segment([from, to], arc_stroke);
             let arrow = to - from;
             if arrow.length_sq() <= f32::EPSILON {
@@ -862,35 +870,6 @@ impl PetriApp {
             let right = tip - dir * 10.0 + Vec2::new(dir.y, -dir.x) * 5.0;
             painter.line_segment([tip, left], arc_stroke);
             painter.line_segment([tip, right], arc_stroke);
-
-            if self.show_debug && self.debug_arc_animation {
-                let is_debug_arc = match (arc.from, arc.to, debug_fired_transition_for_arcs) {
-                    (NodeRef::Place(_), NodeRef::Transition(tid), Some(fired_tid)) => {
-                        tid == fired_tid
-                    }
-                    (NodeRef::Transition(tid), NodeRef::Place(_), Some(fired_tid)) => {
-                        tid == fired_tid
-                    }
-                    _ => false,
-                };
-                if is_debug_arc {
-                    let phase = if self.debug_playing {
-                        (ui.ctx().input(|i| i.time as f32) * 0.8).fract()
-                    } else {
-                        0.5
-                    };
-                    let marker = from + (to - from) * phase;
-                    painter.circle_filled(
-                        marker,
-                        3.0 * self.canvas.zoom.clamp(0.8, 1.4),
-                        Color32::from_rgb(20, 120, 255),
-                    );
-                    if self.debug_playing {
-                        ui.ctx()
-                            .request_repaint_after(std::time::Duration::from_millis(16));
-                    }
-                }
-            }
         }
 
         for inh in &self.net.inhibitor_arcs {
@@ -1261,9 +1240,10 @@ impl PetriApp {
             0.0
         };
         self.debug_animation_last_update = Some(now);
-        let speed = self.debug_animation_playback_speed();
+        let scale = (self.debug_interval_ms.max(1) as f64) / 1000.0;
+        let sim_delta = if scale > 0.0 { delta / scale } else { delta };
         self.debug_animation_clock =
-            (self.debug_animation_clock + delta * speed).min(self.debug_animation_total_time);
+            (self.debug_animation_clock + sim_delta).min(self.debug_animation_total_time);
         if self.debug_animation_clock >= self.debug_animation_total_time {
             self.debug_animation_clock = self.debug_animation_total_time;
             self.debug_playing = false;
@@ -1316,19 +1296,20 @@ impl PetriApp {
         let token_spacing = token_radius * 2.2;
 
         if relative < PRE_FRACTION {
-            let progress = (relative / PRE_FRACTION).clamp(0.0, 1.0);
-            self.draw_debug_animation_tokens_along_arcs(
-                &event.pre_arcs,
-                rect,
-                painter,
-                tr_rect,
-                tr_center,
-                progress,
-                token_radius,
-                token_spacing,
-                token_color,
-                true,
-            );
+            if self.debug_arc_animation {
+                let progress = (relative / PRE_FRACTION).clamp(0.0, 1.0);
+                self.draw_debug_animation_tokens_along_arcs(
+                    &event.pre_arcs,
+                    rect,
+                    painter,
+                    tr_rect,
+                    tr_center,
+                    progress,
+                    token_radius,
+                    token_spacing,
+                    true,
+                );
+            }
             return;
         }
         if relative < PRE_FRACTION + TRANSITION_FRACTION {
@@ -1351,18 +1332,19 @@ impl PetriApp {
         }
         let post_progress =
             ((relative - PRE_FRACTION - TRANSITION_FRACTION) / POST_FRACTION).clamp(0.0, 1.0);
-        self.draw_debug_animation_tokens_along_arcs(
-            &event.post_arcs,
-            rect,
-            painter,
-            tr_rect,
-            tr_center,
-            post_progress,
-            token_radius,
-            token_spacing,
-            token_color,
-            false,
-        );
+        if self.debug_arc_animation {
+            self.draw_debug_animation_tokens_along_arcs(
+                &event.post_arcs,
+                rect,
+                painter,
+                tr_rect,
+                tr_center,
+                post_progress,
+                token_radius,
+                token_spacing,
+                false,
+            );
+        }
     }
 
     fn draw_debug_animation_tokens_along_arcs(
@@ -1375,7 +1357,6 @@ impl PetriApp {
         progress: f32,
         token_radius: f32,
         token_spacing: f32,
-        color: Color32,
         toward_transition: bool,
     ) {
         for arc in arcs {
@@ -1413,6 +1394,7 @@ impl PetriApp {
             } else {
                 Self::normalized_direction(place_center - tr_center)
             };
+            let token_color = Self::color_to_egui(arc.color, Color32::from_rgb(180, 180, 180));
             let (start, end) = if toward_transition {
                 (
                     place_center + dir * place_radius,
@@ -1430,7 +1412,7 @@ impl PetriApp {
             let travel = start + (end - start) * progress;
             for i in 0..count {
                 let offset = perp * token_spacing * (i as f32 - offset_base);
-                painter.circle_filled(travel + offset, token_radius, color);
+                painter.circle_filled(travel + offset, token_radius, token_color);
             }
         }
     }

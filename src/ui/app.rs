@@ -260,6 +260,7 @@ struct UndoSnapshot {
 struct DebugAnimationArc {
     arc_id: u64,
     weight: u32,
+    color: NodeColor,
 }
 
 #[derive(Debug, Clone)]
@@ -361,7 +362,6 @@ pub struct PetriApp {
     debug_playing: bool,
     debug_interval_ms: u64,
     debug_arc_animation: bool,
-    last_debug_tick: Option<Instant>,
     debug_animation_enabled: bool,
     debug_animation_clock: f64,
     debug_animation_total_time: f64,
@@ -509,6 +509,7 @@ impl PetriApp {
         self.debug_animation_active_event = None;
         self.debug_animation_clock = 0.0;
         self.debug_animation_last_update = None;
+        self.debug_playing = false;
     }
 
     fn sync_debug_animation_for_clock(&mut self) {
@@ -544,12 +545,7 @@ impl PetriApp {
             .as_ref()
             .map(|result| Self::debug_visible_log_indices(result).len())
             .unwrap_or(0);
-        self.set_active_debug_animation_event(Some(event_idx), visible_len, false, false);
-    }
-
-    fn debug_animation_playback_speed(&self) -> f64 {
-        let interval = self.debug_interval_ms.max(1);
-        1000.0 / interval as f64
+        self.set_active_debug_animation_event(Some(event_idx), visible_len, false, true);
     }
 
     fn build_debug_animation_events(
@@ -609,6 +605,7 @@ impl PetriApp {
                             Some(DebugAnimationArc {
                                 arc_id: arc.id,
                                 weight: arc.weight,
+                                color: arc.color,
                             })
                         }
                         _ => None,
@@ -619,6 +616,7 @@ impl PetriApp {
                             Some(DebugAnimationArc {
                                 arc_id: arc.id,
                                 weight: arc.weight,
+                                color: arc.color,
                             })
                         }
                         _ => None,
