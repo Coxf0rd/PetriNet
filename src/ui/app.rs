@@ -588,6 +588,12 @@ impl PetriApp {
             }
             if let Some(color) = moving_colors.first().copied() {
                 entry_color = color;
+            } else if let Some((color, _)) = Self::marker_color_from_places(
+                net,
+                entry.touched_places.as_slice(),
+                default_marker_color,
+            ) {
+                entry_color = color;
             }
             for arc in post_arcs.iter_mut() {
                 let mut assigned = Vec::new();
@@ -665,6 +671,21 @@ impl PetriApp {
                 })
             })
             .collect()
+    }
+
+    fn marker_color_from_places(
+        net: &PetriNet,
+        touched_places: &[usize],
+        fallback: Color32,
+    ) -> Option<(Color32, usize)> {
+        for &place_idx in touched_places.iter().rev() {
+            if let Some(place) = net.places.get(place_idx) {
+                if place.marker_color_on_pass {
+                    return Some((Self::color_to_egui(place.color, fallback), place_idx));
+                }
+            }
+        }
+        None
     }
 
     fn place_index_by_id(net: &PetriNet, place_id: u64) -> Option<usize> {
