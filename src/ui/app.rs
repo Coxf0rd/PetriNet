@@ -273,7 +273,6 @@ struct DebugAnimationEvent {
     exit_color: Color32,
     pre_arcs: Vec<DebugAnimationArc>,
     post_arcs: Vec<DebugAnimationArc>,
-    token_counts: Vec<(Color32, u32)>,
 }
 
 impl DebugAnimationEvent {
@@ -571,7 +570,6 @@ impl PetriApp {
                     moving_colors.push_back(token_color);
                 }
             }
-            let token_count_vec: Vec<Color32> = moving_colors.iter().copied().collect();
             if let Some(color) = moving_colors.front().copied() {
                 entry_color = color;
             } else if let Some((color, _)) = Self::marker_color_from_places(
@@ -617,7 +615,6 @@ impl PetriApp {
                 exit_color,
                 pre_arcs,
                 post_arcs,
-                token_counts: Self::aggregate_token_counts(&token_count_vec),
             });
         }
 
