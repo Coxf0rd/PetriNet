@@ -933,6 +933,18 @@ impl PetriApp {
         } else {
             (Vec::new(), Vec::new())
         };
+        let fallback_touched_places = self
+            .sim_result
+            .as_ref()
+            .and_then(|result| {
+                result
+                    .logs
+                    .iter()
+                    .rev()
+                    .find(|entry| entry.fired_transition.is_some())
+                    .map(|entry| entry.touched_places.clone())
+            })
+            .unwrap_or_default();
 
         for (place_idx, place) in self.net.places.iter().enumerate() {
             let center = self.world_to_screen(rect, place.pos);
@@ -977,9 +989,13 @@ impl PetriApp {
             } else {
                 self.net.tables.m0.get(place_idx).copied().unwrap_or(0)
             };
+            let touched_places_for_color = if self.show_debug {
+                &debug_touched_places
+            } else {
+                &fallback_touched_places
+            };
             let marker_color = if self.net.places[place_idx].marker_color_on_pass
-                && self.show_debug
-                && debug_touched_places.contains(&place_idx)
+                && touched_places_for_color.contains(&place_idx)
             {
                 Self::color_to_egui(
                     self.net.places[place_idx].color,
