@@ -1195,23 +1195,17 @@ impl PetriApp {
     }
 
     fn update_debug_animation_clock(&mut self, ctx: &egui::Context) {
-        if !self.show_debug || !self.debug_animation_enabled || !self.debug_playing {
+        if !self.show_debug || !self.debug_animation_enabled {
             self.debug_animation_last_update = None;
             return;
         }
-        let event_idx = match self.debug_animation_active_event {
-            Some(idx) => idx,
-            None => return,
-        };
-        let event = match self.debug_animation_events.get(event_idx) {
-            Some(event) => event,
-            None => {
-                self.debug_animation_active_event = None;
-                return;
-            }
-        };
-        let duration = event.duration();
-        if duration <= 0.0 {
+        if self.debug_animation_events.is_empty() {
+            self.debug_animation_last_update = None;
+            return;
+        }
+        self.sync_debug_animation_for_clock();
+        if !self.debug_playing {
+            self.debug_animation_last_update = None;
             return;
         }
         let now = Instant::now();
@@ -1221,7 +1215,14 @@ impl PetriApp {
             0.0
         };
         self.debug_animation_last_update = Some(now);
-        self.debug_animation_elapsed = (self.debug_animation_elapsed + delta).min(duration);
+        let speed = self.debug_animation_playback_speed();
+        self.debug_animation_clock =
+            (self.debug_animation_clock + delta * speed).min(self.debug_animation_total_time);
+        if self.debug_animation_clock >= self.debug_animation_total_time {
+            self.debug_animation_clock = self.debug_animation_total_time;
+            self.debug_playing = false;
+        }
+        self.sync_debug_animation_for_clock();
         ctx.request_repaint_after(Duration::from_millis(16));
     }
 
@@ -1241,11 +1242,8 @@ impl PetriApp {
         if duration <= 0.0 {
             return;
         }
-        let relative = if self.debug_playing {
-            (self.debug_animation_elapsed / duration).clamp(0.0, 1.0) as f32
-        } else {
-            1.0
-        };
+        let elapsed = (self.debug_animation_clock - event.start_time).clamp(0.0, duration);
+        let relative = (elapsed / duration).clamp(0.0, 1.0) as f32;
         self.draw_debug_animation_event(event, relative, rect, painter);
     }
 

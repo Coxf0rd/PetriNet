@@ -439,7 +439,6 @@ impl PetriApp {
                     self.debug_step = 0;
                     self.sync_debug_animation_for_step();
                     self.debug_playing = false;
-                    self.last_debug_tick = None;
                     self.show_results = true;
                     self.show_place_stats_window = false;
                     self.show_sim_params = false;
