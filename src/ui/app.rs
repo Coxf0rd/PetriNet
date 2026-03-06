@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 use std::fs;
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::hash::{Hash, Hasher};
 
 use std::path::PathBuf;
@@ -516,16 +516,17 @@ impl PetriApp {
         }
         let default_marker_color = Color32::from_rgb(200, 0, 0);
         let mut place_token_colors: Vec<Vec<Color32>> = net
-            .tables
-            .m0
+            .places
             .iter()
             .enumerate()
-            .map(|(_, &count)| {
-                let mut tokens = Vec::new();
-                for _ in 0..count {
-                    tokens.push(default_marker_color);
-                }
-                tokens
+            .map(|(place_idx, place)| {
+                let count = net.tables.m0.get(place_idx).copied().unwrap_or(0);
+                let token_color = if place.marker_color_on_pass {
+                    Self::color_to_egui(place.color, default_marker_color)
+                } else {
+                    default_marker_color
+                };
+                vec![token_color; count as usize]
             })
             .collect();
         let mut place_color_timeline = vec![Vec::new(); visible_steps.len()];
@@ -559,34 +560,19 @@ impl PetriApp {
             let duration = (next_time - entry.time).max(Self::DEBUG_ANIMATION_MIN_DURATION);
             let mut pre_arcs = Self::transition_arcs(net, transition_idx, true);
             let mut post_arcs = Self::transition_arcs(net, transition_idx, false);
-            let mut moving_colors = Vec::new();
+            let mut moving_colors = VecDeque::new();
             let mut entry_color = default_marker_color;
             let mut color_change_place_idx = None;
             for arc in pre_arcs.iter_mut() {
-                if let Some(place) = net.places.get(arc.place_idx) {
-                    for _ in 0..arc.weight {
-                        let mut token_color = place_token_colors[arc.place_idx]
-                            .pop()
-                            .unwrap_or(default_marker_color);
-                        if place.marker_color_on_pass {
-                            let place_color = Self::color_to_egui(place.color, token_color);
-                            token_color = place_color;
-                            color_change_place_idx = Some(arc.place_idx);
-                        }
-                        arc.token_colors.push(token_color);
-                        moving_colors.push(token_color);
-                    }
-                } else {
-                    for _ in 0..arc.weight {
-                        let token_color = place_token_colors[arc.place_idx]
-                            .pop()
-                            .unwrap_or(default_marker_color);
-                        arc.token_colors.push(token_color);
-                        moving_colors.push(token_color);
-                    }
+                for _ in 0..arc.weight {
+                    let token_color = place_token_colors[arc.place_idx]
+                        .pop()
+                        .unwrap_or(default_marker_color);
+                    arc.token_colors.push(token_color);
+                    moving_colors.push_back(token_color);
                 }
             }
-            if let Some(color) = moving_colors.first().copied() {
+            if let Some(color) = moving_colors.front().copied() {
                 entry_color = color;
             } else if let Some((color, _)) = Self::marker_color_from_places(
                 net,
@@ -598,10 +584,21 @@ impl PetriApp {
             for arc in post_arcs.iter_mut() {
                 let mut assigned = Vec::new();
                 for _ in 0..arc.weight {
-                    let token_color = moving_colors.pop().unwrap_or(entry_color);
-                    assigned.push(token_color);
+                    let token_color = moving_colors.pop_front().unwrap_or(entry_color);
+                    let assigned_color = if let Some(place) = net.places.get(arc.place_idx) {
+                        if place.marker_color_on_pass {
+                            let colored = Self::color_to_egui(place.color, token_color);
+                            color_change_place_idx = Some(arc.place_idx);
+                            colored
+                        } else {
+                            token_color
+                        }
+                    } else {
+                        token_color
+                    };
+                    assigned.push(assigned_color);
                     if let Some(slot) = place_token_colors.get_mut(arc.place_idx) {
-                        slot.push(token_color);
+                        slot.push(assigned_color);
                     }
                 }
                 arc.token_colors = assigned;

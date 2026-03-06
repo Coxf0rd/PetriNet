@@ -869,9 +869,19 @@ impl PetriApp {
                 if is_pre_arc || is_post_arc {
                     if let Some(event) = active_event {
                         let highlight_color = if is_pre_arc {
-                            event.entry_color
+                            event
+                                .pre_arcs
+                                .iter()
+                                .find(|a| a.arc_id == arc.id)
+                                .and_then(|a| a.token_colors.first().copied())
+                                .unwrap_or(event.entry_color)
                         } else {
-                            event.exit_color
+                            event
+                                .post_arcs
+                                .iter()
+                                .find(|a| a.arc_id == arc.id)
+                                .and_then(|a| a.token_colors.first().copied())
+                                .unwrap_or(event.exit_color)
                         };
                         arc_stroke = Stroke::new(3.0, highlight_color);
                     }
