@@ -260,7 +260,6 @@ struct UndoSnapshot {
 struct DebugAnimationArc {
     arc_id: u64,
     weight: u32,
-    color: NodeColor,
 }
 
 #[derive(Debug, Clone)]
@@ -268,15 +267,14 @@ struct DebugAnimationEvent {
     transition_idx: usize,
     log_idx: usize,
     step_idx: usize,
-    start_time: f64,
-    end_time: f64,
+    duration: f64,
     pre_arcs: Vec<DebugAnimationArc>,
     post_arcs: Vec<DebugAnimationArc>,
 }
 
 impl DebugAnimationEvent {
     fn duration(&self) -> f64 {
-        (self.end_time - self.start_time).max(0.0)
+        self.duration
     }
 }
 
@@ -363,14 +361,12 @@ pub struct PetriApp {
     debug_interval_ms: u64,
     debug_arc_animation: bool,
     debug_animation_enabled: bool,
-    debug_animation_clock: f64,
-    debug_animation_total_time: f64,
+    debug_animation_local_clock: f64,
+    debug_animation_current_duration: f64,
     debug_animation_last_update: Option<Instant>,
     debug_animation_events: Vec<DebugAnimationEvent>,
     debug_animation_active_event: Option<usize>,
-    debug_animation_step_playing: bool,
-    debug_animation_step_progress: f64,
-    debug_animation_step_duration: f64,
+    debug_animation_step_active: bool,
     show_proof: bool,
     text_blocks: Vec<CanvasTextBlock>,
     next_text_id: u64,
@@ -435,16 +431,9 @@ impl PetriApp {
 
     pub(in crate::ui::app) fn refresh_debug_animation_state(&mut self) {
         if let Some(result) = self.sim_result.as_ref() {
-            let events = Self::build_debug_animation_events(&self.net, result);
-            self.debug_animation_events = events;
-            self.debug_animation_total_time = self
-                .debug_animation_events
-                .last()
-                .map(|event| event.end_time)
-                .unwrap_or(0.0);
+            self.debug_animation_events = Self::build_debug_animation_events(&self.net, result);
         } else {
             self.debug_animation_events.clear();
-            self.debug_animation_total_time = 0.0;
         }
         self.sync_debug_animation_for_step();
     }
@@ -484,93 +473,47 @@ impl PetriApp {
                 }
             });
         self.set_active_debug_animation_event(event_idx, visible_steps.len(), true, true);
-        self.start_debug_animation_step_if_needed();
     }
-
-    fn start_debug_animation_step_if_needed(&mut self) {
-        self.debug_animation_step_playing = false;
-        self.debug_animation_step_progress = 0.0;
-        self.debug_animation_step_duration = 0.0;
-        if !self.debug_animation_enabled || self.debug_playing {
-            return;
-        }
-        if let Some(idx) = self.debug_animation_active_event {
-            if let Some(event) = self.debug_animation_events.get(idx) {
-                self.debug_animation_clock = event.start_time;
-                let forced = (self.debug_interval_ms.max(1) as f64) / 1000.0;
-                self.debug_animation_step_duration = forced.max(Self::DEBUG_ANIMATION_MIN_DURATION);
-                self.debug_animation_step_playing = true;
-                self.debug_animation_last_update = Some(Instant::now());
-            }
-        }
-    }
-
     fn set_active_debug_animation_event(
         &mut self,
         event_idx: Option<usize>,
         visible_len: usize,
-        snap_clock: bool,
+        _snap_clock: bool,
         update_step: bool,
     ) {
         self.debug_animation_active_event = event_idx;
         if let Some(idx) = event_idx {
-            if snap_clock {
-                self.debug_animation_clock = self.debug_animation_events[idx].start_time;
-            }
             if update_step && visible_len > 0 {
                 self.debug_step = self.debug_animation_events[idx]
                     .step_idx
                     .min(visible_len - 1);
             }
-        } else if snap_clock {
-            self.debug_animation_clock = 0.0;
+            let duration = self.debug_animation_events[idx]
+                .duration()
+                .max(Self::DEBUG_ANIMATION_MIN_DURATION);
+            self.debug_animation_current_duration = duration;
+            self.debug_animation_local_clock = 0.0;
+            self.debug_animation_step_active = duration > 0.0;
+            self.debug_animation_last_update = None;
+        } else {
+            self.debug_animation_local_clock = 0.0;
+            self.debug_animation_current_duration = 0.0;
+            self.debug_animation_step_active = false;
         }
     }
 
     fn clear_debug_animation_state(&mut self) {
         self.debug_animation_active_event = None;
-        self.debug_animation_clock = 0.0;
+        self.debug_animation_local_clock = 0.0;
         self.debug_animation_last_update = None;
         self.debug_playing = false;
-        self.debug_animation_step_playing = false;
-        self.debug_animation_step_progress = 0.0;
-        self.debug_animation_step_duration = 0.0;
+        self.debug_animation_current_duration = 0.0;
+        self.debug_animation_step_active = false;
     }
 
-    fn sync_debug_animation_for_clock(&mut self) {
-        if self.debug_animation_events.is_empty() {
-            self.clear_debug_animation_state();
-            return;
-        }
-        let total_time = self.debug_animation_total_time.max(0.0);
-        if total_time <= 0.0 {
-            self.clear_debug_animation_state();
-            return;
-        }
-        self.debug_animation_clock = self.debug_animation_clock.clamp(0.0, total_time);
-        let event_idx = self
-            .debug_animation_events
-            .iter()
-            .enumerate()
-            .find(|(_, event)| {
-                self.debug_animation_clock >= event.start_time
-                    && self.debug_animation_clock <= event.end_time
-            })
-            .map(|(idx, _)| idx)
-            .or_else(|| {
-                self.debug_animation_events
-                    .iter()
-                    .enumerate()
-                    .find(|(_, event)| event.start_time > self.debug_animation_clock)
-                    .map(|(idx, _)| idx)
-            })
-            .unwrap_or(self.debug_animation_events.len() - 1);
-        let visible_len = self
-            .sim_result
-            .as_ref()
-            .map(|result| Self::debug_visible_log_indices(result).len())
-            .unwrap_or(0);
-        self.set_active_debug_animation_event(Some(event_idx), visible_len, false, true);
+    fn debug_animation_playback_speed(&self) -> f64 {
+        let interval = self.debug_interval_ms.max(1);
+        1000.0 / interval as f64
     }
 
     fn build_debug_animation_events(
@@ -602,8 +545,7 @@ impl PetriApp {
                 transition_idx,
                 log_idx: idx,
                 step_idx,
-                start_time: entry.time,
-                end_time: entry.time + duration,
+                duration,
                 pre_arcs: Self::transition_arcs(net, transition_idx, true),
                 post_arcs: Self::transition_arcs(net, transition_idx, false),
             });
@@ -630,7 +572,6 @@ impl PetriApp {
                             Some(DebugAnimationArc {
                                 arc_id: arc.id,
                                 weight: arc.weight,
-                                color: arc.color,
                             })
                         }
                         _ => None,
@@ -641,7 +582,6 @@ impl PetriApp {
                             Some(DebugAnimationArc {
                                 arc_id: arc.id,
                                 weight: arc.weight,
-                                color: arc.color,
                             })
                         }
                         _ => None,

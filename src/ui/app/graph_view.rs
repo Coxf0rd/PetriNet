@@ -1228,49 +1228,40 @@ impl PetriApp {
             self.debug_animation_last_update = None;
             return;
         }
-        self.sync_debug_animation_for_clock();
+        if !self.debug_animation_step_active && !self.debug_playing {
+            self.debug_animation_last_update = None;
+            return;
+        }
         let now = Instant::now();
-        if self.debug_playing {
-            let delta = if let Some(last) = self.debug_animation_last_update {
-                now.duration_since(last).as_secs_f64()
-            } else {
-                0.0
-            };
-            self.debug_animation_last_update = Some(now);
-            let scale = (self.debug_interval_ms.max(1) as f64) / 1000.0;
-            let sim_delta = if scale > 0.0 { delta / scale } else { delta };
-            self.debug_animation_clock =
-                (self.debug_animation_clock + sim_delta).min(self.debug_animation_total_time);
-            if self.debug_animation_clock >= self.debug_animation_total_time {
-                self.debug_animation_clock = self.debug_animation_total_time;
+        let delta = if let Some(last) = self.debug_animation_last_update {
+            now.duration_since(last).as_secs_f64()
+        } else {
+            0.0
+        };
+        self.debug_animation_last_update = Some(now);
+        let speed = self.debug_animation_playback_speed();
+        self.debug_animation_local_clock += delta * speed;
+        let duration = self
+            .debug_animation_current_duration
+            .max(Self::DEBUG_ANIMATION_MIN_DURATION);
+        if self.debug_animation_local_clock >= duration {
+            self.debug_animation_local_clock = duration;
+            if self.debug_playing {
+                let visible_len = self
+                    .sim_result
+                    .as_ref()
+                    .map(|result| Self::debug_visible_log_indices(result).len())
+                    .unwrap_or(0);
+                if self.debug_step + 1 < visible_len {
+                    self.debug_step += 1;
+                    self.sync_debug_animation_for_step();
+                    return;
+                }
                 self.debug_playing = false;
             }
-            self.sync_debug_animation_for_clock();
-            ctx.request_repaint_after(Duration::from_millis(16));
-            return;
+            self.debug_animation_step_active = false;
         }
-        if self.debug_animation_step_playing {
-            let delta = if let Some(last) = self.debug_animation_last_update {
-                now.duration_since(last).as_secs_f64()
-            } else {
-                0.0
-            };
-            self.debug_animation_last_update = Some(now);
-            self.debug_animation_step_progress += delta;
-            if self.debug_animation_step_progress >= self.debug_animation_step_duration {
-                self.debug_animation_step_progress = self.debug_animation_step_duration;
-                self.debug_animation_step_playing = false;
-                if let Some(idx) = self.debug_animation_active_event {
-                    if let Some(event) = self.debug_animation_events.get(idx) {
-                        self.debug_animation_clock = event.end_time;
-                        self.sync_debug_animation_for_clock();
-                    }
-                }
-            }
-            ctx.request_repaint_after(Duration::from_millis(16));
-            return;
-        }
-        self.debug_animation_last_update = None;
+        ctx.request_repaint_after(Duration::from_millis(16));
     }
 
     fn draw_debug_animation_overlay(&self, rect: Rect, painter: &egui::Painter) {
@@ -1289,19 +1280,14 @@ impl PetriApp {
         self.draw_debug_animation_event(event, relative, rect, painter);
     }
 
-    fn debug_animation_relative(&self, event: &DebugAnimationEvent) -> f32 {
-        if self.debug_animation_step_playing {
-            if self.debug_animation_step_duration <= 0.0 {
-                return 0.0;
-            }
-            return (self.debug_animation_step_progress / self.debug_animation_step_duration)
-                .clamp(0.0, 1.0) as f32;
-        }
-        let duration = event.duration().max(Self::DEBUG_ANIMATION_MIN_DURATION);
+    fn debug_animation_relative(&self, _event: &DebugAnimationEvent) -> f32 {
+        let duration = self
+            .debug_animation_current_duration
+            .max(Self::DEBUG_ANIMATION_MIN_DURATION);
         if duration <= 0.0 {
             return 0.0;
         }
-        ((self.debug_animation_clock - event.start_time) / duration).clamp(0.0, 1.0) as f32
+        (self.debug_animation_local_clock / duration).clamp(0.0, 1.0) as f32
     }
 
     fn draw_debug_animation_event(
@@ -1339,6 +1325,7 @@ impl PetriApp {
                     token_radius,
                     token_spacing,
                     true,
+                    token_color,
                 );
             }
             return;
@@ -1374,6 +1361,7 @@ impl PetriApp {
                 token_radius,
                 token_spacing,
                 false,
+                token_color,
             );
         }
     }
@@ -1389,6 +1377,7 @@ impl PetriApp {
         token_radius: f32,
         token_spacing: f32,
         toward_transition: bool,
+        token_color: Color32,
     ) {
         for arc in arcs {
             if arc.weight == 0 {
@@ -1425,7 +1414,6 @@ impl PetriApp {
             } else {
                 Self::normalized_direction(place_center - tr_center)
             };
-            let token_color = Self::color_to_egui(arc.color, Color32::from_rgb(180, 180, 180));
             let (start, end) = if toward_transition {
                 (
                     place_center + dir * place_radius,
