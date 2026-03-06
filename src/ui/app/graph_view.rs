@@ -1002,7 +1002,9 @@ impl PetriApp {
                     .copied()
                     .unwrap_or(Color32::from_rgb(200, 0, 0));
                 if let Some(event) = active_event {
-                    if event.touched_places.contains(&place_idx) {
+                    if self.net.places[place_idx].marker_color_on_pass
+                        && event.touched_places.contains(&place_idx)
+                    {
                         event.exit_color
                     } else {
                         base_color
