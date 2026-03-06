@@ -1261,8 +1261,8 @@ impl PetriApp {
 
         if relative < PRE_FRACTION {
             let progress = (relative / PRE_FRACTION).clamp(0.0, 1.0);
-            self.draw_debug_animation_tokens_along_pre(
-                event,
+            self.draw_debug_animation_tokens_along_arcs(
+                &event.pre_arcs,
                 rect,
                 painter,
                 tr_rect,
@@ -1271,15 +1271,16 @@ impl PetriApp {
                 token_radius,
                 token_spacing,
                 token_color,
+                true,
             );
             return;
         }
         if relative < PRE_FRACTION + TRANSITION_FRACTION {
             let progress = ((relative - PRE_FRACTION) / TRANSITION_FRACTION).clamp(0.0, 1.0);
             let count = event
-                .pre_places
+                .pre_arcs
                 .iter()
-                .map(|(_, w)| *w as usize)
+                .map(|arc| arc.weight as usize)
                 .sum::<usize>()
                 .max(1)
                 .min(4);
@@ -1294,8 +1295,8 @@ impl PetriApp {
         }
         let post_progress =
             ((relative - PRE_FRACTION - TRANSITION_FRACTION) / POST_FRACTION).clamp(0.0, 1.0);
-        self.draw_debug_animation_tokens_along_post(
-            event,
+        self.draw_debug_animation_tokens_along_arcs(
+            &event.post_arcs,
             rect,
             painter,
             tr_rect,
@@ -1304,12 +1305,13 @@ impl PetriApp {
             token_radius,
             token_spacing,
             token_color,
+            false,
         );
     }
 
-    fn draw_debug_animation_tokens_along_pre(
+    fn draw_debug_animation_tokens_along_arcs(
         &self,
-        event: &DebugAnimationEvent,
+        arcs: &[DebugAnimationArc],
         rect: Rect,
         painter: &egui::Painter,
         tr_rect: Rect,
@@ -1318,58 +1320,56 @@ impl PetriApp {
         token_radius: f32,
         token_spacing: f32,
         color: Color32,
+        toward_transition: bool,
     ) {
-        for &(place_idx, weight) in &event.pre_places {
-            if weight == 0 {
+        for arc in arcs {
+            if arc.weight == 0 {
                 continue;
             }
-            let place = match self.net.places.get(place_idx) {
-                Some(place) => place,
+            let arc_idx = match self.arc_idx_by_id(arc.arc_id) {
+                Some(idx) => idx,
                 None => continue,
             };
-            let place_center = self.world_to_screen(rect, place.pos);
-            let place_radius = Self::place_radius(place.size) * self.canvas.zoom;
-            let dir = Self::normalized_direction(tr_center - place_center);
-            let start = place_center + dir * place_radius;
-            let end = Self::rect_border_point(tr_rect, -dir);
-            let perp = Vec2::new(-dir.y, dir.x);
-            let count = (weight as usize).min(3).max(1);
-            let offset_base = (count as f32 - 1.0) * 0.5;
-            let travel = start + (end - start) * progress;
-            for i in 0..count {
-                let offset = perp * token_spacing * (i as f32 - offset_base);
-                painter.circle_filled(travel + offset, token_radius, color);
-            }
-        }
-    }
-
-    fn draw_debug_animation_tokens_along_post(
-        &self,
-        event: &DebugAnimationEvent,
-        rect: Rect,
-        painter: &egui::Painter,
-        tr_rect: Rect,
-        tr_center: Pos2,
-        progress: f32,
-        token_radius: f32,
-        token_spacing: f32,
-        color: Color32,
-    ) {
-        for &(place_idx, weight) in &event.post_places {
-            if weight == 0 {
-                continue;
-            }
-            let place = match self.net.places.get(place_idx) {
-                Some(place) => place,
+            let arc_data = match self.net.arcs.get(arc_idx) {
+                Some(arc_entry) => arc_entry,
                 None => continue,
             };
+            let place_id = if toward_transition {
+                match arc_data.from {
+                    NodeRef::Place(id) => id,
+                    _ => continue,
+                }
+            } else {
+                match arc_data.to {
+                    NodeRef::Place(id) => id,
+                    _ => continue,
+                }
+            };
+            let place_idx = match self.place_idx_by_id(place_id) {
+                Some(idx) => idx,
+                None => continue,
+            };
+            let place = &self.net.places[place_idx];
             let place_center = self.world_to_screen(rect, place.pos);
             let place_radius = Self::place_radius(place.size) * self.canvas.zoom;
-            let dir = Self::normalized_direction(place_center - tr_center);
-            let start = Self::rect_border_point(tr_rect, dir);
-            let end = place_center - dir * place_radius;
+            let dir = if toward_transition {
+                Self::normalized_direction(tr_center - place_center)
+            } else {
+                Self::normalized_direction(place_center - tr_center)
+            };
+            let (start, end) = if toward_transition {
+                (
+                    place_center + dir * place_radius,
+                    Self::rect_border_point(tr_rect, -dir),
+                )
+            } else {
+                (
+                    Self::rect_border_point(tr_rect, dir),
+                    place_center - dir * place_radius,
+                )
+            };
             let perp = Vec2::new(-dir.y, dir.x);
-            let count = (weight as usize).min(3).max(1);
+            let count = (arc.weight as usize).min(3).max(1);
             let offset_base = (count as f32 - 1.0) * 0.5;
             let travel = start + (end - start) * progress;
             for i in 0..count {

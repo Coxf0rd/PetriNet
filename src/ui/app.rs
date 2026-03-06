@@ -257,17 +257,23 @@ struct UndoSnapshot {
 }
 
 #[derive(Debug, Clone)]
+struct DebugAnimationArc {
+    arc_id: u64,
+    weight: u32,
+}
+
+#[derive(Debug, Clone)]
 struct DebugAnimationEvent {
     transition_idx: usize,
     start_time: f64,
     end_time: f64,
-    pre_places: Vec<(usize, u32)>,
-    post_places: Vec<(usize, u32)>,
+    pre_arcs: Vec<DebugAnimationArc>,
+    post_arcs: Vec<DebugAnimationArc>,
 }
 
 impl DebugAnimationEvent {
     fn duration(&self) -> f64 {
-        self.end_time - self.start_time
+        (self.end_time - self.start_time).max(0.0)
     }
 }
 
@@ -355,9 +361,9 @@ pub struct PetriApp {
     last_debug_tick: Option<Instant>,
     debug_animation_enabled: bool,
     debug_animation_clock: f64,
+    debug_animation_total_time: f64,
     debug_animation_last_update: Option<Instant>,
     debug_animation_events: Vec<DebugAnimationEvent>,
-    debug_animation_total_time: f64,
     show_proof: bool,
     text_blocks: Vec<CanvasTextBlock>,
     next_text_id: u64,
@@ -424,7 +430,7 @@ impl PetriApp {
         if let Some(result) = self.sim_result.as_ref() {
             let events = Self::build_debug_animation_events(&self.net, result);
             if events.is_empty() {
-                self.debug_animation_events = events;
+                self.debug_animation_events.clear();
                 self.debug_animation_total_time = 0.0;
             } else {
                 let total_time = events
@@ -468,40 +474,49 @@ impl PetriApp {
                 transition_idx,
                 start_time: entry.time,
                 end_time: entry.time + duration,
-                pre_places: Self::transition_place_weights(net, transition_idx, true),
-                post_places: Self::transition_place_weights(net, transition_idx, false),
+                pre_arcs: Self::transition_arcs(net, transition_idx, true),
+                post_arcs: Self::transition_arcs(net, transition_idx, false),
             });
         }
         events
     }
 
-    fn transition_place_weights(
+    fn transition_arcs(
         net: &PetriNet,
         transition_idx: usize,
         incoming: bool,
-    ) -> Vec<(usize, u32)> {
-        let mut weights = Vec::new();
-        for place_idx in 0..net.places.len() {
-            let weight = if incoming {
-                net.tables
-                    .pre
-                    .get(place_idx)
-                    .and_then(|row| row.get(transition_idx))
-                    .copied()
-                    .unwrap_or(0)
-            } else {
-                net.tables
-                    .post
-                    .get(place_idx)
-                    .and_then(|row| row.get(transition_idx))
-                    .copied()
-                    .unwrap_or(0)
-            };
-            if weight > 0 {
-                weights.push((place_idx, weight));
-            }
-        }
-        weights
+    ) -> Vec<DebugAnimationArc> {
+        let Some(transition) = net.transitions.get(transition_idx) else {
+            return Vec::new();
+        };
+        let transition_id = transition.id;
+        net.arcs
+            .iter()
+            .filter(|arc| arc.weight > 0)
+            .filter_map(|arc| {
+                if incoming {
+                    match (&arc.from, &arc.to) {
+                        (NodeRef::Place(_), NodeRef::Transition(id)) if *id == transition_id => {
+                            Some(DebugAnimationArc {
+                                arc_id: arc.id,
+                                weight: arc.weight,
+                            })
+                        }
+                        _ => None,
+                    }
+                } else {
+                    match (&arc.from, &arc.to) {
+                        (NodeRef::Transition(id), NodeRef::Place(_)) if *id == transition_id => {
+                            Some(DebugAnimationArc {
+                                arc_id: arc.id,
+                                weight: arc.weight,
+                            })
+                        }
+                        _ => None,
+                    }
+                }
+            })
+            .collect()
     }
 }
 
