@@ -479,7 +479,7 @@ impl PetriApp {
                     None
                 }
             });
-        self.set_active_debug_animation_event(event_idx, visible_steps.len(), true);
+        self.set_active_debug_animation_event(event_idx, visible_steps.len(), true, true);
     }
 
     fn set_active_debug_animation_event(
@@ -487,13 +487,14 @@ impl PetriApp {
         event_idx: Option<usize>,
         visible_len: usize,
         snap_clock: bool,
+        update_step: bool,
     ) {
         self.debug_animation_active_event = event_idx;
         if let Some(idx) = event_idx {
             if snap_clock {
                 self.debug_animation_clock = self.debug_animation_events[idx].start_time;
             }
-            if visible_len > 0 {
+            if update_step && visible_len > 0 {
                 self.debug_step = self.debug_animation_events[idx]
                     .step_idx
                     .min(visible_len - 1);
@@ -542,7 +543,7 @@ impl PetriApp {
             .as_ref()
             .map(|result| Self::debug_visible_log_indices(result).len())
             .unwrap_or(0);
-        self.set_active_debug_animation_event(Some(event_idx), visible_len, false);
+        self.set_active_debug_animation_event(Some(event_idx), visible_len, false, false);
     }
 
     fn debug_animation_playback_speed(&self) -> f64 {
