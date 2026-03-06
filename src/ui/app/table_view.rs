@@ -23,6 +23,9 @@ impl PetriApp {
         if !self.show_table_view {
             return;
         }
+        let row_h = ui.text_style_height(&egui::TextStyle::Body) + 4.0;
+        let vector_scroll_height = 220.0;
+        let matrix_scroll_height = 320.0;
 
         ui.horizontal(|ui| {
             ui.label("Показывать:");
@@ -54,177 +57,267 @@ impl PetriApp {
         egui::ScrollArea::both().show(ui, |ui| {
             if self.show_struct_vectors {
                 ui.separator();
-                ui.label("Р’РµРєС‚РѕСЂ РЅР°С‡Р°Р»СЊРЅРѕР№ РјР°СЂРєРёСЂРѕРІРєРё (M0)");
-                egui::Grid::new("m0_grid").striped(true).show(ui, |ui| {
-                    for i in 0..self.net.places.len() {
-                        ui.add_sized([row_label_w, 0.0], egui::Label::new(format!("P{}", i + 1)));
-                        ui.add_sized(
-                            [cell_w * 1.4, 0.0],
-                            egui::DragValue::new(&mut self.net.tables.m0[i]).range(0..=u32::MAX),
-                        );
-                        ui.end_row();
-                    }
-                });
-
-                ui.separator();
-                ui.label("Р’РµРєС‚РѕСЂ РјР°РєСЃРёРјР°Р»СЊРЅС‹С… РµРјРєРѕСЃС‚РµР№ (Mo)");
-                egui::Grid::new("mo_grid").striped(true).show(ui, |ui| {
-                    for i in 0..self.net.places.len() {
-                        let mut cap = self.net.tables.mo[i].unwrap_or(0);
-                        ui.add_sized([row_label_w, 0.0], egui::Label::new(format!("P{}", i + 1)));
-                        if ui
-                            .add_sized(
-                                [cell_w * 1.4, 0.0],
-                                egui::DragValue::new(&mut cap).range(0..=u32::MAX),
-                            )
-                            .changed()
-                        {
-                            self.net.tables.mo[i] = if cap == 0 { None } else { Some(cap) };
-                        }
-                        ui.end_row();
-                    }
-                });
-
-                ui.separator();
-                ui.label(
-                    "Р’РµРєС‚РѕСЂ РІСЂРµРјРµРЅРЅС‹С… Р·Р°РґРµСЂР¶РµРє РІ РїРѕР·РёС†РёСЏС… (Mz)",
+                ui.label("Вектор начальной маркировки (M0)");
+                Self::scroll_area_rows(
+                    ui,
+                    egui::Id::new("m0_grid_scroll"),
+                    self.net.places.len(),
+                    row_h,
+                    vector_scroll_height,
+                    |ui, rows| {
+                        egui::Grid::new("m0_grid").striped(true).show(ui, |ui| {
+                            for i in rows {
+                                ui.add_sized(
+                                    [row_label_w, 0.0],
+                                    egui::Label::new(format!("P{}", i + 1)),
+                                );
+                                ui.add_sized(
+                                    [cell_w * 1.4, 0.0],
+                                    egui::DragValue::new(&mut self.net.tables.m0[i])
+                                        .range(0..=u32::MAX),
+                                );
+                                ui.end_row();
+                            }
+                        });
+                    },
                 );
-                egui::Grid::new("mz_grid").striped(true).show(ui, |ui| {
-                    for i in 0..self.net.places.len() {
-                        ui.add_sized([row_label_w, 0.0], egui::Label::new(format!("P{}", i + 1)));
-                        ui.add_sized(
-                            [cell_w * 1.8, 0.0],
-                            egui::DragValue::new(&mut self.net.tables.mz[i])
-                                .speed(0.1)
-                                .range(0.0..=10_000.0),
-                        );
-                        ui.end_row();
-                    }
-                });
 
                 ui.separator();
-                ui.label("Р’РµРєС‚РѕСЂ РїСЂРёРѕСЂРёС‚РµС‚РѕРІ РїРµСЂРµС…РѕРґРѕРІ (Mpr)");
-                egui::Grid::new("mpr_grid").striped(true).show(ui, |ui| {
-                    for t in 0..self.net.transitions.len() {
-                        ui.add_sized([row_label_w, 0.0], egui::Label::new(format!("T{}", t + 1)));
-                        ui.add_sized(
-                            [cell_w * 1.8, 0.0],
-                            egui::DragValue::new(&mut self.net.tables.mpr[t]).speed(1),
-                        );
-                        ui.end_row();
-                    }
-                });
-            }
+                ui.label("Вектор максимальных емкостей (Mo)");
+                Self::scroll_area_rows(
+                    ui,
+                    egui::Id::new("mo_grid_scroll"),
+                    self.net.places.len(),
+                    row_h,
+                    vector_scroll_height,
+                    |ui, rows| {
+                        egui::Grid::new("mo_grid").striped(true).show(ui, |ui| {
+                            for i in rows {
+                                let mut cap = self.net.tables.mo[i].unwrap_or(0);
+                                ui.add_sized(
+                                    [row_label_w, 0.0],
+                                    egui::Label::new(format!("P{}", i + 1)),
+                                );
+                                if ui
+                                    .add_sized(
+                                        [cell_w * 1.4, 0.0],
+                                        egui::DragValue::new(&mut cap).range(0..=u32::MAX),
+                                    )
+                                    .changed()
+                                {
+                                    self.net.tables.mo[i] = if cap == 0 { None } else { Some(cap) };
+                                }
+                                ui.end_row();
+                            }
+                        });
+                    },
+                );
 
+                ui.separator();
+                ui.label("Вектор временных задержек в позициях (Mz)");
+                Self::scroll_area_rows(
+                    ui,
+                    egui::Id::new("mz_grid_scroll"),
+                    self.net.places.len(),
+                    row_h,
+                    vector_scroll_height,
+                    |ui, rows| {
+                        egui::Grid::new("mz_grid").striped(true).show(ui, |ui| {
+                            for i in rows {
+                                ui.add_sized(
+                                    [row_label_w, 0.0],
+                                    egui::Label::new(format!("P{}", i + 1)),
+                                );
+                                ui.add_sized(
+                                    [cell_w * 1.8, 0.0],
+                                    egui::DragValue::new(&mut self.net.tables.mz[i])
+                                        .speed(0.1)
+                                        .range(0.0..=10_000.0),
+                                );
+                                ui.end_row();
+                            }
+                        });
+                    },
+                );
+
+                ui.separator();
+                ui.label("Вектор приоритетов переходов (Mpr)");
+                Self::scroll_area_rows(
+                    ui,
+                    egui::Id::new("mpr_grid_scroll"),
+                    self.net.transitions.len(),
+                    row_h,
+                    vector_scroll_height,
+                    |ui, rows| {
+                        egui::Grid::new("mpr_grid").striped(true).show(ui, |ui| {
+                            for t in rows {
+                                ui.add_sized(
+                                    [row_label_w, 0.0],
+                                    egui::Label::new(format!("T{}", t + 1)),
+                                );
+                                ui.add_sized(
+                                    [cell_w * 1.8, 0.0],
+                                    egui::DragValue::new(&mut self.net.tables.mpr[t]).speed(1),
+                                );
+                                ui.end_row();
+                            }
+                        });
+                    },
+                );
+            }
             let mut matrices_changed = false;
             if self.show_struct_pre {
                 ui.separator();
                 ui.horizontal(|ui| {
-                    ui.label("РњР°С‚СЂРёС†Р° РёРЅС†Р¸РґРµРЅС‚С†РёР№ Pre");
+                    ui.label("Матрица инцидентций Pre");
                     if ui
-                        .small_button(self.tr("РРјРїРѕСЂС‚ CSV", "Import CSV"))
+                        .small_button(self.tr("Импорт CSV", "Import CSV"))
                         .clicked()
                     {
                         self.import_matrix_csv(MatrixCsvTarget::Pre);
                     }
                 });
                 let mut pre_changed = false;
-                egui::Grid::new("pre_grid").striped(true).show(ui, |ui| {
-                    ui.add_sized([row_label_w, 0.0], egui::Label::new(""));
-                    for t in 0..self.net.transitions.len() {
-                        ui.add_sized([cell_w, 0.0], egui::Label::new(format!("T{}", t + 1)));
-                    }
-                    ui.end_row();
-                    for p in 0..self.net.places.len() {
-                        ui.add_sized([row_label_w, 0.0], egui::Label::new(format!("P{}", p + 1)));
-                        for t in 0..self.net.transitions.len() {
-                            pre_changed |= ui
-                                .add_sized(
+                Self::scroll_area_rows(
+                    ui,
+                    egui::Id::new("pre_grid_scroll"),
+                    self.net.places.len(),
+                    row_h,
+                    matrix_scroll_height,
+                    |ui, rows| {
+                        egui::Grid::new("pre_grid").striped(true).show(ui, |ui| {
+                            ui.add_sized([row_label_w, 0.0], egui::Label::new(""));
+                            for t in 0..self.net.transitions.len() {
+                                ui.add_sized(
                                     [cell_w, 0.0],
-                                    egui::DragValue::new(&mut self.net.tables.pre[p][t])
-                                        .range(0..=u32::MAX)
-                                        .speed(1),
-                                )
-                                .changed();
-                        }
-                        ui.end_row();
-                    }
-                });
+                                    egui::Label::new(format!("T{}", t + 1)),
+                                );
+                            }
+                            ui.end_row();
+                            for p in rows {
+                                ui.add_sized(
+                                    [row_label_w, 0.0],
+                                    egui::Label::new(format!("P{}", p + 1)),
+                                );
+                                for t in 0..self.net.transitions.len() {
+                                    pre_changed |= ui
+                                        .add_sized(
+                                            [cell_w, 0.0],
+                                            egui::DragValue::new(&mut self.net.tables.pre[p][t])
+                                                .range(0..=u32::MAX)
+                                                .speed(1),
+                                        )
+                                        .changed();
+                                }
+                                ui.end_row();
+                            }
+                        });
+                    },
+                );
                 matrices_changed |= pre_changed;
             }
-
             if self.show_struct_post {
                 ui.separator();
                 ui.horizontal(|ui| {
-                    ui.label("РњР°С‚СЂРёС†Р° РёРЅС†С‚РёРґС‚СЂРёР№ Post");
+                    ui.label("Матрица инцидентций Post");
                     if ui
-                        .small_button(self.tr("РРјРїРѕСЂС‚ CSV", "Import CSV"))
+                        .small_button(self.tr("Импорт CSV", "Import CSV"))
                         .clicked()
                     {
                         self.import_matrix_csv(MatrixCsvTarget::Post);
                     }
                 });
                 let mut post_changed = false;
-                egui::Grid::new("post_grid").striped(true).show(ui, |ui| {
-                    ui.add_sized([row_label_w, 0.0], egui::Label::new(""));
-                    for t in 0..self.net.transitions.len() {
-                        ui.add_sized([cell_w, 0.0], egui::Label::new(format!("T{}", t + 1)));
-                    }
-                    ui.end_row();
-                    for p in 0..self.net.places.len() {
-                        ui.add_sized([row_label_w, 0.0], egui::Label::new(format!("P{}", p + 1)));
-                        for t in 0..self.net.transitions.len() {
-                            post_changed |= ui
-                                .add_sized(
+                Self::scroll_area_rows(
+                    ui,
+                    egui::Id::new("post_grid_scroll"),
+                    self.net.places.len(),
+                    row_h,
+                    matrix_scroll_height,
+                    |ui, rows| {
+                        egui::Grid::new("post_grid").striped(true).show(ui, |ui| {
+                            ui.add_sized([row_label_w, 0.0], egui::Label::new(""));
+                            for t in 0..self.net.transitions.len() {
+                                ui.add_sized(
                                     [cell_w, 0.0],
-                                    egui::DragValue::new(&mut self.net.tables.post[p][t])
-                                        .range(0..=u32::MAX)
-                                        .speed(1),
-                                )
-                                .changed();
-                        }
-                        ui.end_row();
-                    }
-                });
+                                    egui::Label::new(format!("T{}", t + 1)),
+                                );
+                            }
+                            ui.end_row();
+                            for p in rows {
+                                ui.add_sized(
+                                    [row_label_w, 0.0],
+                                    egui::Label::new(format!("P{}", p + 1)),
+                                );
+                                for t in 0..self.net.transitions.len() {
+                                    post_changed |= ui
+                                        .add_sized(
+                                            [cell_w, 0.0],
+                                            egui::DragValue::new(&mut self.net.tables.post[p][t])
+                                                .range(0..=u32::MAX)
+                                                .speed(1),
+                                        )
+                                        .changed();
+                                }
+                                ui.end_row();
+                            }
+                        });
+                    },
+                );
                 matrices_changed |= post_changed;
             }
-
             if self.show_struct_inhibitor {
                 ui.separator();
                 ui.horizontal(|ui| {
-                    ui.label("РњР°С‚СЂРёС†Р° РёРЅРіРёР±РёС‚РѕСЂРЅС‹С… РґСѓРі");
+                    ui.label("Матрица ингибиторных дуг");
                     if ui
-                        .small_button(self.tr("РРјРїРѕСЂС‚ CSV", "Import CSV"))
+                        .small_button(self.tr("Импорт CSV", "Import CSV"))
                         .clicked()
                     {
                         self.import_matrix_csv(MatrixCsvTarget::Inhibitor);
                     }
                 });
                 let mut inhibitor_changed = false;
-                egui::Grid::new("inh_grid").striped(true).show(ui, |ui| {
-                    ui.add_sized([row_label_w, 0.0], egui::Label::new(""));
-                    for t in 0..self.net.transitions.len() {
-                        ui.add_sized([cell_w, 0.0], egui::Label::new(format!("T{}", t + 1)));
-                    }
-                    ui.end_row();
-                    for p in 0..self.net.places.len() {
-                        ui.add_sized([row_label_w, 0.0], egui::Label::new(format!("P{}", p + 1)));
-                        for t in 0..self.net.transitions.len() {
-                            inhibitor_changed |= ui
-                                .add_sized(
+                Self::scroll_area_rows(
+                    ui,
+                    egui::Id::new("inh_grid_scroll"),
+                    self.net.places.len(),
+                    row_h,
+                    matrix_scroll_height,
+                    |ui, rows| {
+                        egui::Grid::new("inh_grid").striped(true).show(ui, |ui| {
+                            ui.add_sized([row_label_w, 0.0], egui::Label::new(""));
+                            for t in 0..self.net.transitions.len() {
+                                ui.add_sized(
                                     [cell_w, 0.0],
-                                    egui::DragValue::new(&mut self.net.tables.inhibitor[p][t])
-                                        .range(0..=u32::MAX)
-                                        .speed(1),
-                                )
-                                .changed();
-                        }
-                        ui.end_row();
-                    }
-                });
+                                    egui::Label::new(format!("T{}", t + 1)),
+                                );
+                            }
+                            ui.end_row();
+                            for p in rows {
+                                ui.add_sized(
+                                    [row_label_w, 0.0],
+                                    egui::Label::new(format!("P{}", p + 1)),
+                                );
+                                for t in 0..self.net.transitions.len() {
+                                    inhibitor_changed |= ui
+                                        .add_sized(
+                                            [cell_w, 0.0],
+                                            egui::DragValue::new(
+                                                &mut self.net.tables.inhibitor[p][t],
+                                            )
+                                            .range(0..=u32::MAX)
+                                            .speed(1),
+                                        )
+                                        .changed();
+                                }
+                                ui.end_row();
+                            }
+                        });
+                    },
+                );
                 matrices_changed |= inhibitor_changed;
             }
-
             if matrices_changed {
                 self.net.rebuild_arcs_from_matrices();
             }
@@ -971,7 +1064,7 @@ impl PetriApp {
                 let times_window = &times[start..end];
 
                 let desired_size = egui::Vec2::new(ui.available_width(), 360.0);
-                let (rect, _) = ui.allocate_exact_size(desired_size, Sense::hover());
+                let (rect, response) = ui.allocate_exact_size(desired_size, Sense::hover());
                 let painter = ui.painter_at(rect);
                 painter.rect_stroke(rect, 0.0, Stroke::new(1.0, Color32::GRAY));
                 let left_pad = 50.0;
@@ -1077,12 +1170,76 @@ impl PetriApp {
                     )
                 };
 
-                let mut points = Vec::with_capacity(values_window.len());
+                let mut points_data = Vec::with_capacity(values_window.len());
+                let mut line_points = Vec::with_capacity(values_window.len());
                 for (x, y) in times_window.iter().zip(values_window.iter()) {
-                    points.push(to_screen(*x, *y));
+                    let pt = to_screen(*x, *y);
+                    points_data.push((pt, *x, *y));
+                    line_points.push(pt);
                 }
-                if points.len() >= 2 {
-                    painter.add(egui::Shape::line(points, Stroke::new(1.6, Color32::BLUE)));
+                if line_points.len() >= 2 {
+                    painter.add(egui::Shape::line(
+                        line_points,
+                        Stroke::new(1.6, Color32::BLUE),
+                    ));
+                }
+
+                if let Some(mouse_pos) = response.hover_pos() {
+                    if plot_rect.contains(mouse_pos) {
+                        let rel_x =
+                            ((mouse_pos.x - plot_rect.left()) / plot_rect.width()).clamp(0.0, 1.0);
+                        let rel_y = ((plot_rect.bottom() - mouse_pos.y) / plot_rect.height())
+                            .clamp(0.0, 1.0);
+                        let data_x = x_min + rel_x as f64 * (x_max - x_min);
+                        let data_y = y_min + rel_y as f64 * (y_max - y_min);
+                        let hover_label = format!(
+                            "{}: {:.3}, {}: {:.3}",
+                            self.tr("X", "X"),
+                            data_x,
+                            self.tr("Y", "Y"),
+                            data_y
+                        );
+                        painter.text(
+                            mouse_pos + egui::Vec2::new(6.0, -8.0),
+                            egui::Align2::LEFT_BOTTOM,
+                            hover_label,
+                            egui::FontId::default(),
+                            Color32::DARK_GRAY,
+                        );
+                        let tolerance = 16.0;
+                        if let Some((pos, x, y)) = points_data
+                            .iter()
+                            .filter_map(|(pos, x, y)| {
+                                let dist = pos.distance(mouse_pos);
+                                if dist <= tolerance {
+                                    Some((dist, *pos, *x, *y))
+                                } else {
+                                    None
+                                }
+                            })
+                            .min_by(|a, b| {
+                                a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal)
+                            })
+                            .map(|(_, pos, x, y)| (pos, x, y))
+                        {
+                            painter.circle_filled(pos, 4.0, Color32::WHITE);
+                            painter.circle_stroke(pos, 4.0, Stroke::new(2.0, Color32::BLUE));
+                            let point_label = format!(
+                                "{}: {:.3}, {}: {:.3}",
+                                self.tr("X", "X"),
+                                x,
+                                self.tr("Y", "Y"),
+                                y
+                            );
+                            painter.text(
+                                pos + egui::Vec2::new(6.0, -12.0),
+                                egui::Align2::LEFT_BOTTOM,
+                                point_label,
+                                egui::FontId::default(),
+                                Color32::BLACK,
+                            );
+                        }
+                    }
                 }
 
                 if !self.place_stats_show_grid {
@@ -1125,5 +1282,30 @@ impl PetriApp {
             });
 
         self.show_place_stats_window = open;
+    }
+
+    fn scroll_area_rows<F>(
+        ui: &mut egui::Ui,
+        id: egui::Id,
+        row_len: usize,
+        row_h: f32,
+        max_height: f32,
+        body: F,
+    ) where
+        F: FnOnce(&mut egui::Ui, std::ops::Range<usize>),
+    {
+        if row_len == 0 {
+            return;
+        }
+        let available = ui.available_height();
+        let height = if available.is_finite() {
+            max_height.min(available.max(row_h))
+        } else {
+            max_height.max(row_h)
+        };
+        egui::ScrollArea::vertical()
+            .id_source(id)
+            .max_height(height)
+            .show_rows(ui, row_h, row_len, body);
     }
 }

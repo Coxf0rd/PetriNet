@@ -271,6 +271,10 @@ pub struct PetriApp {
     show_graph_view: bool,
     show_table_view: bool,
     table_fullscreen: bool,
+    show_struct_vectors: bool,
+    show_struct_pre: bool,
+    show_struct_post: bool,
+    show_struct_inhibitor: bool,
     place_props_id: Option<u64>,
     transition_props_id: Option<u64>,
     show_place_props: bool,
@@ -410,6 +414,10 @@ impl PetriApp {
             show_graph_view: true,
             show_table_view: false,
             table_fullscreen: false,
+            show_struct_vectors: true,
+            show_struct_pre: true,
+            show_struct_post: true,
+            show_struct_inhibitor: true,
             place_props_id: None,
             transition_props_id: None,
             show_place_props: false,
@@ -471,12 +479,7 @@ impl PetriApp {
         }
         #[cfg(not(test))]
         {
-            let mut net = PetriNet::new();
-            net.set_counts(2, 1);
-            net.places[0].pos = [120.0, 150.0];
-            net.places[1].pos = [340.0, 150.0];
-            net.transitions[0].pos = [240.0, 145.0];
-
+            let net = PetriNet::new();
             Self {
                 net,
                 tool: Tool::Edit,
@@ -494,6 +497,10 @@ impl PetriApp {
                 show_graph_view: true,
                 show_table_view: false,
                 table_fullscreen: false,
+                show_struct_vectors: true,
+                show_struct_pre: true,
+                show_struct_post: true,
+                show_struct_inhibitor: true,
                 place_props_id: None,
                 transition_props_id: None,
                 show_place_props: false,
@@ -551,7 +558,7 @@ impl PetriApp {
 
     fn new_file(&mut self) {
         self.net = PetriNet::new();
-        self.net.set_counts(1, 1);
+        self.net.set_counts(0, 0);
         self.file_path = None;
         self.text_blocks.clear();
         self.next_text_id = 1;
@@ -1085,7 +1092,7 @@ impl PetriApp {
         for id in Self::duplicate_ids(self.net.places.iter().map(|p| p.id)) {
             report.errors.push(format!(
                 "{} P{}",
-                self.tr("Дубликат ID места:", "Duplicate place ID:"),
+                self.tr("Дубликат ID позиции:", "Duplicate position ID:"),
                 id
             ));
         }
@@ -1135,8 +1142,8 @@ impl PetriApp {
                         report.errors.push(format!(
                             "{} A{}",
                             self.tr(
-                                "Дуга ссылается на несуществующее место/переход:",
-                                "Arc references a missing place/transition:"
+                                "Дуга ссылается на несуществующую позицию/переход:",
+                                "Arc references a missing position/transition:"
                             ),
                             arc.id
                         ));
@@ -1181,8 +1188,8 @@ impl PetriApp {
                 report.errors.push(format!(
                     "{} A{}",
                     self.tr(
-                        "Ингибиторная дуга ссылается на несуществующее место/переход:",
-                        "Inhibitor arc references a missing place/transition:"
+                        "Ингибиторная дуга ссылается на несуществующую позицию/переход:",
+                        "Inhibitor arc references a missing position/transition:"
                     ),
                     inh.id
                 ));
@@ -1198,8 +1205,8 @@ impl PetriApp {
                 report.errors.push(format!(
                     "{} P{}",
                     self.tr(
-                        "Некорректные координаты места:",
-                        "Invalid place coordinates:"
+                        "Некорректные координаты позиции:",
+                        "Invalid position coordinates:"
                     ),
                     idx + 1
                 ));
@@ -1223,7 +1230,7 @@ impl PetriApp {
                     report.warnings.push(format!(
                         "{} P{} ({} -> 1000000)",
                         self.tr(
-                            "Максимальная емкость места будет ограничена при экспорте:",
+                            "Максимальная емкость позиции будет ограничена при экспорте:",
                             "Place capacity will be clamped during export:"
                         ),
                         idx + 1,
@@ -1234,8 +1241,8 @@ impl PetriApp {
                 report.warnings.push(format!(
                     "{} P{}",
                     self.tr(
-                        "Безлимитная емкость места не поддерживается, будет заменена на 1:",
-                        "Unlimited place capacity is not supported and will be replaced with 1:"
+                        "Безлимитная емкость позиции не поддерживается, будет заменена на 1:",
+                        "Unlimited position capacity is not supported and will be replaced with 1:"
                     ),
                     idx + 1
                 ));
@@ -1691,14 +1698,14 @@ impl PetriApp {
             (StochasticDistribution::Uniform { .. }, true) => "Равномерное",
             (StochasticDistribution::Normal { .. }, true) => "Нормальное (Гаусса)",
             (StochasticDistribution::Exponential { .. }, true) => "Экспоненциальное",
+            (StochasticDistribution::Gamma { .. }, true) => "Гамма",
             (StochasticDistribution::Poisson { .. }, true) => "Пуассона",
-            (StochasticDistribution::CustomValue { .. }, true) => "Заданное пользователем",
             (StochasticDistribution::None, false) => "None",
             (StochasticDistribution::Uniform { .. }, false) => "Uniform",
             (StochasticDistribution::Normal { .. }, false) => "Normal (Gaussian)",
             (StochasticDistribution::Exponential { .. }, false) => "Exponential",
+            (StochasticDistribution::Gamma { .. }, false) => "Gamma",
             (StochasticDistribution::Poisson { .. }, false) => "Poisson",
-            (StochasticDistribution::CustomValue { .. }, false) => "User-defined",
         }
     }
 
@@ -2058,6 +2065,16 @@ impl PetriApp {
             self.canvas.selected_text = None;
             return;
         }
+        let frame_ids = self.collect_selected_frame_ids();
+        if !frame_ids.is_empty() {
+            self.push_undo_snapshot();
+            let frame_set: HashSet<u64> = frame_ids.into_iter().collect();
+            self.decorative_frames
+                .retain(|item| !frame_set.contains(&item.id));
+            self.canvas.selected_frames.clear();
+            self.canvas.selected_frame = None;
+            return;
+        }
         let mut arc_ids = self.canvas.selected_arcs.clone();
         if let Some(arc_id) = self.canvas.selected_arc.take() {
             arc_ids.push(arc_id);
@@ -2070,16 +2087,6 @@ impl PetriApp {
             self.net.arcs.retain(|a| !arc_ids.contains(&a.id));
             self.net.inhibitor_arcs.retain(|a| !arc_ids.contains(&a.id));
             self.net.rebuild_matrices_from_arcs();
-            return;
-        }
-        let frame_ids = self.collect_selected_frame_ids();
-        if !frame_ids.is_empty() {
-            self.push_undo_snapshot();
-            let frame_set: HashSet<u64> = frame_ids.into_iter().collect();
-            self.decorative_frames
-                .retain(|item| !frame_set.contains(&item.id));
-            self.canvas.selected_frames.clear();
-            self.canvas.selected_frame = None;
             return;
         }
 
@@ -2098,6 +2105,24 @@ impl PetriApp {
 
         if !place_ids.is_empty() || !transition_ids.is_empty() {
             self.push_undo_snapshot();
+            let mut place_idxs: Vec<usize> = place_ids
+                .iter()
+                .filter_map(|id| self.place_idx_by_id(*id))
+                .collect();
+            place_idxs.sort_unstable();
+            place_idxs.dedup();
+            for idx in place_idxs.iter().rev() {
+                self.net.tables.remove_place_row(*idx);
+            }
+            let mut transition_idxs: Vec<usize> = transition_ids
+                .iter()
+                .filter_map(|id| self.transition_idx_by_id(*id))
+                .collect();
+            transition_idxs.sort_unstable();
+            transition_idxs.dedup();
+            for idx in transition_idxs.iter().rev() {
+                self.net.tables.remove_transition_column(*idx);
+            }
             self.net.places.retain(|p| !place_ids.contains(&p.id));
             self.net
                 .transitions
@@ -2664,8 +2689,7 @@ impl PetriApp {
 
     fn arc_place_transition_pair(from: NodeRef, to: NodeRef) -> Option<(u64, u64)> {
         match (from, to) {
-            (NodeRef::Place(pid), NodeRef::Transition(tid))
-            | (NodeRef::Transition(tid), NodeRef::Place(pid)) => Some((pid, tid)),
+            (NodeRef::Place(pid), NodeRef::Transition(tid)) => Some((pid, tid)),
             _ => None,
         }
     }
@@ -3026,6 +3050,20 @@ impl PetriApp {
                         );
                         ui.selectable_value(
                             &mut self.net.places[place_idx].stochastic,
+                            StochasticDistribution::Gamma {
+                                shape: 2.0,
+                                scale: 1.0,
+                            },
+                            Self::stochastic_text(
+                                &StochasticDistribution::Gamma {
+                                    shape: 2.0,
+                                    scale: 1.0,
+                                },
+                                is_ru,
+                            ),
+                        );
+                        ui.selectable_value(
+                            &mut self.net.places[place_idx].stochastic,
                             StochasticDistribution::Exponential { lambda: 1.0 },
                             Self::stochastic_text(
                                 &StochasticDistribution::Exponential { lambda: 1.0 },
@@ -3037,14 +3075,6 @@ impl PetriApp {
                             StochasticDistribution::Poisson { lambda: 1.0 },
                             Self::stochastic_text(
                                 &StochasticDistribution::Poisson { lambda: 1.0 },
-                                is_ru,
-                            ),
-                        );
-                        ui.selectable_value(
-                            &mut self.net.places[place_idx].stochastic,
-                            StochasticDistribution::CustomValue { value: 1.0 },
-                            Self::stochastic_text(
-                                &StochasticDistribution::CustomValue { value: 1.0 },
                                 is_ru,
                             ),
                         );
@@ -3072,6 +3102,22 @@ impl PetriApp {
                             );
                         });
                     }
+                    StochasticDistribution::Gamma { shape, scale } => {
+                        ui.horizontal(|ui| {
+                            ui.label(t("shape", "shape"));
+                            ui.add(
+                                egui::DragValue::new(shape)
+                                    .speed(0.1)
+                                    .range(0.0001..=10_000.0),
+                            );
+                            ui.label(t("scale", "scale"));
+                            ui.add(
+                                egui::DragValue::new(scale)
+                                    .speed(0.1)
+                                    .range(0.0001..=10_000.0),
+                            );
+                        });
+                    }
                     StochasticDistribution::Exponential { lambda }
                     | StochasticDistribution::Poisson { lambda } => {
                         ui.horizontal(|ui| {
@@ -3081,12 +3127,6 @@ impl PetriApp {
                                     .speed(0.1)
                                     .range(0.0001..=10_000.0),
                             );
-                        });
-                    }
-                    StochasticDistribution::CustomValue { value } => {
-                        ui.horizontal(|ui| {
-                            ui.label(t("Значение", "Value"));
-                            ui.add(egui::DragValue::new(value).speed(0.1).range(0.0..=10_000.0));
                         });
                     }
                 }
@@ -3110,7 +3150,9 @@ impl PetriApp {
             self.place_props_id = Some(id);
         }
         if let Some(place_id) = self.place_props_id {
-            let title = self.tr("Свойства позиции", "Place Properties").to_string();
+            let title = self
+                .tr("Свойства позиции", "Position Properties")
+                .to_string();
             self.show_place_props = self.draw_place_props_window(ctx, place_id, title);
         } else {
             self.show_place_props = false;
@@ -3307,6 +3349,16 @@ impl PetriApp {
             SelectedArc::Inhibitor(idx) => self.net.inhibitor_arcs[idx].color,
         };
         let mut is_inhibitor = matches!(variant, SelectedArc::Inhibitor(_));
+        let can_be_inhibitor = match variant {
+            SelectedArc::Regular(idx) => {
+                Self::arc_place_transition_pair(self.net.arcs[idx].from, self.net.arcs[idx].to)
+                    .is_some()
+            }
+            SelectedArc::Inhibitor(_) => true,
+        };
+        if !can_be_inhibitor && is_inhibitor {
+            is_inhibitor = false;
+        }
 
         let color_combo = |ui: &mut egui::Ui, value: &mut NodeColor| {
             egui::ComboBox::from_id_source(ui.next_auto_id())
@@ -3344,11 +3396,18 @@ impl PetriApp {
         egui::Window::new(title)
             .id(egui::Id::new("arc_props_window"))
             .open(&mut open)
-            .resizable(false)
             .show(ctx, |ui| {
                 ui.label(format!("ID: A{}", arc_id));
                 ui.separator();
-                ui.checkbox(&mut is_inhibitor, t("Ингибиторная дуга", "Inhibitor arc"));
+                ui.add_enabled_ui(can_be_inhibitor, |ui| {
+                    ui.checkbox(&mut is_inhibitor, t("Ингибиторная дуга", "Inhibitor arc"));
+                });
+                if matches!(variant, SelectedArc::Regular(_)) && !can_be_inhibitor {
+                    ui.label(t(
+                        "Ингибиторная дуга должна начинаться с позиции и заканчиваться на переходе",
+                        "Inhibitor arcs must start at a position and end at a transition",
+                    ));
+                }
                 if is_inhibitor {
                     ui.horizontal(|ui| {
                         ui.label(t("Порог", "Threshold"));
@@ -3372,10 +3431,10 @@ impl PetriApp {
         match variant {
             SelectedArc::Regular(idx) => {
                 if is_inhibitor {
-                    let (from, to) = (self.net.arcs[idx].from, self.net.arcs[idx].to);
-                    if let Some((place_id, transition_id)) =
-                        Self::arc_place_transition_pair(from, to)
-                    {
+                    if let Some((place_id, transition_id)) = Self::arc_place_transition_pair(
+                        self.net.arcs[idx].from,
+                        self.net.arcs[idx].to,
+                    ) {
                         let arc = self.net.arcs.remove(idx);
                         self.net.inhibitor_arcs.push(crate::model::InhibitorArc {
                             id: arc.id,

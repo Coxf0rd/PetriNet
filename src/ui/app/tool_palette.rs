@@ -12,7 +12,7 @@ impl PetriApp {
                 ui.heading("Инструменты");
                 ui.separator();
 
-                ui.radio_value(&mut self.tool, Tool::Place, "◯ Место");
+                ui.radio_value(&mut self.tool, Tool::Place, "◯ Позиция");
                 ui.radio_value(&mut self.tool, Tool::Transition, "▮ Переход");
                 ui.radio_value(&mut self.tool, Tool::Arc, "↗ Дуга");
                 ui.radio_value(&mut self.tool, Tool::Text, "A Текст");
@@ -255,7 +255,7 @@ impl PetriApp {
                 "New Element Properties",
             ))
             .open(&mut open)
-            .resizable(false)
+            .resizable(true)
             .show(ctx, |ui| {
                 let size_text = |size: VisualSize| -> &'static str {
                     if is_ru {
@@ -306,8 +306,8 @@ impl PetriApp {
                 };
 
                 ui.group(|ui| {
-                    ui.label(t("Новые места", "New places"));
-                    egui::ComboBox::from_label(t("Размер", "Size"))
+                    ui.label(t("Новые позиции", "New positions"));
+                    egui::ComboBox::from_label(t("Размер позиции", "Position size"))
                         .selected_text(size_text(self.new_place_size))
                         .show_ui(ui, |ui| {
                             ui.selectable_value(
@@ -354,7 +354,7 @@ impl PetriApp {
                 ui.add_space(6.0);
                 ui.group(|ui| {
                     ui.label(t("Новые переходы", "New transitions"));
-                    egui::ComboBox::from_label(t("Размер", "Size"))
+                    egui::ComboBox::from_label(t("Размер перехода", "Transition size"))
                         .selected_text(size_text(self.new_transition_size))
                         .show_ui(ui, |ui| {
                             ui.selectable_value(
