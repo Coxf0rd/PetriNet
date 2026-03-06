@@ -447,6 +447,12 @@ impl PetriApp {
                                 None => format!("{}: N/A", self.tr("Время цикла", "Cycle time")),
                             });
                             ui.label(format!(
+                                "{}: {:.6} {}",
+                                self.tr("Итоговое время эмуляции", "Total simulation time"),
+                                result.sim_time,
+                                self.tr("сек", "sec")
+                            ));
+                            ui.label(format!(
                                 "{}: {}",
                                 self.tr("Сработало переходов", "Fired transitions"),
                                 result.fired_count
@@ -458,11 +464,6 @@ impl PetriApp {
                                     result.logs.len(),
                                     result.log_entries_total,
                                     self.tr("шаг сэмплирования", "sampling stride"),
-                                ));
-                                ui.label(format!(
-                                    "{} {}",
-                                    self.tr("Текущий шаг:", "Current stride:"),
-                                    result.log_sampling_stride,
                                 ));
                             }
 
