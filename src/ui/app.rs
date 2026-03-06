@@ -462,31 +462,24 @@ impl PetriApp {
             .iter()
             .position(|event| event.log_idx == log_idx)
             .or_else(|| {
-                if self.debug_step == 0 {
-                    self.debug_animation_events
-                        .iter()
-                        .enumerate()
-                        .find(|(_, event)| event.step_idx == 0)
-                        .map(|(idx, _)| idx)
-                } else {
+                self.debug_animation_events
+                    .iter()
+                    .position(|event| event.step_idx == self.debug_step)
+            })
+            .or_else(|| {
+                if self.debug_animation_events.is_empty() {
                     None
+                } else {
+                    Some(0)
                 }
             });
-        self.set_active_debug_animation_event(event_idx, visible_steps.len(), true, true);
+        self.set_active_debug_animation_event(event_idx, visible_steps.len());
     }
-    fn set_active_debug_animation_event(
-        &mut self,
-        event_idx: Option<usize>,
-        visible_len: usize,
-        _snap_clock: bool,
-        update_step: bool,
-    ) {
+    fn set_active_debug_animation_event(&mut self, event_idx: Option<usize>, visible_len: usize) {
         self.debug_animation_active_event = event_idx;
         if let Some(idx) = event_idx {
-            if update_step && visible_len > 0 {
-                self.debug_step = self.debug_animation_events[idx]
-                    .step_idx
-                    .min(visible_len - 1);
+            if visible_len > 0 && self.debug_step >= visible_len {
+                self.debug_step = visible_len - 1;
             }
             let duration = self.debug_animation_events[idx]
                 .duration()
