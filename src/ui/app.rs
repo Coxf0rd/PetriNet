@@ -265,7 +265,6 @@ struct DebugAnimationArc {
 #[derive(Debug, Clone)]
 struct DebugAnimationEvent {
     transition_idx: usize,
-    log_idx: usize,
     step_idx: usize,
     duration: f64,
     token_color: Color32,
@@ -457,44 +456,21 @@ impl PetriApp {
         if self.debug_step >= visible_steps.len() {
             self.debug_step = visible_steps.len() - 1;
         }
-        let log_idx = visible_steps[self.debug_step];
-        let target_step = Self::debug_animation_target_step(
-            self.debug_step,
-            visible_steps.len(),
-            self.debug_playing,
-        );
-        let event_idx = self
-            .debug_animation_events
-            .iter()
-            .position(|event| event.log_idx == log_idx)
-            .or_else(|| {
-                self.debug_animation_events
-                    .iter()
-                    .position(|event| event.step_idx == target_step)
-            })
-            .or_else(|| {
-                if self.debug_animation_events.is_empty() {
-                    None
-                } else {
-                    Some(0)
-                }
-            });
+        let target_step = Self::debug_animation_target_step(self.debug_step, visible_steps.len());
+        let event_idx = target_step.and_then(|step| {
+            self.debug_animation_events
+                .iter()
+                .position(|event| event.step_idx == step)
+        });
         self.set_active_debug_animation_event(event_idx, visible_steps.len());
     }
-    fn debug_animation_target_step(
-        current_step: usize,
-        total_steps: usize,
-        playing: bool,
-    ) -> usize {
+    fn debug_animation_target_step(current_step: usize, total_steps: usize) -> Option<usize> {
         if total_steps == 0 {
-            return 0;
+            return None;
         }
-        let target = if playing {
-            current_step
-        } else {
-            current_step.saturating_add(1)
-        };
-        target.min(total_steps.saturating_sub(1))
+        current_step
+            .checked_add(1)
+            .filter(|next| *next < total_steps)
     }
     fn set_active_debug_animation_event(&mut self, event_idx: Option<usize>, visible_len: usize) {
         self.debug_animation_active_event = event_idx;
@@ -556,22 +532,21 @@ impl PetriApp {
             }
             let duration = (next_time - entry.time).max(Self::DEBUG_ANIMATION_MIN_DURATION);
             let step_idx = *log_to_step.get(&idx).unwrap_or(&visible_steps.len());
-            events.push(DebugAnimationEvent {
-                transition_idx,
-                log_idx: idx,
-                step_idx,
-                duration,
-                token_color: current_marker_color,
-                pre_arcs: Self::transition_arcs(net, transition_idx, true),
-                post_arcs: Self::transition_arcs(net, transition_idx, false),
-            });
-            if let Some(color) = Self::marker_color_from_touched_places(
+            let color_override = Self::marker_color_from_touched_places(
                 net,
                 &entry.touched_places,
                 current_marker_color,
-            ) {
-                current_marker_color = color;
-            }
+            );
+            let token_color = color_override.unwrap_or(current_marker_color);
+            events.push(DebugAnimationEvent {
+                transition_idx,
+                step_idx,
+                duration,
+                token_color,
+                pre_arcs: Self::transition_arcs(net, transition_idx, true),
+                post_arcs: Self::transition_arcs(net, transition_idx, false),
+            });
+            current_marker_color = token_color;
         }
         events
     }
