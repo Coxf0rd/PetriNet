@@ -1,6 +1,6 @@
 ﻿[package]
 name = "petri_net_legacy_editor"
-version = "0.7.8"
+version = "0.7.11"
 edition = "2021"
 license = "MIT"
 build = "build.rs"
@@ -13,6 +13,7 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 rfd = "0.14"
 rand = { version = "0.8", features = ["small_rng"] }
+rand_distr = "0.4"
 arboard = "3.6"
 image = { version = "0.25", default-features = false, features = ["ico"] }
 encoding_rs = "0.8"

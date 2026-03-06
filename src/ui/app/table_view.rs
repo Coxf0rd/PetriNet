@@ -24,6 +24,18 @@ impl PetriApp {
             return;
         }
 
+        ui.horizontal(|ui| {
+            ui.label("Показывать:");
+            let vectors_label = self.tr("Векторы", "Vectors");
+            let pre_label = self.tr("Матрица Pre", "Pre matrix");
+            let post_label = self.tr("Матрица Post", "Post matrix");
+            let inhibitor_label = self.tr("Ингибиторные дуги", "Inhibitor matrix");
+            ui.checkbox(&mut self.show_struct_vectors, vectors_label);
+            ui.checkbox(&mut self.show_struct_pre, pre_label);
+            ui.checkbox(&mut self.show_struct_post, post_label);
+            ui.checkbox(&mut self.show_struct_inhibitor, inhibitor_label);
+        });
+
         let mut p_count = self.net.places.len() as i32;
         let mut t_count = self.net.transitions.len() as i32;
         ui.horizontal(|ui| {
@@ -40,164 +52,180 @@ impl PetriApp {
         let row_label_w = 46.0;
         let cell_w = 42.0;
         egui::ScrollArea::both().show(ui, |ui| {
-            ui.separator();
-            ui.label("Вектор начальной маркировки (M0)");
-            egui::Grid::new("m0_grid").striped(true).show(ui, |ui| {
-                for i in 0..self.net.places.len() {
-                    ui.add_sized([row_label_w, 0.0], egui::Label::new(format!("P{}", i + 1)));
-                    ui.add_sized(
-                        [cell_w * 1.4, 0.0],
-                        egui::DragValue::new(&mut self.net.tables.m0[i]).range(0..=u32::MAX),
-                    );
-                    ui.end_row();
-                }
-            });
-
-            ui.separator();
-            ui.label("Вектор максимальных емкостей (Mo)");
-            egui::Grid::new("mo_grid").striped(true).show(ui, |ui| {
-                for i in 0..self.net.places.len() {
-                    let mut cap = self.net.tables.mo[i].unwrap_or(0);
-                    ui.add_sized([row_label_w, 0.0], egui::Label::new(format!("P{}", i + 1)));
-                    if ui
-                        .add_sized(
+            if self.show_struct_vectors {
+                ui.separator();
+                ui.label("Р’РµРєС‚РѕСЂ РЅР°С‡Р°Р»СЊРЅРѕР№ РјР°СЂРєРёСЂРѕРІРєРё (M0)");
+                egui::Grid::new("m0_grid").striped(true).show(ui, |ui| {
+                    for i in 0..self.net.places.len() {
+                        ui.add_sized([row_label_w, 0.0], egui::Label::new(format!("P{}", i + 1)));
+                        ui.add_sized(
                             [cell_w * 1.4, 0.0],
-                            egui::DragValue::new(&mut cap).range(0..=u32::MAX),
-                        )
-                        .changed()
+                            egui::DragValue::new(&mut self.net.tables.m0[i]).range(0..=u32::MAX),
+                        );
+                        ui.end_row();
+                    }
+                });
+
+                ui.separator();
+                ui.label("Р’РµРєС‚РѕСЂ РјР°РєСЃРёРјР°Р»СЊРЅС‹С… РµРјРєРѕСЃС‚РµР№ (Mo)");
+                egui::Grid::new("mo_grid").striped(true).show(ui, |ui| {
+                    for i in 0..self.net.places.len() {
+                        let mut cap = self.net.tables.mo[i].unwrap_or(0);
+                        ui.add_sized([row_label_w, 0.0], egui::Label::new(format!("P{}", i + 1)));
+                        if ui
+                            .add_sized(
+                                [cell_w * 1.4, 0.0],
+                                egui::DragValue::new(&mut cap).range(0..=u32::MAX),
+                            )
+                            .changed()
+                        {
+                            self.net.tables.mo[i] = if cap == 0 { None } else { Some(cap) };
+                        }
+                        ui.end_row();
+                    }
+                });
+
+                ui.separator();
+                ui.label(
+                    "Р’РµРєС‚РѕСЂ РІСЂРµРјРµРЅРЅС‹С… Р·Р°РґРµСЂР¶РµРє РІ РїРѕР·РёС†РёСЏС… (Mz)",
+                );
+                egui::Grid::new("mz_grid").striped(true).show(ui, |ui| {
+                    for i in 0..self.net.places.len() {
+                        ui.add_sized([row_label_w, 0.0], egui::Label::new(format!("P{}", i + 1)));
+                        ui.add_sized(
+                            [cell_w * 1.8, 0.0],
+                            egui::DragValue::new(&mut self.net.tables.mz[i])
+                                .speed(0.1)
+                                .range(0.0..=10_000.0),
+                        );
+                        ui.end_row();
+                    }
+                });
+
+                ui.separator();
+                ui.label("Р’РµРєС‚РѕСЂ РїСЂРёРѕСЂРёС‚РµС‚РѕРІ РїРµСЂРµС…РѕРґРѕРІ (Mpr)");
+                egui::Grid::new("mpr_grid").striped(true).show(ui, |ui| {
+                    for t in 0..self.net.transitions.len() {
+                        ui.add_sized([row_label_w, 0.0], egui::Label::new(format!("T{}", t + 1)));
+                        ui.add_sized(
+                            [cell_w * 1.8, 0.0],
+                            egui::DragValue::new(&mut self.net.tables.mpr[t]).speed(1),
+                        );
+                        ui.end_row();
+                    }
+                });
+            }
+
+            let mut matrices_changed = false;
+            if self.show_struct_pre {
+                ui.separator();
+                ui.horizontal(|ui| {
+                    ui.label("РњР°С‚СЂРёС†Р° РёРЅС†Р¸РґРµРЅС‚С†РёР№ Pre");
+                    if ui
+                        .small_button(self.tr("РРјРїРѕСЂС‚ CSV", "Import CSV"))
+                        .clicked()
                     {
-                        self.net.tables.mo[i] = if cap == 0 { None } else { Some(cap) };
+                        self.import_matrix_csv(MatrixCsvTarget::Pre);
                     }
-                    ui.end_row();
-                }
-            });
-
-            ui.separator();
-            ui.label("Вектор временных задержек в позициях (Mz)");
-            egui::Grid::new("mz_grid").striped(true).show(ui, |ui| {
-                for i in 0..self.net.places.len() {
-                    ui.add_sized([row_label_w, 0.0], egui::Label::new(format!("P{}", i + 1)));
-                    ui.add_sized(
-                        [cell_w * 1.8, 0.0],
-                        egui::DragValue::new(&mut self.net.tables.mz[i])
-                            .speed(0.1)
-                            .range(0.0..=10_000.0),
-                    );
-                    ui.end_row();
-                }
-            });
-
-            ui.separator();
-            ui.label("Вектор приоритетов переходов (Mpr)");
-            egui::Grid::new("mpr_grid").striped(true).show(ui, |ui| {
-                for t in 0..self.net.transitions.len() {
-                    ui.add_sized([row_label_w, 0.0], egui::Label::new(format!("T{}", t + 1)));
-                    ui.add_sized(
-                        [cell_w * 1.8, 0.0],
-                        egui::DragValue::new(&mut self.net.tables.mpr[t]).speed(1),
-                    );
-                    ui.end_row();
-                }
-            });
-
-            ui.separator();
-            ui.horizontal(|ui| {
-                ui.label("Матрица инциденций Pre");
-                if ui
-                    .small_button(self.tr("Импорт CSV", "Import CSV"))
-                    .clicked()
-                {
-                    self.import_matrix_csv(MatrixCsvTarget::Pre);
-                }
-            });
-            let mut changed = false;
-            egui::Grid::new("pre_grid").striped(true).show(ui, |ui| {
-                ui.add_sized([row_label_w, 0.0], egui::Label::new(""));
-                for t in 0..self.net.transitions.len() {
-                    ui.add_sized([cell_w, 0.0], egui::Label::new(format!("T{}", t + 1)));
-                }
-                ui.end_row();
-                for p in 0..self.net.places.len() {
-                    ui.add_sized([row_label_w, 0.0], egui::Label::new(format!("P{}", p + 1)));
+                });
+                let mut pre_changed = false;
+                egui::Grid::new("pre_grid").striped(true).show(ui, |ui| {
+                    ui.add_sized([row_label_w, 0.0], egui::Label::new(""));
                     for t in 0..self.net.transitions.len() {
-                        changed |= ui
-                            .add_sized(
-                                [cell_w, 0.0],
-                                egui::DragValue::new(&mut self.net.tables.pre[p][t])
-                                    .range(0..=u32::MAX)
-                                    .speed(1),
-                            )
-                            .changed();
+                        ui.add_sized([cell_w, 0.0], egui::Label::new(format!("T{}", t + 1)));
                     }
                     ui.end_row();
-                }
-            });
+                    for p in 0..self.net.places.len() {
+                        ui.add_sized([row_label_w, 0.0], egui::Label::new(format!("P{}", p + 1)));
+                        for t in 0..self.net.transitions.len() {
+                            pre_changed |= ui
+                                .add_sized(
+                                    [cell_w, 0.0],
+                                    egui::DragValue::new(&mut self.net.tables.pre[p][t])
+                                        .range(0..=u32::MAX)
+                                        .speed(1),
+                                )
+                                .changed();
+                        }
+                        ui.end_row();
+                    }
+                });
+                matrices_changed |= pre_changed;
+            }
 
-            ui.separator();
-            ui.horizontal(|ui| {
-                ui.label("Матрица инциденций Post");
-                if ui
-                    .small_button(self.tr("Импорт CSV", "Import CSV"))
-                    .clicked()
-                {
-                    self.import_matrix_csv(MatrixCsvTarget::Post);
-                }
-            });
-            egui::Grid::new("post_grid").striped(true).show(ui, |ui| {
-                ui.add_sized([row_label_w, 0.0], egui::Label::new(""));
-                for t in 0..self.net.transitions.len() {
-                    ui.add_sized([cell_w, 0.0], egui::Label::new(format!("T{}", t + 1)));
-                }
-                ui.end_row();
-                for p in 0..self.net.places.len() {
-                    ui.add_sized([row_label_w, 0.0], egui::Label::new(format!("P{}", p + 1)));
+            if self.show_struct_post {
+                ui.separator();
+                ui.horizontal(|ui| {
+                    ui.label("РњР°С‚СЂРёС†Р° РёРЅС†С‚РёРґС‚СЂРёР№ Post");
+                    if ui
+                        .small_button(self.tr("РРјРїРѕСЂС‚ CSV", "Import CSV"))
+                        .clicked()
+                    {
+                        self.import_matrix_csv(MatrixCsvTarget::Post);
+                    }
+                });
+                let mut post_changed = false;
+                egui::Grid::new("post_grid").striped(true).show(ui, |ui| {
+                    ui.add_sized([row_label_w, 0.0], egui::Label::new(""));
                     for t in 0..self.net.transitions.len() {
-                        changed |= ui
-                            .add_sized(
-                                [cell_w, 0.0],
-                                egui::DragValue::new(&mut self.net.tables.post[p][t])
-                                    .range(0..=u32::MAX)
-                                    .speed(1),
-                            )
-                            .changed();
+                        ui.add_sized([cell_w, 0.0], egui::Label::new(format!("T{}", t + 1)));
                     }
                     ui.end_row();
-                }
-            });
+                    for p in 0..self.net.places.len() {
+                        ui.add_sized([row_label_w, 0.0], egui::Label::new(format!("P{}", p + 1)));
+                        for t in 0..self.net.transitions.len() {
+                            post_changed |= ui
+                                .add_sized(
+                                    [cell_w, 0.0],
+                                    egui::DragValue::new(&mut self.net.tables.post[p][t])
+                                        .range(0..=u32::MAX)
+                                        .speed(1),
+                                )
+                                .changed();
+                        }
+                        ui.end_row();
+                    }
+                });
+                matrices_changed |= post_changed;
+            }
 
-            ui.separator();
-            ui.horizontal(|ui| {
-                ui.label("Матрица ингибиторных дуг");
-                if ui
-                    .small_button(self.tr("Импорт CSV", "Import CSV"))
-                    .clicked()
-                {
-                    self.import_matrix_csv(MatrixCsvTarget::Inhibitor);
-                }
-            });
-            egui::Grid::new("inh_grid").striped(true).show(ui, |ui| {
-                ui.add_sized([row_label_w, 0.0], egui::Label::new(""));
-                for t in 0..self.net.transitions.len() {
-                    ui.add_sized([cell_w, 0.0], egui::Label::new(format!("T{}", t + 1)));
-                }
-                ui.end_row();
-                for p in 0..self.net.places.len() {
-                    ui.add_sized([row_label_w, 0.0], egui::Label::new(format!("P{}", p + 1)));
+            if self.show_struct_inhibitor {
+                ui.separator();
+                ui.horizontal(|ui| {
+                    ui.label("РњР°С‚СЂРёС†Р° РёРЅРіРёР±РёС‚РѕСЂРЅС‹С… РґСѓРі");
+                    if ui
+                        .small_button(self.tr("РРјРїРѕСЂС‚ CSV", "Import CSV"))
+                        .clicked()
+                    {
+                        self.import_matrix_csv(MatrixCsvTarget::Inhibitor);
+                    }
+                });
+                let mut inhibitor_changed = false;
+                egui::Grid::new("inh_grid").striped(true).show(ui, |ui| {
+                    ui.add_sized([row_label_w, 0.0], egui::Label::new(""));
                     for t in 0..self.net.transitions.len() {
-                        changed |= ui
-                            .add_sized(
-                                [cell_w, 0.0],
-                                egui::DragValue::new(&mut self.net.tables.inhibitor[p][t])
-                                    .range(0..=u32::MAX)
-                                    .speed(1),
-                            )
-                            .changed();
+                        ui.add_sized([cell_w, 0.0], egui::Label::new(format!("T{}", t + 1)));
                     }
                     ui.end_row();
-                }
-            });
+                    for p in 0..self.net.places.len() {
+                        ui.add_sized([row_label_w, 0.0], egui::Label::new(format!("P{}", p + 1)));
+                        for t in 0..self.net.transitions.len() {
+                            inhibitor_changed |= ui
+                                .add_sized(
+                                    [cell_w, 0.0],
+                                    egui::DragValue::new(&mut self.net.tables.inhibitor[p][t])
+                                        .range(0..=u32::MAX)
+                                        .speed(1),
+                                )
+                                .changed();
+                        }
+                        ui.end_row();
+                    }
+                });
+                matrices_changed |= inhibitor_changed;
+            }
 
-            if changed {
+            if matrices_changed {
                 self.net.rebuild_arcs_from_matrices();
             }
         });

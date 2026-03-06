@@ -7,7 +7,7 @@ impl PetriApp {
         }
 
         let panel = egui::SidePanel::left("tools")
-            .resizable(false)
+            .resizable(true)
             .show(ctx, |ui| {
                 ui.heading("Инструменты");
                 ui.separator();
