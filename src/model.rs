@@ -172,6 +172,7 @@ pub struct Place {
     pub input_description: String,
     pub stochastic: StochasticDistribution,
     pub stats: PlaceStatisticsSelection,
+    pub markov_highlight: bool,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
@@ -211,11 +212,12 @@ pub enum StochasticDistribution {
     Exponential {
         lambda: f64,
     },
+    Gamma {
+        shape: f64,
+        scale: f64,
+    },
     Poisson {
         lambda: f64,
-    },
-    CustomValue {
-        value: f64,
     },
 }
 
@@ -272,6 +274,7 @@ pub struct InhibitorArc {
     pub place_id: u64,
     pub transition_id: u64,
     pub threshold: u32,
+    pub show_weight: bool,
     #[serde(default = "default_inhibitor_color")]
     pub color: NodeColor,
     #[serde(default = "default_visible_true")]
@@ -287,6 +290,7 @@ impl Default for InhibitorArc {
             threshold: 1,
             color: NodeColor::Red,
             visible: true,
+            show_weight: false,
         }
     }
 }
@@ -582,6 +586,7 @@ impl PetriNetModel {
                 threshold: threshold.max(1),
                 color: NodeColor::Red,
                 visible: true,
+                show_weight: false,
             });
             self.rebuild_matrices_from_arcs();
         }
@@ -697,10 +702,32 @@ impl PetriNetModel {
                         threshold: inh.max(1),
                         color: NodeColor::Red,
                         visible: true,
+                        show_weight: false,
                     });
                     next_id = next_id.saturating_add(1);
                 }
             }
+        }
+    }
+
+    pub fn sanitize_values(&mut self) {
+        for value in &mut self.tables.mz {
+            if !value.is_finite() || *value < 0.0 {
+                *value = 0.0;
+            }
+        }
+        for cap in &mut self.tables.mo {
+            if let Some(inner) = cap {
+                if *inner == 0 {
+                    *cap = None;
+                }
+            }
+        }
+        for arc in &mut self.arcs {
+            arc.weight = arc.weight.max(1);
+        }
+        for inh in &mut self.inhibitor_arcs {
+            inh.threshold = inh.threshold.max(1);
         }
     }
 
@@ -812,5 +839,43 @@ impl PetriNetModel {
         }
 
         Ok(())
+    }
+}
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn sanitize_values_resets_invalid_inputs() {
+        let mut net = PetriNet::new();
+        net.set_counts(1, 1);
+        net.tables.mz[0] = f64::NAN;
+        net.tables.mo[0] = Some(0);
+        let place_id = net.places[0].id;
+        let transition_id = net.transitions[0].id;
+        net.arcs.push(Arc {
+            id: 1,
+            from: NodeRef::Place(place_id),
+            to: NodeRef::Transition(transition_id),
+            weight: 0,
+            color: NodeColor::Default,
+            visible: true,
+        });
+        net.inhibitor_arcs.push(InhibitorArc {
+            id: 2,
+            place_id,
+            transition_id,
+            threshold: 0,
+            color: NodeColor::Red,
+            visible: true,
+            show_weight: false,
+        });
+
+        net.sanitize_values();
+
+        assert_eq!(net.tables.mz[0], 0.0);
+        assert_eq!(net.tables.mo[0], None);
+        assert_eq!(net.arcs[0].weight, 1);
+        assert_eq!(net.inhibitor_arcs[0].threshold, 1);
     }
 }

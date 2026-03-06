@@ -934,15 +934,16 @@ fn apply_legacy_arcs(model: &mut PetriNetModel, arcs: &[LegacyArcRecord]) {
         }
         let place_id = model.places[arc.place_idx].id;
         let transition_id = model.transitions[arc.transition_idx].id;
-        if arc.inhibitor {
-            model.inhibitor_arcs.push(crate::model::InhibitorArc {
-                id: next_arc_like_id,
-                place_id,
-                transition_id,
-                threshold: arc.weight.max(1),
-                color: crate::model::NodeColor::Red,
-                visible: true,
-            });
+            if arc.inhibitor {
+                model.inhibitor_arcs.push(crate::model::InhibitorArc {
+                    id: next_arc_like_id,
+                    place_id,
+                    transition_id,
+                    threshold: arc.weight.max(1),
+                    color: crate::model::NodeColor::Red,
+                    visible: true,
+                    show_weight: false,
+                });
             next_arc_like_id = next_arc_like_id.saturating_add(1);
         } else {
             let (from, to) = if arc.place_to_transition {

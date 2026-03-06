@@ -12,7 +12,7 @@ impl PetriApp {
             self.canvas.zoom = (self.canvas.zoom * zoom_delta).clamp(0.2, 3.0);
         }
 
-        if response.dragged_by(egui::PointerButton::Secondary) {
+        if response.dragged_by(egui::PointerButton::Middle) {
             self.canvas.pan += response.drag_delta();
         }
 
@@ -67,10 +67,6 @@ impl PetriApp {
                 }
             });
         }
-        if self.tool == Tool::Arc && !ui.ctx().input(|i| i.pointer.any_down()) {
-            self.canvas.arc_start = None;
-        }
-
         if response.double_clicked_by(egui::PointerButton::Primary) {
             if let Some(click) = response.interact_pointer_pos() {
                 if let Some(node) = self.node_at(rect, click) {
@@ -315,6 +311,9 @@ impl PetriApp {
                     }
                 }
             }
+        }
+        if self.tool == Tool::Arc && !ui.ctx().input(|i| i.pointer.any_down()) {
+            self.canvas.arc_start = None;
         }
 
         if response.drag_started_by(egui::PointerButton::Primary) && self.tool == Tool::Frame {
@@ -881,13 +880,16 @@ impl PetriApp {
                 };
                 painter.line_segment([from, to], inh_stroke);
                 let mid = from + (to - from) * 0.5;
-                painter.text(
-                    mid,
-                    egui::Align2::CENTER_CENTER,
-                    format!("inh:{}", inh.threshold),
-                    egui::TextStyle::Small.resolve(ui.style()),
-                    Self::color_to_egui(inh.color, Color32::RED),
-                );
+                if inh.show_weight {
+                    let multiplicity_label = self.tr("Кратность", "Multiplicity");
+                    painter.text(
+                        mid,
+                        egui::Align2::CENTER_CENTER,
+                        format!("{multiplicity_label}: {}", inh.threshold),
+                        egui::TextStyle::Small.resolve(ui.style()),
+                        Self::color_to_egui(inh.color, Color32::RED),
+                    );
+                }
             }
         }
 
@@ -983,6 +985,16 @@ impl PetriApp {
                         marker_color,
                     );
                 }
+            }
+            if let Some(annotation) = self.markov_annotations.get(&place.id) {
+                let annotation_offset = Vec2::new(0.0, radius + 8.0);
+                painter.text(
+                    center + annotation_offset,
+                    egui::Align2::CENTER_TOP,
+                    annotation,
+                    egui::TextStyle::Small.resolve(ui.style()),
+                    Color32::from_rgb(100, 100, 100),
+                );
             }
         }
 
@@ -1136,7 +1148,7 @@ impl PetriApp {
             if let Some(idx) = self.place_idx_by_id(p) {
                 let place = &mut self.net.places[idx];
                 ui.separator();
-                ui.label("Выбранное место");
+                ui.label("Выбранная позиция");
                 ui.text_edit_singleline(&mut place.name);
             }
         }

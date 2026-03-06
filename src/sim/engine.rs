@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use rand::rngs::SmallRng;
 use rand::{Rng, SeedableRng};
+use rand_distr::{Distribution, Gamma};
 use serde::{Deserialize, Serialize};
 
 use crate::model::{PetriNet, StochasticDistribution};
@@ -166,6 +167,17 @@ pub fn run_simulation(
     let mut logs = Vec::new();
     let mut raw_log_total = 0usize;
     let mut log_sampling_stride = 1usize;
+    push_log_entry_sampled(
+        &mut logs,
+        LogEntry {
+            time: now,
+            fired_transition: None,
+            marking: state.total_marking(),
+            touched_places: Vec::new(),
+        },
+        &mut raw_log_total,
+        &mut log_sampling_stride,
+    );
     // Deterministic by default: makes tests and bug reports reproducible.
     let mut rng = SmallRng::seed_from_u64(0x5EED_5EED);
     let mut seen_markings: HashMap<Vec<u32>, f64> = HashMap::new();
@@ -507,6 +519,15 @@ fn sample_place_delay(
             let u = (1.0 - rng.gen::<f64>()).clamp(1e-12, 1.0);
             -u.ln() / l
         }
+        StochasticDistribution::Gamma { shape, scale } => {
+            let k = shape.max(1e-9);
+            let theta = scale.max(1e-9);
+            if let Ok(dist) = Gamma::new(k, theta) {
+                dist.sample(rng)
+            } else {
+                base_delay
+            }
+        }
         StochasticDistribution::Poisson { lambda } => {
             let l = lambda.max(0.0);
             if l <= f64::EPSILON {
@@ -525,7 +546,6 @@ fn sample_place_delay(
                 (k.saturating_sub(1)) as f64
             }
         }
-        StochasticDistribution::CustomValue { value } => value,
     };
     if value.is_finite() {
         value.max(0.0)
@@ -585,7 +605,8 @@ mod tests {
             ..SimulationParams::default()
         };
         let res = run_simulation(&net, &p, true, false);
-        assert_eq!(res.logs[0].fired_transition, Some(1));
+        assert!(res.logs.len() > 1);
+        assert_eq!(res.logs[1].fired_transition, Some(1));
     }
 
     #[test]
@@ -632,7 +653,8 @@ mod tests {
         };
 
         let res = run_simulation(&net, &p, true, false);
-        assert_eq!(res.logs[0].fired_transition, Some(0));
+        assert!(res.logs.len() > 1);
+        assert_eq!(res.logs[1].fired_transition, Some(0));
     }
 
     #[test]
