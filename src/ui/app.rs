@@ -369,7 +369,8 @@ pub struct PetriApp {
     debug_animation_events: Vec<DebugAnimationEvent>,
     debug_animation_active_event: Option<usize>,
     debug_animation_step_playing: bool,
-    debug_animation_step_target_time: Option<f64>,
+    debug_animation_step_progress: f64,
+    debug_animation_step_duration: f64,
     show_proof: bool,
     text_blocks: Vec<CanvasTextBlock>,
     next_text_id: u64,
@@ -488,18 +489,16 @@ impl PetriApp {
 
     fn start_debug_animation_step_if_needed(&mut self) {
         self.debug_animation_step_playing = false;
-        self.debug_animation_step_target_time = None;
+        self.debug_animation_step_progress = 0.0;
+        self.debug_animation_step_duration = 0.0;
         if !self.debug_animation_enabled || self.debug_playing {
             return;
         }
         if let Some(idx) = self.debug_animation_active_event {
             if let Some(event) = self.debug_animation_events.get(idx) {
-                let duration = event.duration();
-                if duration <= 0.0 {
-                    return;
-                }
                 self.debug_animation_clock = event.start_time;
-                self.debug_animation_step_target_time = Some(event.end_time);
+                let forced = (self.debug_interval_ms.max(1) as f64) / 1000.0;
+                self.debug_animation_step_duration = forced.max(Self::DEBUG_ANIMATION_MIN_DURATION);
                 self.debug_animation_step_playing = true;
                 self.debug_animation_last_update = Some(Instant::now());
             }
@@ -534,7 +533,8 @@ impl PetriApp {
         self.debug_animation_last_update = None;
         self.debug_playing = false;
         self.debug_animation_step_playing = false;
-        self.debug_animation_step_target_time = None;
+        self.debug_animation_step_progress = 0.0;
+        self.debug_animation_step_duration = 0.0;
     }
 
     fn sync_debug_animation_for_clock(&mut self) {
