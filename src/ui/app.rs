@@ -566,11 +566,20 @@ impl PetriApp {
                     let token_color = place_token_colors[arc.place_idx]
                         .pop()
                         .unwrap_or(default_marker_color);
+                    let next_color = if let Some(place) = net.places.get(arc.place_idx) {
+                        if place.marker_color_on_pass {
+                            Self::color_to_egui(place.color, token_color)
+                        } else {
+                            token_color
+                        }
+                    } else {
+                        token_color
+                    };
                     arc.token_colors.push(token_color);
-                    moving_colors.push_back(token_color);
+                    moving_colors.push_back((token_color, next_color));
                 }
             }
-            if let Some(color) = moving_colors.front().copied() {
+            if let Some((color, _)) = moving_colors.front().copied() {
                 entry_color = color;
             } else if let Some((color, _)) = Self::marker_color_from_places(
                 net,
@@ -582,22 +591,13 @@ impl PetriApp {
             for arc in post_arcs.iter_mut() {
                 let mut assigned = Vec::new();
                 for _ in 0..arc.weight {
-                    let token_color = moving_colors.pop_front().unwrap_or(entry_color);
+                    let (_, outgoing_color) = moving_colors
+                        .pop_front()
+                        .unwrap_or((entry_color, entry_color));
                     if let Some(slot) = place_token_colors.get_mut(arc.place_idx) {
-                        let outgoing_color = if let Some(place) = net.places.get(arc.place_idx) {
-                            if place.marker_color_on_pass {
-                                Self::color_to_egui(place.color, token_color)
-                            } else {
-                                token_color
-                            }
-                        } else {
-                            token_color
-                        };
                         slot.push(outgoing_color);
-                        assigned.push(outgoing_color);
-                    } else {
-                        assigned.push(token_color);
                     }
+                    assigned.push(outgoing_color);
                 }
                 arc.token_colors = assigned;
             }
