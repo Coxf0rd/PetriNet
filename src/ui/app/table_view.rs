@@ -446,11 +446,14 @@ impl PetriApp {
                                 ),
                                 None => format!("{}: N/A", self.tr("Время цикла", "Cycle time")),
                             });
+                            let total_minutes = result.sim_time / 60.0;
                             ui.label(format!(
-                                "{}: {:.6} {}",
+                                "{}: {:.4} {} / {:.4} {}",
                                 self.tr("Итоговое время эмуляции", "Total simulation time"),
                                 result.sim_time,
-                                self.tr("сек", "sec")
+                                self.tr("сек", "sec"),
+                                total_minutes,
+                                self.tr("мин", "min")
                             ));
                             ui.label(format!(
                                 "{}: {}",
@@ -1187,33 +1190,17 @@ impl PetriApp {
 
                 if let Some(mouse_pos) = response.hover_pos() {
                     if plot_rect.contains(mouse_pos) {
-                        let rel_x =
-                            ((mouse_pos.x - plot_rect.left()) / plot_rect.width()).clamp(0.0, 1.0);
-                        let rel_y = ((plot_rect.bottom() - mouse_pos.y) / plot_rect.height())
-                            .clamp(0.0, 1.0);
-                        let data_x = x_min + rel_x as f64 * (x_max - x_min);
-                        let data_y = y_min + rel_y as f64 * (y_max - y_min);
-                        let hover_label = format!(
-                            "{}: {:.3}, {}: {:.3}",
-                            self.tr("X", "X"),
-                            data_x,
-                            self.tr("Y", "Y"),
-                            data_y
-                        );
-                        painter.text(
-                            mouse_pos + egui::Vec2::new(6.0, -8.0),
-                            egui::Align2::LEFT_BOTTOM,
-                            hover_label,
-                            egui::FontId::default(),
-                            Color32::DARK_GRAY,
-                        );
-                        let tolerance = 16.0;
+                        let x_tolerance = 32.0;
+                        let y_tolerance = 80.0;
                         if let Some((pos, x, y)) = points_data
                             .iter()
                             .filter_map(|(pos, x, y)| {
-                                let dist = pos.distance(mouse_pos);
-                                if dist <= tolerance {
-                                    Some((dist, *pos, *x, *y))
+                                let dx = (mouse_pos.x - pos.x).abs();
+                                let dy = (mouse_pos.y - pos.y).abs();
+                                let normalized =
+                                    (dx / x_tolerance).powi(2) + (dy / y_tolerance).powi(2);
+                                if normalized <= 1.0 {
+                                    Some((normalized, *pos, *x, *y))
                                 } else {
                                     None
                                 }
@@ -1233,8 +1220,8 @@ impl PetriApp {
                                 y
                             );
                             painter.text(
-                                pos + egui::Vec2::new(6.0, -12.0),
-                                egui::Align2::LEFT_BOTTOM,
+                                pos + Vec2::new(6.0, 12.0),
+                                egui::Align2::LEFT_TOP,
                                 point_label,
                                 egui::FontId::default(),
                                 Color32::BLACK,

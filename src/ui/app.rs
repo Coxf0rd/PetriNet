@@ -326,6 +326,8 @@ pub struct PetriApp {
     new_arc_color: NodeColor,
     new_arc_inhibitor: bool,
     new_arc_inhibitor_threshold: u32,
+    new_element_props_window_size: Vec2,
+    new_element_props_window_was_open: bool,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -469,6 +471,8 @@ impl PetriApp {
             new_arc_color: NodeColor::Default,
             new_arc_inhibitor: false,
             new_arc_inhibitor_threshold: 1,
+            new_element_props_window_size: Vec2::new(360.0, 520.0),
+            new_element_props_window_was_open: false,
         }
     }
 
@@ -552,6 +556,8 @@ impl PetriApp {
                 new_arc_color: NodeColor::Default,
                 new_arc_inhibitor: false,
                 new_arc_inhibitor_threshold: 1,
+                new_element_props_window_size: Vec2::new(360.0, 520.0),
+                new_element_props_window_was_open: false,
             }
         }
     }

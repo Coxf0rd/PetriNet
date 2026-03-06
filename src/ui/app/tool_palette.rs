@@ -250,13 +250,18 @@ impl PetriApp {
             let is_ru = matches!(self.net.ui.language, Language::Ru);
             let t = |ru: &'static str, en: &'static str| if is_ru { ru } else { en };
             let mut open = self.show_new_element_props;
-            egui::Window::new(t(
+            let was_open = self.new_element_props_window_was_open;
+            let apply_default_size = !was_open && open;
+            let mut window = egui::Window::new(t(
                 "Свойства создаваемых элементов",
                 "New Element Properties",
             ))
             .open(&mut open)
-            .resizable(true)
-            .show(ctx, |ui| {
+            .resizable(true);
+            if apply_default_size {
+                window = window.default_size(self.new_element_props_window_size);
+            }
+            let response = window.show(ctx, |ui| {
                 let size_text = |size: VisualSize| -> &'static str {
                     if is_ru {
                         match size {
@@ -410,7 +415,16 @@ impl PetriApp {
                     }
                 });
             });
+            if open {
+                if let Some(response) = response {
+                    let size = response.response.rect.size();
+                    if size.x > 0.0 && size.y > 0.0 {
+                        self.new_element_props_window_size = size;
+                    }
+                }
+            }
             self.show_new_element_props = open;
+            self.new_element_props_window_was_open = open;
         }
     }
 }
