@@ -42,6 +42,7 @@ impl PetriApp {
                 debug_step: 0,
                 debug_playing: false,
                 debug_interval_ms: 400,
+                last_debug_tick: None,
                 debug_animation_enabled: false,
                 debug_animation_clock: 0.0,
                 debug_animation_total_time: 0.0,

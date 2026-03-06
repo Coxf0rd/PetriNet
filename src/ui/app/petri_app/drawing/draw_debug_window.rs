@@ -26,12 +26,33 @@ impl PetriApp {
                     self.debug_step = steps - 1;
                 }
                 if self.debug_playing {
-                    ctx.request_repaint_after(Duration::from_millis(16));
+                    let now = Instant::now();
+                    let should_tick = self
+                        .last_debug_tick
+                        .map(|tick| {
+                            now.duration_since(tick)
+                                >= Duration::from_millis(self.debug_interval_ms)
+                        })
+                        .unwrap_or(true);
+                    if should_tick {
+                        if self.debug_step + 1 < steps {
+                            self.debug_step += 1;
+                            self.last_debug_tick = Some(now);
+                            self.sync_debug_animation_for_step();
+                            ctx.request_repaint_after(Duration::from_millis(16));
+                        } else {
+                            self.debug_playing = false;
+                            self.last_debug_tick = None;
+                        }
+                    } else {
+                        ctx.request_repaint_after(Duration::from_millis(16));
+                    }
                 }
 
                 ui.horizontal(|ui| {
                     if ui.button("<<").clicked() {
                         self.debug_playing = false;
+                        self.last_debug_tick = None;
                         self.debug_animation_last_update = None;
                         self.debug_step = self.debug_step.saturating_sub(1);
                         self.sync_debug_animation_for_step();
@@ -44,17 +65,22 @@ impl PetriApp {
                         })
                         .clicked()
                     {
-                        if !self.debug_playing
-                            && self.debug_animation_clock >= self.debug_animation_total_time
-                        {
-                            self.debug_animation_clock = 0.0;
-                            self.sync_debug_animation_for_clock();
+                        if self.debug_playing {
+                            self.debug_playing = false;
+                            self.last_debug_tick = None;
+                        } else {
+                            if self.debug_animation_clock >= self.debug_animation_total_time {
+                                self.debug_animation_clock = 0.0;
+                                self.sync_debug_animation_for_clock();
+                            }
+                            self.debug_playing = true;
+                            self.last_debug_tick = Some(Instant::now());
                         }
-                        self.debug_playing = !self.debug_playing;
                         self.debug_animation_last_update = None;
                     }
                     if ui.button(">>").clicked() {
                         self.debug_playing = false;
+                        self.last_debug_tick = None;
                         self.debug_animation_last_update = None;
                         self.debug_step = (self.debug_step + 1).min(steps - 1);
                         self.sync_debug_animation_for_step();
@@ -68,6 +94,7 @@ impl PetriApp {
                 );
                 if slider_response.changed() {
                     self.debug_playing = false;
+                    self.last_debug_tick = None;
                     self.debug_animation_last_update = None;
                     self.sync_debug_animation_for_step();
                 }
