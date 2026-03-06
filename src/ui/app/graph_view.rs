@@ -1195,46 +1195,58 @@ impl PetriApp {
     }
 
     fn update_debug_animation_clock(&mut self, ctx: &egui::Context) {
-        if !self.debug_animation_enabled
-            || self.debug_animation_events.is_empty()
-            || self.debug_animation_total_time <= 0.0
-        {
+        if !self.show_debug || !self.debug_animation_enabled || !self.debug_playing {
             self.debug_animation_last_update = None;
             return;
         }
-        let now = Instant::now();
-        if let Some(last) = self.debug_animation_last_update {
-            let delta = now.duration_since(last).as_secs_f64();
-            self.debug_animation_clock += delta;
+        let event_idx = match self.debug_animation_active_event {
+            Some(idx) => idx,
+            None => return,
+        };
+        let event = match self.debug_animation_events.get(event_idx) {
+            Some(event) => event,
+            None => {
+                self.debug_animation_active_event = None;
+                return;
+            }
+        };
+        let duration = event.duration();
+        if duration <= 0.0 {
+            return;
         }
+        let now = Instant::now();
+        let delta = if let Some(last) = self.debug_animation_last_update {
+            now.duration_since(last).as_secs_f64()
+        } else {
+            0.0
+        };
         self.debug_animation_last_update = Some(now);
-        self.debug_animation_clock = self
-            .debug_animation_clock
-            .rem_euclid(self.debug_animation_total_time);
+        self.debug_animation_elapsed = (self.debug_animation_elapsed + delta).min(duration);
         ctx.request_repaint_after(Duration::from_millis(16));
     }
 
     fn draw_debug_animation_overlay(&self, rect: Rect, painter: &egui::Painter) {
-        if !self.debug_animation_enabled
-            || self.debug_animation_events.is_empty()
-            || self.debug_animation_total_time <= 0.0
-        {
+        if !self.show_debug || !self.debug_animation_enabled {
             return;
         }
-        let timeline_pos = self
-            .debug_animation_clock
-            .rem_euclid(self.debug_animation_total_time);
-        for event in &self.debug_animation_events {
-            if timeline_pos < event.start_time || timeline_pos >= event.end_time {
-                continue;
-            }
-            let duration = event.duration();
-            if duration <= 0.0 {
-                continue;
-            }
-            let relative = ((timeline_pos - event.start_time) / duration) as f32;
-            self.draw_debug_animation_event(event, relative, rect, painter);
+        let event_idx = match self.debug_animation_active_event {
+            Some(idx) => idx,
+            None => return,
+        };
+        let event = match self.debug_animation_events.get(event_idx) {
+            Some(event) => event,
+            None => return,
+        };
+        let duration = event.duration();
+        if duration <= 0.0 {
+            return;
         }
+        let relative = if self.debug_playing {
+            (self.debug_animation_elapsed / duration).clamp(0.0, 1.0) as f32
+        } else {
+            1.0
+        };
+        self.draw_debug_animation_event(event, relative, rect, painter);
     }
 
     fn draw_debug_animation_event(

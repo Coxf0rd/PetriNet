@@ -25,6 +25,7 @@ impl PetriApp {
                 if self.debug_step >= steps {
                     self.debug_step = steps - 1;
                 }
+                let prev_debug_step = self.debug_step;
 
                 if self.debug_playing {
                     let now = Instant::now();
@@ -77,8 +78,8 @@ impl PetriApp {
                     &mut self.debug_animation_enabled,
                     t("Включить анимацию", "Enable animation"),
                 );
-                if animation_response.changed() && self.debug_animation_enabled {
-                    self.restart_debug_animation_clock();
+                if animation_response.changed() {
+                    self.sync_debug_animation_for_step();
                 }
                 if self.debug_animation_enabled {
                     if self.debug_animation_events.is_empty() {
@@ -120,6 +121,9 @@ impl PetriApp {
                                 }
                             });
                     }
+                }
+                if self.debug_step != prev_debug_step {
+                    self.sync_debug_animation_for_step();
                 }
             });
         self.show_debug = open;

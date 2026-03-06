@@ -265,6 +265,7 @@ struct DebugAnimationArc {
 #[derive(Debug, Clone)]
 struct DebugAnimationEvent {
     transition_idx: usize,
+    log_idx: usize,
     start_time: f64,
     end_time: f64,
     pre_arcs: Vec<DebugAnimationArc>,
@@ -360,10 +361,10 @@ pub struct PetriApp {
     debug_interval_ms: u64,
     last_debug_tick: Option<Instant>,
     debug_animation_enabled: bool,
-    debug_animation_clock: f64,
-    debug_animation_total_time: f64,
+    debug_animation_elapsed: f64,
     debug_animation_last_update: Option<Instant>,
     debug_animation_events: Vec<DebugAnimationEvent>,
+    debug_animation_active_event: Option<usize>,
     show_proof: bool,
     text_blocks: Vec<CanvasTextBlock>,
     next_text_id: u64,
@@ -431,25 +432,42 @@ impl PetriApp {
             let events = Self::build_debug_animation_events(&self.net, result);
             if events.is_empty() {
                 self.debug_animation_events.clear();
-                self.debug_animation_total_time = 0.0;
             } else {
-                let total_time = events
-                    .last()
-                    .map(|event| event.end_time)
-                    .unwrap_or(0.0)
-                    .max(Self::DEBUG_ANIMATION_MIN_DURATION);
                 self.debug_animation_events = events;
-                self.debug_animation_total_time = total_time;
             }
         } else {
             self.debug_animation_events.clear();
-            self.debug_animation_total_time = 0.0;
         }
-        self.restart_debug_animation_clock();
+        self.sync_debug_animation_for_step();
     }
 
     pub(in crate::ui::app) fn restart_debug_animation_clock(&mut self) {
-        self.debug_animation_clock = 0.0;
+        self.sync_debug_animation_for_step();
+    }
+
+    fn sync_debug_animation_for_step(&mut self) {
+        if !self.debug_animation_enabled {
+            self.debug_animation_active_event = None;
+            self.debug_animation_elapsed = 0.0;
+            self.debug_animation_last_update = None;
+            return;
+        }
+        let Some(result) = self.sim_result.as_ref() else {
+            self.debug_animation_active_event = None;
+            self.debug_animation_elapsed = 0.0;
+            self.debug_animation_last_update = None;
+            return;
+        };
+        let visible = Self::debug_visible_log_indices(result);
+        if let Some(&log_idx) = visible.get(self.debug_step) {
+            self.debug_animation_active_event = self
+                .debug_animation_events
+                .iter()
+                .position(|event| event.log_idx == log_idx);
+        } else {
+            self.debug_animation_active_event = None;
+        }
+        self.debug_animation_elapsed = 0.0;
         self.debug_animation_last_update = None;
     }
 
@@ -472,6 +490,7 @@ impl PetriApp {
             let duration = (next_time - entry.time).max(Self::DEBUG_ANIMATION_MIN_DURATION);
             events.push(DebugAnimationEvent {
                 transition_idx,
+                log_idx: idx,
                 start_time: entry.time,
                 end_time: entry.time + duration,
                 pre_arcs: Self::transition_arcs(net, transition_idx, true),

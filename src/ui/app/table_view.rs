@@ -330,6 +330,8 @@ impl PetriApp {
         egui::Window::new(self.tr("Параметры симуляции", "Simulation Parameters"))
             .open(&mut open)
             .show(ctx, |ui| {
+                let mut corrected_inputs = false;
+                let max_places = self.net.places.len();
                 let time_limit_label = self.tr("Лимит времени (сек)", "Time limit (sec)");
                 ui.checkbox(&mut self.sim_params.use_time_limit, time_limit_label);
                 ui.add_enabled(
@@ -338,6 +340,8 @@ impl PetriApp {
                         .speed(0.1)
                         .range(0.0..=1_000_000.0),
                 );
+                corrected_inputs |=
+                    sanitize_f64(&mut self.sim_params.time_limit_sec, 0.0, 1_000_000.0);
 
                 let pass_limit_label = self.tr("Лимит срабатываний", "Fire count limit");
                 ui.checkbox(&mut self.sim_params.use_pass_limit, pass_limit_label);
@@ -345,6 +349,7 @@ impl PetriApp {
                     self.sim_params.use_pass_limit,
                     egui::DragValue::new(&mut self.sim_params.pass_limit).range(0..=u64::MAX),
                 );
+                corrected_inputs |= sanitize_u64(&mut self.sim_params.pass_limit, 0, 1_000_000);
 
                 ui.horizontal(|ui| {
                     ui.label(self.tr(
@@ -359,6 +364,14 @@ impl PetriApp {
                         egui::DragValue::new(&mut self.sim_params.display_range_end)
                             .range(0..=10000),
                     );
+                    corrected_inputs |=
+                        sanitize_usize(&mut self.sim_params.display_range_start, 0, max_places);
+                    corrected_inputs |=
+                        sanitize_usize(&mut self.sim_params.display_range_end, 0, max_places);
+                    if self.sim_params.display_range_end < self.sim_params.display_range_start {
+                        self.sim_params.display_range_end = self.sim_params.display_range_start;
+                        corrected_inputs = true;
+                    }
                 });
 
                 ui.separator();
@@ -378,6 +391,8 @@ impl PetriApp {
                         ui.label("N");
                         ui.add(egui::DragValue::new(&mut n).range(1..=u64::MAX));
                     });
+                    corrected_inputs |= sanitize_usize(&mut p, 0, max_place_idx);
+                    corrected_inputs |= sanitize_u64(&mut n, 1, 1_000_000);
                     p = p.min(max_place_idx);
                     self.sim_params.stop.through_place = Some((p, n));
                 } else {
@@ -397,12 +412,22 @@ impl PetriApp {
                             .speed(0.1)
                             .range(0.0..=1_000_000.0),
                     );
+                    corrected_inputs |= sanitize_f64(&mut t, 0.0, 1_000_000.0);
                     self.sim_params.stop.sim_time = Some(t);
                 } else {
                     self.sim_params.stop.sim_time = None;
                 }
 
+                validation_hint(
+                    ui,
+                    corrected_inputs,
+                    &self.tr(
+                        "Некорректные значения были скорректированы",
+                        "Invalid inputs were adjusted",
+                    ),
+                );
                 if ui.button(self.tr("СТАРТ", "START")).clicked() {
+                    self.net.sanitize_values();
                     self.net.rebuild_matrices_from_arcs();
                     self.sim_result = Some(std::sync::Arc::new(run_simulation(
                         &self.net,
@@ -412,6 +437,7 @@ impl PetriApp {
                     )));
                     self.refresh_debug_animation_state();
                     self.debug_step = 0;
+                    self.sync_debug_animation_for_step();
                     self.debug_playing = false;
                     self.last_debug_tick = None;
                     self.show_results = true;
