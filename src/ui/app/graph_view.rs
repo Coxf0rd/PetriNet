@@ -951,6 +951,11 @@ impl PetriApp {
         } else {
             Vec::new()
         };
+        let debug_place_colors = self
+            .debug_place_colors
+            .get(self.debug_step)
+            .cloned()
+            .unwrap_or_else(|| Vec::new());
 
         for (place_idx, place) in self.net.places.iter().enumerate() {
             let center = self.world_to_screen(rect, place.pos);
@@ -996,20 +1001,10 @@ impl PetriApp {
                 self.net.tables.m0.get(place_idx).copied().unwrap_or(0)
             };
             let marker_color = if self.show_debug {
-                let base_color = self
-                    .debug_marker_colors
-                    .get(self.debug_step)
+                debug_place_colors
+                    .get(place_idx)
                     .copied()
-                    .unwrap_or(Color32::from_rgb(200, 0, 0));
-                if let Some(event) = active_event {
-                    if event.color_change_place_idx == Some(place_idx) {
-                        event.exit_color
-                    } else {
-                        base_color
-                    }
-                } else {
-                    base_color
-                }
+                    .unwrap_or(Color32::from_rgb(200, 0, 0))
             } else {
                 Color32::from_rgb(200, 0, 0)
             };
@@ -1414,30 +1409,10 @@ impl PetriApp {
             if arc.weight == 0 {
                 continue;
             }
-            let arc_idx = match self.arc_idx_by_id(arc.arc_id) {
-                Some(idx) => idx,
+            let place = match self.net.places.get(arc.place_idx) {
+                Some(place) => place,
                 None => continue,
             };
-            let arc_data = match self.net.arcs.get(arc_idx) {
-                Some(arc_entry) => arc_entry,
-                None => continue,
-            };
-            let place_id = if toward_transition {
-                match arc_data.from {
-                    NodeRef::Place(id) => id,
-                    _ => continue,
-                }
-            } else {
-                match arc_data.to {
-                    NodeRef::Place(id) => id,
-                    _ => continue,
-                }
-            };
-            let place_idx = match self.place_idx_by_id(place_id) {
-                Some(idx) => idx,
-                None => continue,
-            };
-            let place = &self.net.places[place_idx];
             let place_center = self.world_to_screen(rect, place.pos);
             let place_radius = Self::place_radius(place.size) * self.canvas.zoom;
             let dir = if toward_transition {

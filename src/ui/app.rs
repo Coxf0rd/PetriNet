@@ -260,6 +260,7 @@ struct UndoSnapshot {
 struct DebugAnimationArc {
     arc_id: u64,
     weight: u32,
+    place_idx: usize,
 }
 
 #[derive(Debug, Clone)]
@@ -369,7 +370,7 @@ pub struct PetriApp {
     debug_animation_events: Vec<DebugAnimationEvent>,
     debug_animation_active_event: Option<usize>,
     debug_animation_step_active: bool,
-    debug_marker_colors: Vec<Color32>,
+    debug_place_colors: Vec<Vec<Color32>>,
     show_proof: bool,
     text_blocks: Vec<CanvasTextBlock>,
     next_text_id: u64,
@@ -434,12 +435,12 @@ impl PetriApp {
 
     pub(in crate::ui::app) fn refresh_debug_animation_state(&mut self) {
         if let Some(result) = self.sim_result.as_ref() {
-            let (events, colors) = Self::build_debug_animation_events(&self.net, result);
+            let (events, place_colors) = Self::build_debug_animation_events(&self.net, result);
             self.debug_animation_events = events;
-            self.debug_marker_colors = colors;
+            self.debug_place_colors = place_colors;
         } else {
             self.debug_animation_events.clear();
-            self.debug_marker_colors.clear();
+            self.debug_place_colors.clear();
         }
         self.sync_debug_animation_for_step();
     }
@@ -495,7 +496,7 @@ impl PetriApp {
         self.debug_playing = false;
         self.debug_animation_current_duration = 0.0;
         self.debug_animation_step_active = false;
-        self.debug_marker_colors.clear();
+        self.debug_place_colors.clear();
     }
 
     fn debug_animation_playback_speed(&self) -> f64 {
@@ -506,72 +507,81 @@ impl PetriApp {
     fn build_debug_animation_events(
         net: &PetriNet,
         result: &SimulationResult,
-    ) -> (Vec<DebugAnimationEvent>, Vec<Color32>) {
+    ) -> (Vec<DebugAnimationEvent>, Vec<Vec<Color32>>) {
         let mut events = Vec::new();
-        let default_marker_color = Color32::from_rgb(200, 0, 0);
         let visible_steps = Self::debug_visible_log_indices(result);
         if visible_steps.is_empty() {
             return (events, Vec::new());
         }
-        let log_to_step: HashMap<usize, usize> = visible_steps
-            .iter()
-            .copied()
-            .enumerate()
-            .map(|(step, log_idx)| (log_idx, step))
-            .collect();
-        let mut color_updates = vec![None; visible_steps.len()];
-        color_updates[0] = Some(default_marker_color);
-        let mut current_marker_color = default_marker_color;
-        for (idx, entry) in result.logs.iter().enumerate() {
-            let Some(transition_idx) = entry.fired_transition else {
-                continue;
+        let default_marker_color = Color32::from_rgb(200, 0, 0);
+        let num_places = net.places.len();
+        let mut current_place_colors = vec![default_marker_color; num_places];
+        let mut place_color_timeline = vec![Vec::new(); visible_steps.len()];
+        place_color_timeline[0] = current_place_colors.clone();
+
+        for step_idx in 0..visible_steps.len().saturating_sub(1) {
+            let next_log_idx = visible_steps[step_idx + 1];
+            let entry = match result.logs.get(next_log_idx) {
+                Some(entry) => entry,
+                None => {
+                    place_color_timeline[step_idx + 1] = current_place_colors.clone();
+                    continue;
+                }
+            };
+            let transition_idx = match entry.fired_transition {
+                Some(idx) => idx,
+                None => {
+                    place_color_timeline[step_idx + 1] = current_place_colors.clone();
+                    continue;
+                }
             };
             let mut next_time = entry.time + Self::DEBUG_ANIMATION_MIN_DURATION;
-            for next_entry in result.logs.iter().skip(idx + 1) {
-                if next_entry.time > entry.time {
-                    next_time = next_entry.time;
+            for subsequent in result.logs.iter().skip(next_log_idx + 1) {
+                if subsequent.time > entry.time {
+                    next_time = subsequent.time;
                     break;
                 }
             }
             let duration = (next_time - entry.time).max(Self::DEBUG_ANIMATION_MIN_DURATION);
-            let step_pos = log_to_step.get(&idx).copied();
-            let step_idx = step_pos.map(|pos| pos.saturating_sub(1));
             let pre_arcs = Self::transition_arcs(net, transition_idx, true);
             let post_arcs = Self::transition_arcs(net, transition_idx, false);
-            let entry_color = current_marker_color;
-            let color_change_info =
-                Self::marker_color_from_places(net, entry.touched_places.as_slice(), entry_color);
-            let exit_color = color_change_info
-                .map(|(color, _)| color)
-                .unwrap_or(entry_color);
-            if let Some(pos) = step_pos {
-                if let Some(slot) = color_updates.get_mut(pos) {
-                    *slot = Some(exit_color);
+            let entry_color = pre_arcs
+                .iter()
+                .find_map(|arc| current_place_colors.get(arc.place_idx).copied())
+                .unwrap_or(default_marker_color);
+            let mut exit_color = entry_color;
+            let mut color_change_place_idx = None;
+            for place_idx in post_arcs.iter().map(|arc| arc.place_idx) {
+                if let Some(place) = net.places.get(place_idx) {
+                    let target_color = if place.marker_color_on_pass {
+                        let place_color = Self::color_to_egui(place.color, entry_color);
+                        color_change_place_idx = Some(place_idx);
+                        exit_color = place_color;
+                        place_color
+                    } else {
+                        entry_color
+                    };
+                    if let Some(slot) = current_place_colors.get_mut(place_idx) {
+                        *slot = target_color;
+                    }
+                } else if let Some(slot) = current_place_colors.get_mut(place_idx) {
+                    *slot = entry_color;
                 }
             }
-            if let Some(step_idx) = step_idx {
-                events.push(DebugAnimationEvent {
-                    transition_idx,
-                    step_idx,
-                    duration,
-                    entry_color,
-                    exit_color,
-                    pre_arcs,
-                    post_arcs,
-                    color_change_place_idx: color_change_info.map(|(_, idx)| idx),
-                });
-            }
-            current_marker_color = exit_color;
+            place_color_timeline[step_idx + 1] = current_place_colors.clone();
+            events.push(DebugAnimationEvent {
+                transition_idx,
+                step_idx,
+                duration,
+                entry_color,
+                exit_color,
+                pre_arcs,
+                post_arcs,
+                color_change_place_idx,
+            });
         }
-        let mut marker_colors = Vec::with_capacity(color_updates.len());
-        let mut last_color = default_marker_color;
-        for maybe_color in color_updates {
-            if let Some(color) = maybe_color {
-                last_color = color;
-            }
-            marker_colors.push(last_color);
-        }
-        (events, marker_colors)
+
+        (events, place_color_timeline)
     }
 
     fn transition_arcs(
@@ -589,42 +599,36 @@ impl PetriApp {
             .filter_map(|arc| {
                 if incoming {
                     match (&arc.from, &arc.to) {
-                        (NodeRef::Place(_), NodeRef::Transition(id)) if *id == transition_id => {
-                            Some(DebugAnimationArc {
-                                arc_id: arc.id,
-                                weight: arc.weight,
-                            })
+                        (NodeRef::Place(place_id), NodeRef::Transition(id))
+                            if *id == transition_id =>
+                        {
+                            Some((arc.id, arc.weight, place_id))
                         }
                         _ => None,
                     }
                 } else {
                     match (&arc.from, &arc.to) {
-                        (NodeRef::Transition(id), NodeRef::Place(_)) if *id == transition_id => {
-                            Some(DebugAnimationArc {
-                                arc_id: arc.id,
-                                weight: arc.weight,
-                            })
+                        (NodeRef::Transition(id), NodeRef::Place(place_id))
+                            if *id == transition_id =>
+                        {
+                            Some((arc.id, arc.weight, place_id))
                         }
                         _ => None,
                     }
                 }
             })
+            .filter_map(|(arc_id, weight, place_id)| {
+                Self::place_index_by_id(net, *place_id).map(|place_idx| DebugAnimationArc {
+                    arc_id,
+                    weight,
+                    place_idx,
+                })
+            })
             .collect()
     }
 
-    fn marker_color_from_places(
-        net: &PetriNet,
-        touched_places: &[usize],
-        fallback: Color32,
-    ) -> Option<(Color32, usize)> {
-        for &place_idx in touched_places.iter().rev() {
-            if let Some(place) = net.places.get(place_idx) {
-                if place.marker_color_on_pass {
-                    return Some((Self::color_to_egui(place.color, fallback), place_idx));
-                }
-            }
-        }
-        None
+    fn place_index_by_id(net: &PetriNet, place_id: u64) -> Option<usize> {
+        net.places.iter().position(|place| place.id == place_id)
     }
 }
 
