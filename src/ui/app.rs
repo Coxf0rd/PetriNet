@@ -268,6 +268,7 @@ struct DebugAnimationEvent {
     log_idx: usize,
     step_idx: usize,
     duration: f64,
+    token_color: Color32,
     pre_arcs: Vec<DebugAnimationArc>,
     post_arcs: Vec<DebugAnimationArc>,
 }
@@ -457,6 +458,11 @@ impl PetriApp {
             self.debug_step = visible_steps.len() - 1;
         }
         let log_idx = visible_steps[self.debug_step];
+        let target_step = Self::debug_animation_target_step(
+            self.debug_step,
+            visible_steps.len(),
+            self.debug_playing,
+        );
         let event_idx = self
             .debug_animation_events
             .iter()
@@ -464,7 +470,7 @@ impl PetriApp {
             .or_else(|| {
                 self.debug_animation_events
                     .iter()
-                    .position(|event| event.step_idx == self.debug_step)
+                    .position(|event| event.step_idx == target_step)
             })
             .or_else(|| {
                 if self.debug_animation_events.is_empty() {
@@ -474,6 +480,21 @@ impl PetriApp {
                 }
             });
         self.set_active_debug_animation_event(event_idx, visible_steps.len());
+    }
+    fn debug_animation_target_step(
+        current_step: usize,
+        total_steps: usize,
+        playing: bool,
+    ) -> usize {
+        if total_steps == 0 {
+            return 0;
+        }
+        let target = if playing {
+            current_step
+        } else {
+            current_step.saturating_add(1)
+        };
+        target.min(total_steps.saturating_sub(1))
     }
     fn set_active_debug_animation_event(&mut self, event_idx: Option<usize>, visible_len: usize) {
         self.debug_animation_active_event = event_idx;
@@ -486,7 +507,7 @@ impl PetriApp {
                 .max(Self::DEBUG_ANIMATION_MIN_DURATION);
             self.debug_animation_current_duration = duration;
             self.debug_animation_local_clock = 0.0;
-            self.debug_animation_step_active = duration > 0.0;
+            self.debug_animation_step_active = self.debug_playing && duration > 0.0;
             self.debug_animation_last_update = None;
         } else {
             self.debug_animation_local_clock = 0.0;
@@ -514,6 +535,7 @@ impl PetriApp {
         result: &SimulationResult,
     ) -> Vec<DebugAnimationEvent> {
         let mut events = Vec::new();
+        let mut current_marker_color = Color32::from_rgb(200, 0, 0);
         let visible_steps = Self::debug_visible_log_indices(result);
         let log_to_step: HashMap<usize, usize> = visible_steps
             .iter()
@@ -539,9 +561,17 @@ impl PetriApp {
                 log_idx: idx,
                 step_idx,
                 duration,
+                token_color: current_marker_color,
                 pre_arcs: Self::transition_arcs(net, transition_idx, true),
                 post_arcs: Self::transition_arcs(net, transition_idx, false),
             });
+            if let Some(color) = Self::marker_color_from_touched_places(
+                net,
+                &entry.touched_places,
+                current_marker_color,
+            ) {
+                current_marker_color = color;
+            }
         }
         events
     }
@@ -582,6 +612,21 @@ impl PetriApp {
                 }
             })
             .collect()
+    }
+
+    fn marker_color_from_touched_places(
+        net: &PetriNet,
+        touched_places: &[usize],
+        fallback: Color32,
+    ) -> Option<Color32> {
+        for &place_idx in touched_places.iter().rev() {
+            if let Some(place) = net.places.get(place_idx) {
+                if place.marker_color_on_pass {
+                    return Some(Self::color_to_egui(place.color, fallback));
+                }
+            }
+        }
+        None
     }
 }
 
