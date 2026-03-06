@@ -532,19 +532,17 @@ impl PetriApp {
             }
             let duration = (next_time - entry.time).max(Self::DEBUG_ANIMATION_MIN_DURATION);
             let step_idx = *log_to_step.get(&idx).unwrap_or(&visible_steps.len());
-            let color_override = Self::marker_color_from_touched_places(
-                net,
-                &entry.touched_places,
-                current_marker_color,
-            );
+            let pre_arcs = Self::transition_arcs(net, transition_idx, true);
+            let post_arcs = Self::transition_arcs(net, transition_idx, false);
+            let color_override = Self::marker_color_for_arcs(net, &pre_arcs, current_marker_color);
             let token_color = color_override.unwrap_or(current_marker_color);
             events.push(DebugAnimationEvent {
                 transition_idx,
                 step_idx,
                 duration,
                 token_color,
-                pre_arcs: Self::transition_arcs(net, transition_idx, true),
-                post_arcs: Self::transition_arcs(net, transition_idx, false),
+                pre_arcs,
+                post_arcs,
             });
             current_marker_color = token_color;
         }
@@ -589,16 +587,22 @@ impl PetriApp {
             .collect()
     }
 
-    fn marker_color_from_touched_places(
+    fn marker_color_for_arcs(
         net: &PetriNet,
-        touched_places: &[usize],
+        arcs: &[DebugAnimationArc],
         fallback: Color32,
     ) -> Option<Color32> {
-        for &place_idx in touched_places.iter().rev() {
-            if let Some(place) = net.places.get(place_idx) {
-                if place.marker_color_on_pass {
-                    return Some(Self::color_to_egui(place.color, fallback));
-                }
+        for arc in arcs {
+            let arc_idx = net.arcs.iter().position(|entry| entry.id == arc.arc_id)?;
+            let arc_data = net.arcs.get(arc_idx)?;
+            let place_id = match arc_data.from {
+                NodeRef::Place(id) => id,
+                _ => continue,
+            };
+            let place_idx = net.places.iter().position(|place| place.id == place_id)?;
+            let place = &net.places[place_idx];
+            if place.marker_color_on_pass {
+                return Some(Self::color_to_egui(place.color, fallback));
             }
         }
         None
