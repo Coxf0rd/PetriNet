@@ -1032,7 +1032,7 @@ impl PetriApp {
                             format!("{tokens}"),
                             egui::TextStyle::Body.resolve(ui.style()),
                             token_colors
-                                .get(0)
+                                .last()
                                 .copied()
                                 .unwrap_or(Color32::from_rgb(200, 0, 0)),
                         );
@@ -1044,7 +1044,9 @@ impl PetriApp {
                             let dot_pos =
                                 center + Vec2::new(angle.cos(), angle.sin()) * (radius * 0.55);
                             let color = token_colors
-                                .get(i)
+                                .iter()
+                                .rev()
+                                .nth(i)
                                 .copied()
                                 .unwrap_or(Color32::from_rgb(200, 0, 0));
                             painter.circle_filled(
