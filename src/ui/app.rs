@@ -368,6 +368,7 @@ pub struct PetriApp {
     debug_animation_events: Vec<DebugAnimationEvent>,
     debug_animation_active_event: Option<usize>,
     debug_animation_step_active: bool,
+    debug_marker_colors: Vec<Color32>,
     show_proof: bool,
     text_blocks: Vec<CanvasTextBlock>,
     next_text_id: u64,
@@ -432,9 +433,12 @@ impl PetriApp {
 
     pub(in crate::ui::app) fn refresh_debug_animation_state(&mut self) {
         if let Some(result) = self.sim_result.as_ref() {
-            self.debug_animation_events = Self::build_debug_animation_events(&self.net, result);
+            let (events, colors) = Self::build_debug_animation_events(&self.net, result);
+            self.debug_animation_events = events;
+            self.debug_marker_colors = colors;
         } else {
             self.debug_animation_events.clear();
+            self.debug_marker_colors.clear();
         }
         self.sync_debug_animation_for_step();
     }
@@ -490,6 +494,7 @@ impl PetriApp {
         self.debug_playing = false;
         self.debug_animation_current_duration = 0.0;
         self.debug_animation_step_active = false;
+        self.debug_marker_colors.clear();
     }
 
     fn debug_animation_playback_speed(&self) -> f64 {
@@ -500,16 +505,22 @@ impl PetriApp {
     fn build_debug_animation_events(
         net: &PetriNet,
         result: &SimulationResult,
-    ) -> Vec<DebugAnimationEvent> {
+    ) -> (Vec<DebugAnimationEvent>, Vec<Color32>) {
         let mut events = Vec::new();
-        let mut current_marker_color = Color32::from_rgb(200, 0, 0);
+        let default_marker_color = Color32::from_rgb(200, 0, 0);
         let visible_steps = Self::debug_visible_log_indices(result);
+        if visible_steps.is_empty() {
+            return (events, Vec::new());
+        }
         let log_to_step: HashMap<usize, usize> = visible_steps
             .iter()
             .copied()
             .enumerate()
             .map(|(step, log_idx)| (log_idx, step))
             .collect();
+        let mut color_updates = vec![None; visible_steps.len()];
+        color_updates[0] = Some(default_marker_color);
+        let mut current_marker_color = default_marker_color;
         for (idx, entry) in result.logs.iter().enumerate() {
             let Some(transition_idx) = entry.fired_transition else {
                 continue;
@@ -530,6 +541,11 @@ impl PetriApp {
             let exit_color =
                 Self::marker_color_from_places(net, entry.touched_places.as_slice(), entry_color)
                     .unwrap_or(entry_color);
+            if let Some(pos) = step_pos {
+                if let Some(slot) = color_updates.get_mut(pos) {
+                    *slot = Some(exit_color);
+                }
+            }
             if let Some(step_idx) = step_idx {
                 events.push(DebugAnimationEvent {
                     transition_idx,
@@ -543,7 +559,15 @@ impl PetriApp {
             }
             current_marker_color = exit_color;
         }
-        events
+        let mut marker_colors = Vec::with_capacity(color_updates.len());
+        let mut last_color = default_marker_color;
+        for maybe_color in color_updates {
+            if let Some(color) = maybe_color {
+                last_color = color;
+            }
+            marker_colors.push(last_color);
+        }
+        (events, marker_colors)
     }
 
     fn transition_arcs(

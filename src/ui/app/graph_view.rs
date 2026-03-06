@@ -746,22 +746,29 @@ impl PetriApp {
                 painter.rect_stroke(handle, 0.0, Stroke::new(1.0, Color32::from_rgb(80, 40, 0)));
             }
         }
-        let debug_fired_transition_for_arcs = if self.show_debug && self.debug_arc_animation {
-            self.sim_result.as_ref().and_then(|res| {
-                let visible = Self::debug_visible_log_indices(res);
-                if visible.is_empty() {
-                    return None;
-                }
-                let step = self.debug_step.min(visible.len() - 1);
-                res.logs.get(visible[step]).and_then(|entry| {
-                    entry
-                        .fired_transition
-                        .and_then(|idx| self.net.transitions.get(idx).map(|tr| tr.id))
-                })
-            })
-        } else {
-            None
-        };
+        let active_animation_arcs =
+            if self.show_debug && self.debug_arc_animation && self.debug_animation_enabled {
+                self.debug_animation_active_event
+                    .and_then(|idx| self.debug_animation_events.get(idx))
+                    .map(|event| {
+                        (
+                            event.entry_color,
+                            event.exit_color,
+                            event
+                                .pre_arcs
+                                .iter()
+                                .map(|arc| arc.arc_id)
+                                .collect::<Vec<_>>(),
+                            event
+                                .post_arcs
+                                .iter()
+                                .map(|arc| arc.arc_id)
+                                .collect::<Vec<_>>(),
+                        )
+                    })
+            } else {
+                None
+            };
 
         for arc in &self.net.arcs {
             if !self.arc_visible_by_mode(arc.color, arc.visible) {
@@ -851,13 +858,24 @@ impl PetriApp {
             } else {
                 Stroke::new(2.0, arc_color)
             };
-            let is_debug_arc = match (arc.from, arc.to, debug_fired_transition_for_arcs) {
-                (NodeRef::Place(_), NodeRef::Transition(tid), Some(fired_tid)) => tid == fired_tid,
-                (NodeRef::Transition(tid), NodeRef::Place(_), Some(fired_tid)) => tid == fired_tid,
-                _ => false,
-            };
-            if is_debug_arc && self.debug_arc_animation && self.debug_animation_enabled {
-                arc_stroke = Stroke::new(3.0, Color32::from_rgb(30, 150, 240));
+            if let Some((entry_color, exit_color, pre_arc_ids, post_arc_ids)) =
+                &active_animation_arcs
+            {
+                let is_pre_arc = pre_arc_ids.contains(&arc.id);
+                let is_post_arc = post_arc_ids.contains(&arc.id);
+                if (is_pre_arc || is_post_arc)
+                    && self.debug_arc_animation
+                    && self.debug_animation_enabled
+                    && self.canvas.selected_arc != Some(arc.id)
+                    && !self.canvas.selected_arcs.contains(&arc.id)
+                {
+                    let highlight_color = if is_pre_arc {
+                        *entry_color
+                    } else {
+                        *exit_color
+                    };
+                    arc_stroke = Stroke::new(3.0, highlight_color);
+                }
             }
             painter.line_segment([from, to], arc_stroke);
             let arrow = to - from;
@@ -919,7 +937,7 @@ impl PetriApp {
             }
         }
 
-        let (debug_marking, debug_touched_places) = if self.show_debug {
+        let debug_marking = if self.show_debug {
             self.sim_result
                 .as_ref()
                 .and_then(|res| {
@@ -927,24 +945,12 @@ impl PetriApp {
                     visible
                         .get(self.debug_step)
                         .and_then(|&log_idx| res.logs.get(log_idx))
-                        .map(|entry| (entry.marking.clone(), entry.touched_places.clone()))
+                        .map(|entry| entry.marking.clone())
                 })
                 .unwrap_or_default()
         } else {
-            (Vec::new(), Vec::new())
+            Vec::new()
         };
-        let fallback_touched_places = self
-            .sim_result
-            .as_ref()
-            .and_then(|result| {
-                result
-                    .logs
-                    .iter()
-                    .rev()
-                    .find(|entry| entry.fired_transition.is_some())
-                    .map(|entry| entry.touched_places.clone())
-            })
-            .unwrap_or_default();
 
         for (place_idx, place) in self.net.places.iter().enumerate() {
             let center = self.world_to_screen(rect, place.pos);
@@ -989,18 +995,11 @@ impl PetriApp {
             } else {
                 self.net.tables.m0.get(place_idx).copied().unwrap_or(0)
             };
-            let touched_places_for_color = if self.show_debug {
-                &debug_touched_places
-            } else {
-                &fallback_touched_places
-            };
-            let marker_color = if self.net.places[place_idx].marker_color_on_pass
-                && touched_places_for_color.contains(&place_idx)
-            {
-                Self::color_to_egui(
-                    self.net.places[place_idx].color,
-                    Color32::from_rgb(200, 0, 0),
-                )
+            let marker_color = if self.show_debug {
+                self.debug_marker_colors
+                    .get(self.debug_step)
+                    .copied()
+                    .unwrap_or(Color32::from_rgb(200, 0, 0))
             } else {
                 Color32::from_rgb(200, 0, 0)
             };

@@ -50,6 +50,7 @@ impl PetriApp {
                 debug_animation_events: Vec::new(),
                 debug_animation_active_event: None,
                 debug_animation_step_active: false,
+                debug_marker_colors: Vec::new(),
                 show_proof: false,
                 text_blocks: Vec::new(),
                 next_text_id: 1,
