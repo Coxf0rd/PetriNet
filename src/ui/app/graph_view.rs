@@ -937,20 +937,6 @@ impl PetriApp {
             }
         }
 
-        let debug_marking = if self.show_debug {
-            self.sim_result
-                .as_ref()
-                .and_then(|res| {
-                    let visible = Self::debug_visible_log_indices(res);
-                    visible
-                        .get(self.debug_step)
-                        .and_then(|&log_idx| res.logs.get(log_idx))
-                        .map(|entry| entry.marking.clone())
-                })
-                .unwrap_or_default()
-        } else {
-            Vec::new()
-        };
         let debug_place_colors = self
             .debug_place_colors
             .get(self.debug_step)
@@ -992,24 +978,54 @@ impl PetriApp {
                 },
             );
 
-            let tokens = if self.show_debug {
-                debug_marking
-                    .get(place_idx)
-                    .copied()
-                    .unwrap_or_else(|| self.net.tables.m0.get(place_idx).copied().unwrap_or(0))
+            let (tokens, token_colors) = if self.show_debug {
+                (
+                    debug_place_colors
+                        .get(place_idx)
+                        .map(|colors| colors.len() as u32)
+                        .unwrap_or_default(),
+                    debug_place_colors
+                        .get(place_idx)
+                        .cloned()
+                        .unwrap_or_else(|| Vec::new()),
+                )
             } else {
-                self.net.tables.m0.get(place_idx).copied().unwrap_or(0)
-            };
-            let marker_color = if self.show_debug {
-                debug_place_colors
-                    .get(place_idx)
-                    .copied()
-                    .unwrap_or(Color32::from_rgb(200, 0, 0))
-            } else {
-                Color32::from_rgb(200, 0, 0)
+                (
+                    self.net.tables.m0.get(place_idx).copied().unwrap_or(0),
+                    Vec::new(),
+                )
             };
             if tokens > 0 {
-                if tokens <= 4 {
+                if self.show_debug {
+                    let draw_tokens = tokens.min(4);
+                    for i in 0..draw_tokens {
+                        let angle =
+                            (i as f32) * std::f32::consts::TAU / (draw_tokens.max(1) as f32);
+                        let dot_pos =
+                            center + Vec2::new(angle.cos(), angle.sin()) * (radius * 0.55);
+                        let color = token_colors
+                            .get(i as usize)
+                            .copied()
+                            .unwrap_or(Color32::from_rgb(200, 0, 0));
+                        painter.circle_filled(
+                            dot_pos,
+                            3.0 * self.canvas.zoom.clamp(0.7, 1.2),
+                            color,
+                        );
+                    }
+                    if tokens > 4 {
+                        painter.text(
+                            center,
+                            egui::Align2::CENTER_CENTER,
+                            format!("{tokens}"),
+                            egui::TextStyle::Body.resolve(ui.style()),
+                            token_colors
+                                .get(0)
+                                .copied()
+                                .unwrap_or(Color32::from_rgb(200, 0, 0)),
+                        );
+                    }
+                } else if tokens <= 4 {
                     let draw_tokens = tokens;
                     for i in 0..draw_tokens {
                         let angle =
@@ -1019,7 +1035,7 @@ impl PetriApp {
                         painter.circle_filled(
                             dot_pos,
                             3.0 * self.canvas.zoom.clamp(0.7, 1.2),
-                            marker_color,
+                            Color32::from_rgb(200, 0, 0),
                         );
                     }
                 } else {
@@ -1028,7 +1044,7 @@ impl PetriApp {
                         egui::Align2::CENTER_CENTER,
                         format!("{tokens}"),
                         egui::TextStyle::Body.resolve(ui.style()),
-                        marker_color,
+                        Color32::from_rgb(200, 0, 0),
                     );
                 }
             }
@@ -1437,7 +1453,8 @@ impl PetriApp {
             let travel = start + (end - start) * progress;
             for i in 0..count {
                 let offset = perp * token_spacing * (i as f32 - offset_base);
-                painter.circle_filled(travel + offset, token_radius, token_color);
+                let color = arc.token_colors.get(i).copied().unwrap_or(token_color);
+                painter.circle_filled(travel + offset, token_radius, color);
             }
         }
     }
