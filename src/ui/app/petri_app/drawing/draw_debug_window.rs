@@ -29,6 +29,8 @@ impl PetriApp {
                 ui.horizontal(|ui| {
                     if ui.button("<<").clicked() {
                         self.debug_playing = false;
+                        self.debug_animation_step_playing = false;
+                        self.debug_animation_step_target_time = None;
                         self.debug_animation_last_update = None;
                         self.debug_step = self.debug_step.saturating_sub(1);
                         self.sync_debug_animation_for_step();
@@ -44,6 +46,8 @@ impl PetriApp {
                         if self.debug_playing {
                             self.debug_playing = false;
                         } else {
+                            self.debug_animation_step_playing = false;
+                            self.debug_animation_step_target_time = None;
                             if self.debug_animation_clock >= self.debug_animation_total_time {
                                 self.debug_animation_clock = 0.0;
                                 self.sync_debug_animation_for_clock();
@@ -54,6 +58,8 @@ impl PetriApp {
                     }
                     if ui.button(">>").clicked() {
                         self.debug_playing = false;
+                        self.debug_animation_step_playing = false;
+                        self.debug_animation_step_target_time = None;
                         self.debug_animation_last_update = None;
                         self.debug_step = (self.debug_step + 1).min(steps - 1);
                         self.sync_debug_animation_for_step();
@@ -67,6 +73,8 @@ impl PetriApp {
                 );
                 if slider_response.changed() {
                     self.debug_playing = false;
+                    self.debug_animation_step_playing = false;
+                    self.debug_animation_step_target_time = None;
                     self.debug_animation_last_update = None;
                     self.sync_debug_animation_for_step();
                 }
@@ -77,6 +85,8 @@ impl PetriApp {
                 if animation_response.changed() {
                     if !self.debug_animation_enabled {
                         self.debug_playing = false;
+                        self.debug_animation_step_playing = false;
+                        self.debug_animation_step_target_time = None;
                         self.debug_animation_last_update = None;
                     }
                     self.sync_debug_animation_for_step();

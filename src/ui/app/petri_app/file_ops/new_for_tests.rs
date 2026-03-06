@@ -49,6 +49,8 @@ impl PetriApp {
             debug_animation_last_update: None,
             debug_animation_events: Vec::new(),
             debug_animation_active_event: None,
+            debug_animation_step_playing: false,
+            debug_animation_step_target_time: None,
             show_proof: false,
             text_blocks: Vec::new(),
             next_text_id: 1,

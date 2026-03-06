@@ -1229,7 +1229,8 @@ impl PetriApp {
             return;
         }
         self.sync_debug_animation_for_clock();
-        if !self.debug_playing {
+        let should_progress = self.debug_playing || self.debug_animation_step_playing;
+        if !should_progress {
             self.debug_animation_last_update = None;
             return;
         }
@@ -1244,12 +1245,25 @@ impl PetriApp {
         let sim_delta = if scale > 0.0 { delta / scale } else { delta };
         self.debug_animation_clock =
             (self.debug_animation_clock + sim_delta).min(self.debug_animation_total_time);
-        if self.debug_animation_clock >= self.debug_animation_total_time {
+        if self.debug_animation_step_playing {
+            let target = self
+                .debug_animation_step_target_time
+                .unwrap_or(self.debug_animation_total_time)
+                .min(self.debug_animation_total_time);
+            if self.debug_animation_clock >= target {
+                self.debug_animation_clock = target;
+                self.debug_animation_step_playing = false;
+                self.debug_animation_step_target_time = None;
+            }
+        }
+        if self.debug_playing && self.debug_animation_clock >= self.debug_animation_total_time {
             self.debug_animation_clock = self.debug_animation_total_time;
             self.debug_playing = false;
         }
         self.sync_debug_animation_for_clock();
-        ctx.request_repaint_after(Duration::from_millis(16));
+        if self.debug_playing || self.debug_animation_step_playing {
+            ctx.request_repaint_after(Duration::from_millis(16));
+        }
     }
 
     fn draw_debug_animation_overlay(&self, rect: Rect, painter: &egui::Painter) {
