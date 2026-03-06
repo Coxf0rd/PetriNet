@@ -271,6 +271,7 @@ struct DebugAnimationEvent {
     exit_color: Color32,
     pre_arcs: Vec<DebugAnimationArc>,
     post_arcs: Vec<DebugAnimationArc>,
+    touched_places: Vec<usize>,
 }
 
 impl DebugAnimationEvent {
@@ -555,6 +556,7 @@ impl PetriApp {
                     exit_color,
                     pre_arcs,
                     post_arcs,
+                    touched_places: entry.touched_places.clone(),
                 });
             }
             current_marker_color = exit_color;

@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use super::*;
 
 impl PetriApp {
@@ -746,29 +748,28 @@ impl PetriApp {
                 painter.rect_stroke(handle, 0.0, Stroke::new(1.0, Color32::from_rgb(80, 40, 0)));
             }
         }
-        let active_animation_arcs =
-            if self.show_debug && self.debug_arc_animation && self.debug_animation_enabled {
-                self.debug_animation_active_event
-                    .and_then(|idx| self.debug_animation_events.get(idx))
-                    .map(|event| {
-                        (
-                            event.entry_color,
-                            event.exit_color,
-                            event
-                                .pre_arcs
-                                .iter()
-                                .map(|arc| arc.arc_id)
-                                .collect::<Vec<_>>(),
-                            event
-                                .post_arcs
-                                .iter()
-                                .map(|arc| arc.arc_id)
-                                .collect::<Vec<_>>(),
-                        )
-                    })
-            } else {
-                None
-            };
+        let active_event = if self.show_debug && self.debug_animation_enabled {
+            self.debug_animation_active_event
+                .and_then(|idx| self.debug_animation_events.get(idx))
+        } else {
+            None
+        };
+        let (active_pre_arc_ids, active_post_arc_ids) = if let Some(event) = active_event {
+            (
+                event
+                    .pre_arcs
+                    .iter()
+                    .map(|arc| arc.arc_id)
+                    .collect::<HashSet<_>>(),
+                event
+                    .post_arcs
+                    .iter()
+                    .map(|arc| arc.arc_id)
+                    .collect::<HashSet<_>>(),
+            )
+        } else {
+            (HashSet::new(), HashSet::new())
+        };
 
         for arc in &self.net.arcs {
             if !self.arc_visible_by_mode(arc.color, arc.visible) {
@@ -858,23 +859,22 @@ impl PetriApp {
             } else {
                 Stroke::new(2.0, arc_color)
             };
-            if let Some((entry_color, exit_color, pre_arc_ids, post_arc_ids)) =
-                &active_animation_arcs
+            if self.debug_arc_animation
+                && self.debug_animation_enabled
+                && self.canvas.selected_arc != Some(arc.id)
+                && !self.canvas.selected_arcs.contains(&arc.id)
             {
-                let is_pre_arc = pre_arc_ids.contains(&arc.id);
-                let is_post_arc = post_arc_ids.contains(&arc.id);
-                if (is_pre_arc || is_post_arc)
-                    && self.debug_arc_animation
-                    && self.debug_animation_enabled
-                    && self.canvas.selected_arc != Some(arc.id)
-                    && !self.canvas.selected_arcs.contains(&arc.id)
-                {
-                    let highlight_color = if is_pre_arc {
-                        *entry_color
-                    } else {
-                        *exit_color
-                    };
-                    arc_stroke = Stroke::new(3.0, highlight_color);
+                let is_pre_arc = active_pre_arc_ids.contains(&arc.id);
+                let is_post_arc = active_post_arc_ids.contains(&arc.id);
+                if is_pre_arc || is_post_arc {
+                    if let Some(event) = active_event {
+                        let highlight_color = if is_pre_arc {
+                            event.entry_color
+                        } else {
+                            event.exit_color
+                        };
+                        arc_stroke = Stroke::new(3.0, highlight_color);
+                    }
                 }
             }
             painter.line_segment([from, to], arc_stroke);
@@ -996,10 +996,20 @@ impl PetriApp {
                 self.net.tables.m0.get(place_idx).copied().unwrap_or(0)
             };
             let marker_color = if self.show_debug {
-                self.debug_marker_colors
+                let base_color = self
+                    .debug_marker_colors
                     .get(self.debug_step)
                     .copied()
-                    .unwrap_or(Color32::from_rgb(200, 0, 0))
+                    .unwrap_or(Color32::from_rgb(200, 0, 0));
+                if let Some(event) = active_event {
+                    if event.touched_places.contains(&place_idx) {
+                        event.exit_color
+                    } else {
+                        base_color
+                    }
+                } else {
+                    base_color
+                }
             } else {
                 Color32::from_rgb(200, 0, 0)
             };
