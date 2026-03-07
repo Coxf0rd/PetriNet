@@ -88,6 +88,9 @@ impl PetriApp {
         egui::Window::new(title)
             .constrained_to_viewport(ctx)
             .id(egui::Id::new("arc_props_window"))
+            .resizable(true)
+            .default_size(egui::vec2(420.0, 440.0))
+            .min_size(egui::vec2(320.0, 320.0))
             .open(&mut open)
             .show(ctx, |ui| {
                 let mut corrected_inputs = false;

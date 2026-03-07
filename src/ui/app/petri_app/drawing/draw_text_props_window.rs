@@ -18,7 +18,9 @@ impl PetriApp {
             .constrained_to_viewport(ctx)
             .id(egui::Id::new("text_props_window"))
             .open(&mut open)
-            .resizable(false)
+            .resizable(true)
+            .default_size(egui::vec2(460.0, 360.0))
+            .min_size(egui::vec2(360.0, 260.0))
             .show(ctx, |ui| {
                 let text = &mut self.text_blocks[text_idx];
                 ui.horizontal(|ui| {

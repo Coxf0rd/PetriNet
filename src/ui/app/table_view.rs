@@ -329,6 +329,9 @@ impl PetriApp {
         let mut close_now = false;
         egui::Window::new(self.tr("Параметры симуляции", "Simulation Parameters"))
             .open(&mut open)
+            .resizable(true)
+            .default_size(egui::vec2(420.0, 520.0))
+            .min_size(egui::vec2(360.0, 320.0))
             .show(ctx, |ui| {
                 let mut corrected_inputs = false;
 

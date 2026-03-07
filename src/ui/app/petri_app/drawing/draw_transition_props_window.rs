@@ -18,6 +18,9 @@ impl PetriApp {
         egui::Window::new(title)
             .constrained_to_viewport(ctx)
             .id(egui::Id::new("transition_props_window"))
+            .resizable(true)
+            .default_size(egui::vec2(420.0, 520.0))
+            .min_size(egui::vec2(320.0, 360.0))
             .open(&mut open)
             .show(ctx, |ui| {
                 let mut corrected_inputs = false;
