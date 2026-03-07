@@ -173,6 +173,7 @@ pub struct Place {
     pub stochastic: StochasticDistribution,
     pub stats: PlaceStatisticsSelection,
     pub markov_highlight: bool,
+    pub show_markov_model: bool,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]

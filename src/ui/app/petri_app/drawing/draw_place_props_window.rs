@@ -379,6 +379,16 @@ impl PetriApp {
                     self.net.places[place_idx].markov_highlight = markov_enabled;
                     self.update_markov_annotations();
                 }
+                let mut show_markov_model = self.net.places[place_idx].show_markov_model;
+                if ui
+                    .checkbox(
+                        &mut show_markov_model,
+                        t("Отображать марковскую модель", "Display Markov model"),
+                    )
+                    .changed()
+                {
+                    self.net.places[place_idx].show_markov_model = show_markov_model;
+                }
                 ui.separator();
                 ui.label(t("Название", "Name"));
                 ui.text_edit_singleline(&mut self.net.places[place_idx].name);

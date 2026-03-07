@@ -6,15 +6,7 @@ impl PetriApp {
         let Some(chain) = &self.markov_model else {
             return;
         };
-        let expectation = chain.stationary.as_ref().map(|stationary| {
-            let mut expected = vec![0.0; self.net.places.len()];
-            for (state, prob) in chain.states.iter().zip(stationary.iter()) {
-                for (idx, &tokens) in state.iter().enumerate().take(expected.len()) {
-                    expected[idx] += *prob * tokens as f64;
-                }
-            }
-            expected
-        });
+        let expectation = Self::markov_expected_tokens(chain, self.net.places.len());
         for (idx, place) in self.net.places.iter().enumerate() {
             if !place.markov_highlight {
                 continue;

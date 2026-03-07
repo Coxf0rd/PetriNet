@@ -18,6 +18,7 @@ impl PetriApp {
                     ));
                 });
                 if let Some(chain) = &self.markov_model {
+                    let stationary = chain.stationary.as_ref();
                     ui.label(format!(
                         "{}: {}{}",
                         self.tr("Состояний,", "States"),
@@ -38,7 +39,7 @@ impl PetriApp {
                         self.tr("Переходы", "Transitions"),
                         total_edges
                     ));
-                    if let Some(stationary) = &chain.stationary {
+                    if let Some(stationary) = stationary {
                         ui.label(self.tr("Стационарное распределение", "Stationary distribution"));
                         egui::ScrollArea::vertical()
                             .max_height(280.0)
@@ -116,6 +117,77 @@ impl PetriApp {
                                 ));
                             }
                         });
+                    let markov_focus_places = self
+                        .net
+                        .places
+                        .iter()
+                        .enumerate()
+                        .filter(|(_, place)| place.show_markov_model)
+                        .collect::<Vec<_>>();
+                    if !markov_focus_places.is_empty() {
+                        ui.separator();
+                        ui.label(
+                            self.tr("Марковская модель по позициям", "Markov model per place"),
+                        );
+                        let expectation =
+                            Self::markov_expected_tokens(chain, self.net.places.len());
+                        for (place_idx, place) in markov_focus_places {
+                            ui.group(|ui| {
+                                let place_label = if place.name.is_empty() {
+                                    format!("P{}", place.id)
+                                } else {
+                                    place.name.clone()
+                                };
+                                ui.label(format!(
+                                    "{}: {} (P{})",
+                                    self.tr("Позиция", "Place"),
+                                    place_label,
+                                    place.id
+                                ));
+                                if let Some(expected) = expectation
+                                    .as_ref()
+                                    .and_then(|values| values.get(place_idx))
+                                {
+                                    ui.label(format!(
+                                        "{}: {:.3}",
+                                        self.tr("Ожидаемое число маркеров", "Expected tokens"),
+                                        expected
+                                    ));
+                                }
+                                let distribution =
+                                    Self::markov_tokens_distribution(chain, place_idx);
+                                if !distribution.is_empty() {
+                                    let max_rows = 6;
+                                    for (count, prob) in distribution.iter().take(max_rows) {
+                                        ui.horizontal(|ui| {
+                                            ui.label(format!(
+                                                "{} {}",
+                                                count,
+                                                self.tr("маркеров", "tokens")
+                                            ));
+                                            ui.label(format!("{:.2}%", prob * 100.0));
+                                        });
+                                    }
+                                    if distribution.len() > max_rows {
+                                        ui.label(format!(
+                                            "... {} ...",
+                                            distribution.len() - max_rows
+                                        ));
+                                    }
+                                } else if stationary.is_some() {
+                                    ui.label(self.tr(
+                                        "Для позиции не найдено состояний",
+                                        "No states found for this place",
+                                    ));
+                                } else {
+                                    ui.label(self.tr(
+                                        "Стационарное распределение не вычислено",
+                                        "Stationary distribution unavailable",
+                                    ));
+                                }
+                            });
+                        }
+                    }
                 } else {
                     ui.label(self.tr("Постройте модель", "Build the model"));
                 }
