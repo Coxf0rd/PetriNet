@@ -136,6 +136,7 @@ impl PetriApp {
             if let Some(last) = self.net.arcs.last_mut() {
                 last.color = arc.color;
                 last.visible = arc.visible;
+                last.show_weight = arc.show_weight;
             }
         }
         for inh in &buf.inhibitors {
@@ -149,6 +150,7 @@ impl PetriApp {
             if let Some(last) = self.net.inhibitor_arcs.last_mut() {
                 last.color = inh.color;
                 last.visible = inh.visible;
+                last.show_weight = inh.show_weight;
             }
         }
 

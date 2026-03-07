@@ -890,6 +890,18 @@ impl PetriApp {
             if arrow.length_sq() <= f32::EPSILON {
                 continue;
             }
+            if arc.show_weight {
+                let label = arc.weight.to_string();
+                Self::draw_arc_weight_label(
+                    ui,
+                    &painter,
+                    from,
+                    to,
+                    &label,
+                    arc_color,
+                    self.canvas.zoom,
+                );
+            }
             let dir = arrow.normalized();
             let tip = to;
             let left = tip - dir * 10.0 + Vec2::new(-dir.y, dir.x) * 5.0;
@@ -931,15 +943,16 @@ impl PetriApp {
                     Stroke::new(1.5, inh_color)
                 };
                 painter.line_segment([from, to], inh_stroke);
-                let mid = from + (to - from) * 0.5;
                 if inh.show_weight {
-                    let multiplicity_label = self.tr("Кратность", "Multiplicity");
-                    painter.text(
-                        mid,
-                        egui::Align2::CENTER_CENTER,
-                        format!("{multiplicity_label}: {}", inh.threshold),
-                        egui::TextStyle::Small.resolve(ui.style()),
-                        Self::color_to_egui(inh.color, Color32::RED),
+                    let label = inh.threshold.to_string();
+                    Self::draw_arc_weight_label(
+                        ui,
+                        &painter,
+                        from,
+                        to,
+                        &label,
+                        inh_color,
+                        self.canvas.zoom,
                     );
                 }
             }
@@ -1362,6 +1375,31 @@ impl PetriApp {
             self.debug_animation_step_active = false;
         }
         ctx.request_repaint_after(Duration::from_millis(16));
+    }
+
+    fn draw_arc_weight_label(
+        ui: &egui::Ui,
+        painter: &egui::Painter,
+        from: Pos2,
+        to: Pos2,
+        text: &str,
+        color: Color32,
+        zoom: f32,
+    ) {
+        let delta = to - from;
+        if delta.length_sq() <= f32::EPSILON {
+            return;
+        }
+        let dir = delta.normalized();
+        let perp = Vec2::new(-dir.y, dir.x);
+        let label_pos = from + delta * 0.5 + perp * (8.0 * zoom);
+        painter.text(
+            label_pos,
+            egui::Align2::CENTER_CENTER,
+            text,
+            egui::TextStyle::Small.resolve(ui.style()),
+            color,
+        );
     }
 
     fn draw_debug_animation_overlay(&self, rect: Rect, painter: &egui::Painter) {

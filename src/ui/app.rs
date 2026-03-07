@@ -198,6 +198,7 @@ struct CopiedArc {
     weight: u32,
     color: NodeColor,
     visible: bool,
+    show_weight: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -207,6 +208,7 @@ struct CopiedInhibitorArc {
     threshold: u32,
     color: NodeColor,
     visible: bool,
+    show_weight: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -819,6 +821,7 @@ mod tests {
             weight: 1,
             color: NodeColor::Default,
             visible: true,
+            show_weight: false,
         });
 
         let report = app.validate_netstar_export();

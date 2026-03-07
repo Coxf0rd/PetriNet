@@ -395,7 +395,7 @@ impl PetriApp {
                 ui.group(|ui| {
                     ui.label(t("Новые дуги", "New arcs"));
                     ui.horizontal(|ui| {
-                        ui.label(t("Кратность", "Weight"));
+                        ui.label(t("Кратность (вес)", "Weight"));
                         ui.add(egui::DragValue::new(&mut self.new_arc_weight).range(1..=u32::MAX));
                     });
                     ui.horizontal(|ui| {

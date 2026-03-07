@@ -36,9 +36,9 @@ impl PetriApp {
             SelectedArc::Regular(idx) => self.net.arcs[idx].color,
             SelectedArc::Inhibitor(idx) => self.net.inhibitor_arcs[idx].color,
         };
-        let mut show_inhibitor_weight = match variant {
+        let mut show_weight = match variant {
+            SelectedArc::Regular(idx) => self.net.arcs[idx].show_weight,
             SelectedArc::Inhibitor(idx) => self.net.inhibitor_arcs[idx].show_weight,
-            SelectedArc::Regular(_) => false,
         };
         let mut is_inhibitor = matches!(variant, SelectedArc::Inhibitor(_));
         let can_be_inhibitor = match variant {
@@ -103,6 +103,9 @@ impl PetriApp {
                 }
                 corrected_inputs |= sanitize_u32(&mut threshold, 1, u32::MAX);
                 corrected_inputs |= sanitize_u32(&mut weight, 1, u32::MAX);
+                let weight_label = t("Кратность (вес)", "Weight");
+                let show_weight_label =
+                    t("Показывать кратность (вес)", "Show multiplicity (weight)");
                 if is_inhibitor {
                     ui.horizontal(|ui| {
                         ui.label(t("Порог", "Threshold"));
@@ -113,18 +116,12 @@ impl PetriApp {
                             corrected_inputs |= sanitize_u32(&mut threshold, 1, u32::MAX);
                         }
                     });
-                    if ui
-                        .checkbox(
-                            &mut show_inhibitor_weight,
-                            t("Показывать кратность", "Show multiplicity"),
-                        )
-                        .changed()
-                    {
-                        // just update flag; actual text will refresh later
+                    if ui.checkbox(&mut show_weight, show_weight_label).changed() {
+                        // only refresh flag; label drawn below
                     }
-                    if show_inhibitor_weight {
+                    if show_weight {
                         ui.horizontal(|ui| {
-                            ui.label(t("Кратность", "Weight"));
+                            ui.label(weight_label);
                             if ui
                                 .add(egui::DragValue::new(&mut weight).range(1..=u32::MAX))
                                 .changed()
@@ -135,7 +132,7 @@ impl PetriApp {
                     }
                 } else {
                     ui.horizontal(|ui| {
-                        ui.label(t("Кратность", "Weight"));
+                        ui.label(weight_label);
                         if ui
                             .add(egui::DragValue::new(&mut weight).range(1..=u32::MAX))
                             .changed()
@@ -176,7 +173,7 @@ impl PetriApp {
                             threshold: new_threshold,
                             color,
                             visible: arc.visible,
-                            show_weight: show_inhibitor_weight,
+                            show_weight,
                         });
                         self.canvas.selected_arc = Some(arc.id);
                         if !self.canvas.selected_arcs.contains(&arc.id) {
@@ -191,6 +188,7 @@ impl PetriApp {
                     }
                     arc.weight = new_weight;
                     arc.color = color;
+                    arc.show_weight = show_weight;
                 }
             }
             SelectedArc::Inhibitor(idx) => {
@@ -203,6 +201,7 @@ impl PetriApp {
                         weight: new_weight,
                         color,
                         visible: inh.visible,
+                        show_weight,
                     });
                     self.canvas.selected_arc = Some(inh.id);
                     if !self.canvas.selected_arcs.contains(&inh.id) {
@@ -216,7 +215,7 @@ impl PetriApp {
                     }
                     inh.threshold = new_threshold;
                     inh.color = color;
-                    inh.show_weight = show_inhibitor_weight;
+                    inh.show_weight = show_weight;
                 }
             }
         }

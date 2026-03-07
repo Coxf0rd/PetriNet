@@ -252,6 +252,8 @@ pub struct Arc {
     pub color: NodeColor,
     #[serde(default = "default_visible_true")]
     pub visible: bool,
+    #[serde(default)]
+    pub show_weight: bool,
 }
 
 impl Default for Arc {
@@ -263,6 +265,7 @@ impl Default for Arc {
             weight: 1,
             color: NodeColor::Default,
             visible: true,
+            show_weight: false,
         }
     }
 }
@@ -570,6 +573,7 @@ impl PetriNetModel {
                 weight: weight.max(1),
                 color: NodeColor::Default,
                 visible: true,
+                show_weight: false,
             });
             self.rebuild_matrices_from_arcs();
         }
@@ -680,6 +684,7 @@ impl PetriNetModel {
                         weight: pre,
                         color: NodeColor::Default,
                         visible: true,
+                        show_weight: false,
                     });
                     next_id = next_id.saturating_add(1);
                 }
@@ -691,6 +696,7 @@ impl PetriNetModel {
                         weight: post,
                         color: NodeColor::Default,
                         visible: true,
+                        show_weight: false,
                     });
                     next_id = next_id.saturating_add(1);
                 }
@@ -860,6 +866,7 @@ mod tests {
             weight: 0,
             color: NodeColor::Default,
             visible: true,
+            show_weight: false,
         });
         net.inhibitor_arcs.push(InhibitorArc {
             id: 2,

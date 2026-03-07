@@ -80,6 +80,7 @@ impl PetriApp {
                     weight: arc.weight,
                     color: arc.color,
                     visible: arc.visible,
+                    show_weight: arc.show_weight,
                 });
             }
         }
@@ -93,6 +94,7 @@ impl PetriApp {
                     threshold: inh.threshold,
                     color: inh.color,
                     visible: inh.visible,
+                    show_weight: inh.show_weight,
                 });
             }
         }
