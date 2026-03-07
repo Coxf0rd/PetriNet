@@ -86,6 +86,9 @@ impl PetriApp {
                         }
                     }
                 }
+                if self.debug_playing {
+                    ctx.request_repaint_after(Duration::from_millis(16));
+                }
                 let animation_response = ui.checkbox(
                     &mut self.debug_animation_enabled,
                     t("Включить анимацию", "Enable animation"),

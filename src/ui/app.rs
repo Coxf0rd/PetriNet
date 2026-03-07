@@ -434,6 +434,7 @@ impl PetriApp {
     const FRAME_RESIZE_HANDLE_PX: f32 = 10.0;
     const MAX_PLOT_POINTS: usize = 2_000;
     const DEBUG_ANIMATION_MIN_DURATION: f64 = 0.1;
+    const DEBUG_ANIMATION_MAX_DURATION: f64 = 1.5;
 
     pub(in crate::ui::app) fn refresh_debug_animation_state(&mut self) {
         if let Some(result) = self.sim_result.as_ref() {
@@ -556,14 +557,20 @@ impl PetriApp {
                     continue;
                 }
             };
-            let mut next_time = entry.time + Self::DEBUG_ANIMATION_MIN_DURATION;
+            let mut next_time = entry.time;
             for subsequent in result.logs.iter().skip(next_log_idx + 1) {
                 if subsequent.time > entry.time {
                     next_time = subsequent.time;
                     break;
                 }
             }
-            let duration = (next_time - entry.time).max(Self::DEBUG_ANIMATION_MIN_DURATION);
+            if next_time <= entry.time {
+                next_time = entry.time + Self::DEBUG_ANIMATION_MIN_DURATION;
+            }
+            let mut duration = next_time - entry.time;
+            duration = duration
+                .max(Self::DEBUG_ANIMATION_MIN_DURATION)
+                .min(Self::DEBUG_ANIMATION_MAX_DURATION);
             let mut pre_arcs = Self::transition_arcs(net, transition_idx, true);
             let mut post_arcs = Self::transition_arcs(net, transition_idx, false);
             let mut moving_colors = VecDeque::new();
