@@ -1,5 +1,5 @@
 use super::*;
-use egui::Color32;
+use egui::{Color32, Vec2};
 
 impl PetriApp {
     pub(in crate::ui::app) fn draw_markov_window(&mut self, ctx: &egui::Context) {
@@ -7,6 +7,8 @@ impl PetriApp {
         egui::Window::new(self.tr("Марковская модель", "Markov model"))
             .constrained_to_viewport(ctx)
             .id(egui::Id::new("markov_window"))
+            .default_size(Vec2::new(520.0, 520.0))
+            .min_size(Vec2::new(360.0, 360.0))
             .open(&mut open)
             .show(ctx, |ui| {
                 egui::ScrollArea::vertical()
