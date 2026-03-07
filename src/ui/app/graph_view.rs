@@ -2,6 +2,8 @@ use std::collections::HashSet;
 
 use super::*;
 
+use egui::epaint;
+
 impl PetriApp {
     pub(super) fn draw_graph_view(&mut self, ui: &mut egui::Ui) {
         self.update_debug_animation_clock(ui.ctx());
@@ -1594,9 +1596,17 @@ impl PetriApp {
                 let dir = delta.normalized();
                 let start = from_center + dir * from_radius;
                 let end = to_center - dir * to_radius;
-                painter.line_segment([start, end], Stroke::new(stroke_width, color));
-                self.draw_markov_arrow_head(painter, end, dir, stroke_width, color);
-                Some((start, end, dir))
+                let control =
+                    Self::markov_curve_control(start, end, from_idx, to_idx, self.canvas.zoom);
+                painter.add(epaint::QuadraticBezierShape {
+                    points: [start, control, end],
+                    stroke: Stroke::new(stroke_width, color).into(),
+                    fill: Color32::TRANSPARENT.into(),
+                    closed: false,
+                });
+                let tangent = Self::normalized_or_zero(end - control);
+                self.draw_markov_arrow_head(painter, end, tangent, stroke_width, color);
+                Some((start, end, tangent))
             } else {
                 let dir = Vec2::Y;
                 let start = from_center + dir * from_radius;
@@ -1633,5 +1643,28 @@ impl PetriApp {
         let right = tip - dir * arrow_size - perp * (arrow_size * 0.4);
         painter.line_segment([tip, left], Stroke::new(stroke_width, color));
         painter.line_segment([tip, right], Stroke::new(stroke_width, color));
+    }
+
+    fn markov_curve_control(
+        start: Pos2,
+        end: Pos2,
+        from_idx: usize,
+        to_idx: usize,
+        zoom: f32,
+    ) -> Pos2 {
+        let mid = Pos2::new((start.x + end.x) * 0.5, (start.y + end.y) * 0.5);
+        let delta = end - start;
+        let perp = Self::normalized_or_zero(Vec2::new(-delta.y, delta.x));
+        let sign = if from_idx <= to_idx { 1.0 } else { -1.0 };
+        let magnitude = 12.0 * zoom + (delta.length() * 0.15);
+        mid + perp * (magnitude * sign)
+    }
+
+    fn normalized_or_zero(delta: Vec2) -> Vec2 {
+        if delta.length_sq() < f32::EPSILON {
+            Vec2::X
+        } else {
+            delta.normalized()
+        }
     }
 }
