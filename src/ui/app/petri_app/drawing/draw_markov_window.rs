@@ -133,7 +133,7 @@ impl PetriApp {
                                         .id_source("markov_state_graph")
                                         .max_height(320.0)
                                         .show(ui, |ui| {
-                                            let graph_width = ui.available_width();
+                                            let graph_width = ui.available_width().min(520.0);
                                             let has_transitions =
                                                 chain.transitions.iter().any(|edges| !edges.is_empty());
                                             if has_transitions {

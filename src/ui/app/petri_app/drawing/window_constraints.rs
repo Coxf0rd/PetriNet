@@ -1,6 +1,4 @@
-use egui::{Context, Rect, Vec2, Window};
-
-const WINDOW_MARGIN: f32 = 18.0;
+use egui::{Context, Rect, Window};
 
 /// Экстеншн для `egui::Window`, ограничивающий размер окна видимой областью контекста.
 pub trait WindowExt {
@@ -15,14 +13,9 @@ impl<'a> WindowExt for Window<'a> {
         } else {
             screen_rect
         };
-        let margin = Vec2::splat(WINDOW_MARGIN);
-        let shrunken = Rect::from_min_max(viewport.min + margin, viewport.max - margin);
-        let inner = if shrunken.min.x < shrunken.max.x && shrunken.min.y < shrunken.max.y {
-            shrunken
-        } else {
-            viewport
-        };
-        let size = inner.size();
-        self.default_size(size).max_size(size).constrain_to(inner)
+        let size = viewport.size();
+        self.default_size(size)
+            .max_size(size)
+            .constrain_to(viewport)
     }
 }
