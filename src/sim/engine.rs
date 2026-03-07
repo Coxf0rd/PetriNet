@@ -19,8 +19,6 @@ pub struct SimulationParams {
     pub use_pass_limit: bool,
     pub pass_limit: u64,
     pub dt: f64,
-    pub display_range_start: usize,
-    pub display_range_end: usize,
     pub stop: StopConditions,
 }
 
@@ -30,8 +28,6 @@ impl Default for SimulationParams {
             use_pass_limit: false,
             pass_limit: 1000,
             dt: 0.1,
-            display_range_start: 0,
-            display_range_end: 0,
             stop: StopConditions::default(),
         }
     }

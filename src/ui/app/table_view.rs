@@ -331,7 +331,6 @@ impl PetriApp {
             .open(&mut open)
             .show(ctx, |ui| {
                 let mut corrected_inputs = false;
-                let max_places = self.net.places.len();
 
                 let pass_limit_label = self.tr("Лимит срабатываний", "Fire count limit");
                 ui.checkbox(&mut self.sim_params.use_pass_limit, pass_limit_label);
@@ -340,29 +339,6 @@ impl PetriApp {
                     egui::DragValue::new(&mut self.sim_params.pass_limit).range(0..=u64::MAX),
                 );
                 corrected_inputs |= sanitize_u64(&mut self.sim_params.pass_limit, 0, 1_000_000);
-
-                ui.horizontal(|ui| {
-                    ui.label(self.tr(
-                        "Диапазон мест для вывода маркировки",
-                        "Place range for marking output",
-                    ));
-                    ui.add(
-                        egui::DragValue::new(&mut self.sim_params.display_range_start)
-                            .range(0..=10000),
-                    );
-                    ui.add(
-                        egui::DragValue::new(&mut self.sim_params.display_range_end)
-                            .range(0..=10000),
-                    );
-                    corrected_inputs |=
-                        sanitize_usize(&mut self.sim_params.display_range_start, 0, max_places);
-                    corrected_inputs |=
-                        sanitize_usize(&mut self.sim_params.display_range_end, 0, max_places);
-                    if self.sim_params.display_range_end < self.sim_params.display_range_start {
-                        self.sim_params.display_range_end = self.sim_params.display_range_start;
-                        corrected_inputs = true;
-                    }
-                });
 
                 ui.separator();
                 ui.label(self.tr("Условия остановки", "Stop conditions"));
