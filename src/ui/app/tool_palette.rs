@@ -12,13 +12,21 @@ impl PetriApp {
                 ui.heading("Инструменты");
                 ui.separator();
 
-                ui.radio_value(&mut self.tool, Tool::Place, "◯ Позиция");
-                ui.radio_value(&mut self.tool, Tool::Transition, "▮ Переход");
-                ui.radio_value(&mut self.tool, Tool::Arc, "↗ Дуга");
-                ui.radio_value(&mut self.tool, Tool::Text, "A Текст");
-                ui.radio_value(&mut self.tool, Tool::Frame, "▭ Рамка");
-                ui.radio_value(&mut self.tool, Tool::Edit, "✥ Редактировать");
-                ui.radio_value(&mut self.tool, Tool::Delete, "✖ Удалить");
+                for (tool_variant, icon, label) in [
+                    (Tool::Place, "O", "Позиция"),
+                    (Tool::Transition, "II", "Переход"),
+                    (Tool::Arc, "↗", "Дуга"),
+                    (Tool::Text, "A", "Текст"),
+                    (Tool::Frame, "[]", "Рамка"),
+                    (Tool::Edit, "✥", "Редактировать"),
+                    (Tool::Delete, "✖", "Удалить"),
+                ] {
+                    let selected = self.tool == tool_variant;
+                    let text = format!("{} {}", icon, label);
+                    if ui.add(egui::SelectableLabel::new(selected, text)).clicked() {
+                        self.tool = tool_variant;
+                    }
+                }
 
                 if ui.button("СТАРТ").clicked() {
                     self.reset_sim_stop_controls();

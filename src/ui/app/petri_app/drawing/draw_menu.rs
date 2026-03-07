@@ -74,8 +74,10 @@ impl PetriApp {
                     ];
                     for (mode, label) in options {
                         let selected = self.layout_mode == mode;
-                        let response = ui.add(egui::SelectableLabel::new(selected, label.as_ref()));
-                        if response.clicked() {
+                        if ui
+                            .add(egui::SelectableLabel::new(selected, label.as_ref()))
+                            .clicked()
+                        {
                             self.layout_mode = mode;
                         }
                     }
