@@ -4,6 +4,7 @@ impl PetriApp {
     pub(in crate::ui::app) fn draw_help_controls(&mut self, ctx: &egui::Context) {
         let mut open = self.show_help_controls;
         egui::Window::new("Help: Помощь по управлению")
+            .constrained_to_viewport(ctx)
             .open(&mut open)
             .vscroll(true)
             .show(ctx, |ui| {

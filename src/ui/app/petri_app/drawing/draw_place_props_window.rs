@@ -14,6 +14,7 @@ impl PetriApp {
         let t = |ru: &'static str, en: &'static str| if is_ru { ru } else { en };
         let mut open = true;
         egui::Window::new(title)
+            .constrained_to_viewport(ctx)
             .id(egui::Id::new("place_props_window"))
             .open(&mut open)
             .show(ctx, |ui| {

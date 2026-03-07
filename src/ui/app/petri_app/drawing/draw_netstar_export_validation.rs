@@ -19,6 +19,7 @@ impl PetriApp {
         let mut do_cancel = false;
 
         egui::Window::new(self.tr("Проверка экспорта", "Export validation"))
+            .constrained_to_viewport(ctx)
             .id(egui::Id::new("netstar_export_validation_window"))
             .open(&mut open)
             .collapsible(false)

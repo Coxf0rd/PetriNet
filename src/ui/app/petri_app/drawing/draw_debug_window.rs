@@ -10,6 +10,7 @@ impl PetriApp {
 
         let mut open = self.show_debug;
         egui::Window::new(t("Режим отладки", "Debug Mode"))
+            .constrained_to_viewport(ctx)
             .open(&mut open)
             .show(ctx, |ui| {
                 let Some(result) = self.sim_result.clone() else {

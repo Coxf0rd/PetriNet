@@ -7,6 +7,7 @@ impl PetriApp {
         }
         let mut open = self.show_proof;
         egui::Window::new("Proof")
+            .constrained_to_viewport(ctx)
             .open(&mut open)
             .vscroll(true)
             .show(ctx, |ui| {

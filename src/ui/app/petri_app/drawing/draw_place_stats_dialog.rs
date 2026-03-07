@@ -22,6 +22,7 @@ impl PetriApp {
 
         let mut open = true;
         egui::Window::new(t("Статистика", "Statistics"))
+            .constrained_to_viewport(ctx)
             .id(egui::Id::new(("place_stats_dialog", place_id)))
             .collapsible(false)
             .resizable(false)

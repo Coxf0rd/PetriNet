@@ -4,6 +4,7 @@ impl PetriApp {
     pub(in crate::ui::app) fn draw_help_development(&mut self, ctx: &egui::Context) {
         let mut open = self.show_help_development;
         egui::Window::new("Help: Разработка")
+            .constrained_to_viewport(ctx)
             .open(&mut open)
             .resizable(false)
             .show(ctx, |ui| {

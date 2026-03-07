@@ -86,6 +86,7 @@ impl PetriApp {
 
         let mut open = true;
         egui::Window::new(title)
+            .constrained_to_viewport(ctx)
             .id(egui::Id::new("arc_props_window"))
             .open(&mut open)
             .show(ctx, |ui| {

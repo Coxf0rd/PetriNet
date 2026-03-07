@@ -20,3 +20,6 @@ mod draw_text_properties;
 mod draw_text_props_window;
 mod draw_transition_properties;
 mod draw_transition_props_window;
+mod window_constraints;
+
+pub use window_constraints::WindowExt;
