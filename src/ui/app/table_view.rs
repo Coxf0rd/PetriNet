@@ -340,6 +340,16 @@ impl PetriApp {
                 );
                 corrected_inputs |= sanitize_u64(&mut self.sim_params.pass_limit, 0, 1_000_000);
 
+                let time_limit_label = self.tr("Лимит времени (сек)", "Time limit (sec)");
+                ui.checkbox(&mut self.sim_params.use_time_limit, time_limit_label);
+                ui.add_enabled(
+                    self.sim_params.use_time_limit,
+                    egui::DragValue::new(&mut self.sim_params.time_limit)
+                        .range(0.0..=1_000_000.0)
+                        .speed(1.0),
+                );
+                corrected_inputs |= sanitize_f64(&mut self.sim_params.time_limit, 0.0, 1_000_000.0);
+
                 ui.separator();
                 ui.label(self.tr("Условия остановки", "Stop conditions"));
                 let mut stop_place_enabled = self.sim_params.stop.through_place.is_some();

@@ -18,6 +18,8 @@ pub struct StopConditions {
 pub struct SimulationParams {
     pub use_pass_limit: bool,
     pub pass_limit: u64,
+    pub use_time_limit: bool,
+    pub time_limit: f64,
     pub dt: f64,
     pub stop: StopConditions,
 }
@@ -27,6 +29,8 @@ impl Default for SimulationParams {
         Self {
             use_pass_limit: false,
             pass_limit: 1000,
+            use_time_limit: false,
+            time_limit: 60.0,
             dt: 0.1,
             stop: StopConditions::default(),
         }
@@ -567,10 +571,14 @@ fn should_stop(
     net: &PetriNet,
     state: &SimState,
     params: &SimulationParams,
-    _now: f64,
+    now: f64,
     passes: u64,
 ) -> bool {
     if params.use_pass_limit && passes >= params.pass_limit {
+        return true;
+    }
+
+    if params.use_time_limit && now >= params.time_limit {
         return true;
     }
 
