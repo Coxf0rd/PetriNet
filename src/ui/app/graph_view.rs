@@ -1100,12 +1100,14 @@ impl PetriApp {
             }
             if let Some(annotation) = self.markov_annotations.get(&place.id) {
                 let annotation_offset = Vec2::new(0.0, radius + 8.0);
+                let font_size = (12.0 * self.canvas.zoom).clamp(12.0, 22.0);
+                let font_id = egui::FontId::new(font_size, egui::FontFamily::Proportional);
                 painter.text(
                     center + annotation_offset,
                     egui::Align2::CENTER_TOP,
                     annotation,
-                    egui::TextStyle::Small.resolve(ui.style()),
-                    Color32::from_rgb(100, 100, 100),
+                    font_id,
+                    Color32::from_rgb(24, 24, 24),
                 );
             }
         }

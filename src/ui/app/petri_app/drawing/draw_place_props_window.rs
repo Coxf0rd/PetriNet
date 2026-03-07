@@ -380,15 +380,17 @@ impl PetriApp {
                     self.update_markov_annotations();
                 }
                 let mut show_markov_model = self.net.places[place_idx].show_markov_model;
-                if ui
-                    .checkbox(
-                        &mut show_markov_model,
-                        t("Отображать марковскую модель", "Display Markov model"),
-                    )
-                    .changed()
-                {
+                let markov_response = ui.checkbox(
+                    &mut show_markov_model,
+                    t("Отображать марковскую модель", "Display Markov model"),
+                );
+                if markov_response.changed() {
                     self.net.places[place_idx].show_markov_model = show_markov_model;
-                    self.refresh_markov_place_arcs();
+                    if show_markov_model {
+                        self.calculate_markov_model();
+                    }
+                } else if markov_response.clicked() && show_markov_model {
+                    self.calculate_markov_model();
                 }
                 ui.separator();
                 ui.label(t("Название", "Name"));
