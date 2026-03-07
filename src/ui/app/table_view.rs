@@ -332,16 +332,6 @@ impl PetriApp {
             .show(ctx, |ui| {
                 let mut corrected_inputs = false;
                 let max_places = self.net.places.len();
-                let time_limit_label = self.tr("Лимит времени (сек)", "Time limit (sec)");
-                ui.checkbox(&mut self.sim_params.use_time_limit, time_limit_label);
-                ui.add_enabled(
-                    self.sim_params.use_time_limit,
-                    egui::DragValue::new(&mut self.sim_params.time_limit_sec)
-                        .speed(0.1)
-                        .range(0.0..=1_000_000.0),
-                );
-                corrected_inputs |=
-                    sanitize_f64(&mut self.sim_params.time_limit_sec, 0.0, 1_000_000.0);
 
                 let pass_limit_label = self.tr("Лимит срабатываний", "Fire count limit");
                 ui.checkbox(&mut self.sim_params.use_pass_limit, pass_limit_label);
@@ -397,25 +387,6 @@ impl PetriApp {
                     self.sim_params.stop.through_place = Some((p, n));
                 } else {
                     self.sim_params.stop.through_place = None;
-                }
-
-                let mut stop_time_enabled = self.sim_params.stop.sim_time.is_some();
-                let stop_time_label = self.tr(
-                    "Время симуляции достигло T секунд",
-                    "Simulation time reached T seconds",
-                );
-                ui.checkbox(&mut stop_time_enabled, stop_time_label);
-                if stop_time_enabled {
-                    let mut t = self.sim_params.stop.sim_time.unwrap_or(1.0);
-                    ui.add(
-                        egui::DragValue::new(&mut t)
-                            .speed(0.1)
-                            .range(0.0..=1_000_000.0),
-                    );
-                    corrected_inputs |= sanitize_f64(&mut t, 0.0, 1_000_000.0);
-                    self.sim_params.stop.sim_time = Some(t);
-                } else {
-                    self.sim_params.stop.sim_time = None;
                 }
 
                 validation_hint(

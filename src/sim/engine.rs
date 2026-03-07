@@ -12,13 +12,10 @@ const MAX_SIM_LOG_ENTRIES: usize = 20_000;
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct StopConditions {
     pub through_place: Option<(usize, u64)>,
-    pub sim_time: Option<f64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SimulationParams {
-    pub use_time_limit: bool,
-    pub time_limit_sec: f64,
     pub use_pass_limit: bool,
     pub pass_limit: u64,
     pub dt: f64,
@@ -30,8 +27,6 @@ pub struct SimulationParams {
 impl Default for SimulationParams {
     fn default() -> Self {
         Self {
-            use_time_limit: false,
-            time_limit_sec: 100.0,
             use_pass_limit: false,
             pass_limit: 1000,
             dt: 0.1,
@@ -576,23 +571,15 @@ fn should_stop(
     net: &PetriNet,
     state: &SimState,
     params: &SimulationParams,
-    now: f64,
+    _now: f64,
     passes: u64,
 ) -> bool {
-    if params.use_time_limit && now >= params.time_limit_sec.max(0.0) {
-        return true;
-    }
     if params.use_pass_limit && passes >= params.pass_limit {
         return true;
     }
 
     if let Some((pk, n)) = params.stop.through_place {
         if pk < net.places.len() && state.through_place_counter[pk] >= n {
-            return true;
-        }
-    }
-    if let Some(t) = params.stop.sim_time {
-        if now >= t.max(0.0) {
             return true;
         }
     }
