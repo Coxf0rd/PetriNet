@@ -516,12 +516,17 @@ impl PetriApp {
             return (events, Vec::new());
         }
         let default_marker_color = Color32::from_rgb(200, 0, 0);
+        let initial_marking = result
+            .logs
+            .get(*visible_steps.first().unwrap_or(&0))
+            .map(|entry| entry.marking.clone())
+            .unwrap_or_else(|| net.tables.m0.clone());
         let mut place_token_colors: Vec<Vec<Color32>> = net
             .places
             .iter()
             .enumerate()
             .map(|(place_idx, place)| {
-                let count = net.tables.m0.get(place_idx).copied().unwrap_or(0);
+                let count = initial_marking.get(place_idx).copied().unwrap_or(0);
                 let token_color = if place.marker_color_on_pass {
                     Self::color_to_egui(place.color, default_marker_color)
                 } else {
