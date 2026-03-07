@@ -90,10 +90,6 @@ impl PetriApp {
                     }
                 });
 
-                if ui.button("Параметры симуляции").clicked() {
-                    self.reset_sim_stop_controls();
-                    self.show_sim_params = true;
-                }
                 if ui.button("Структура сети").clicked() {
                     self.show_table_view = !self.show_table_view;
                     if !self.show_table_view {
