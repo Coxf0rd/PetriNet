@@ -388,6 +388,7 @@ impl PetriApp {
                     .changed()
                 {
                     self.net.places[place_idx].show_markov_model = show_markov_model;
+                    self.refresh_markov_place_arcs();
                 }
                 ui.separator();
                 ui.label(t("Название", "Name"));

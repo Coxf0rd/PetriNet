@@ -126,6 +126,13 @@ impl Default for CanvasState {
     }
 }
 
+#[derive(Clone, Debug)]
+pub(super) struct MarkovPlaceArc {
+    pub from_place_id: u64,
+    pub to_place_id: Option<u64>,
+    pub probability: f64,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 struct CanvasTextBlock {
@@ -403,6 +410,7 @@ pub struct PetriApp {
     markov_model: Option<MarkovChain>,
     markov_limit_reached: bool,
     markov_annotations: HashMap<u64, String>,
+    markov_place_arcs: Vec<MarkovPlaceArc>,
     new_place_size: VisualSize,
     new_place_color: NodeColor,
     new_place_marking: u32,

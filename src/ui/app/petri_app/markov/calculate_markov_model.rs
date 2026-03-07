@@ -7,5 +7,6 @@ impl PetriApp {
         self.markov_limit_reached = chain.limit_reached;
         self.markov_model = Some(chain);
         self.update_markov_annotations();
+        self.refresh_markov_place_arcs();
     }
 }

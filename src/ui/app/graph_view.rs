@@ -958,6 +958,8 @@ impl PetriApp {
             }
         }
 
+        self.draw_markov_place_arcs(rect, &painter, ui);
+
         let use_debug_colors = self.debug_animation_enabled;
         let debug_marking = if use_debug_colors {
             self.sim_result
@@ -1563,5 +1565,73 @@ impl PetriApp {
         } else {
             delta.normalized()
         }
+    }
+
+    fn draw_markov_place_arcs(&self, rect: Rect, painter: &egui::Painter, ui: &egui::Ui) {
+        if self.markov_place_arcs.is_empty() {
+            return;
+        }
+        let color = Color32::from_rgb(50, 130, 200);
+        let stroke_width = 1.5 * self.canvas.zoom.clamp(0.6, 1.4);
+        for arc in &self.markov_place_arcs {
+            let from_idx = match self.place_idx_by_id(arc.from_place_id) {
+                Some(idx) => idx,
+                None => continue,
+            };
+            let from_center = self.world_to_screen(rect, self.net.places[from_idx].pos);
+            let from_radius = Self::place_radius(self.net.places[from_idx].size) * self.canvas.zoom;
+            let arrow = if let Some(to_id) = arc.to_place_id {
+                let to_idx = match self.place_idx_by_id(to_id) {
+                    Some(idx) => idx,
+                    None => continue,
+                };
+                let to_center = self.world_to_screen(rect, self.net.places[to_idx].pos);
+                let to_radius = Self::place_radius(self.net.places[to_idx].size) * self.canvas.zoom;
+                let delta = to_center - from_center;
+                if delta.length_sq() <= f32::EPSILON {
+                    continue;
+                }
+                let dir = delta.normalized();
+                let start = from_center + dir * from_radius;
+                let end = to_center - dir * to_radius;
+                painter.line_segment([start, end], Stroke::new(stroke_width, color));
+                self.draw_markov_arrow_head(painter, end, dir, stroke_width, color);
+                Some((start, end, dir))
+            } else {
+                let dir = Vec2::Y;
+                let start = from_center + dir * from_radius;
+                let end = start + dir * (28.0 * self.canvas.zoom);
+                painter.line_segment([start, end], Stroke::new(stroke_width, color));
+                self.draw_markov_arrow_head(painter, end, dir, stroke_width, color);
+                Some((start, end, dir))
+            };
+            if let Some((start, end, dir)) = arrow {
+                let mid = Pos2::new((start.x + end.x) * 0.5, (start.y + end.y) * 0.5);
+                let label_offset = Vec2::new(-dir.y, dir.x) * (6.0 * self.canvas.zoom);
+                painter.text(
+                    mid + label_offset,
+                    egui::Align2::CENTER_CENTER,
+                    format!("{:.1}%", (arc.probability * 100.0).clamp(0.0, 999.9)),
+                    egui::TextStyle::Small.resolve(ui.style()),
+                    Color32::from_rgb(30, 30, 30),
+                );
+            }
+        }
+    }
+
+    fn draw_markov_arrow_head(
+        &self,
+        painter: &egui::Painter,
+        tip: Pos2,
+        dir: Vec2,
+        stroke_width: f32,
+        color: Color32,
+    ) {
+        let arrow_size = stroke_width * 3.0;
+        let perp = Vec2::new(-dir.y, dir.x);
+        let left = tip - dir * arrow_size + perp * (arrow_size * 0.4);
+        let right = tip - dir * arrow_size - perp * (arrow_size * 0.4);
+        painter.line_segment([tip, left], Stroke::new(stroke_width, color));
+        painter.line_segment([tip, right], Stroke::new(stroke_width, color));
     }
 }
