@@ -381,8 +381,8 @@ impl PetriApp {
                 }
                 let mut markov_placement = self.net.places[place_idx].markov_placement;
                 egui::ComboBox::from_label(t(
-                    "Положение марковской модели",
-                    "Markov model placement",
+                    "Положение марковской метки",
+                    "Markov highlight placement",
                 ))
                 .selected_text(Self::markov_placement_text(markov_placement, is_ru))
                 .show_ui(ui, |ui| {

@@ -1,5 +1,5 @@
-use egui::Color32;
 use super::*;
+use egui::Color32;
 
 impl PetriApp {
     pub(in crate::ui::app) fn draw_markov_window(&mut self, ctx: &egui::Context) {
@@ -73,24 +73,25 @@ impl PetriApp {
                                 ));
                             });
                             ui.separator();
-                            ui.label(self.tr(
-                                "Стационарное распределение",
-                                "Stationary distribution",
-                            ));
+                            ui.label(
+                                self.tr("Стационарное распределение", "Stationary distribution"),
+                            );
                             egui::ScrollArea::vertical()
                                 .id_source("markov_stationary_distribution")
                                 .max_height(260.0)
                                 .show(ui, |ui| {
                                     if let Some(stationary) = stationary {
-                                        egui::Grid::new("markov_states")
-                                            .striped(true)
-                                            .show(ui, |ui| {
+                                        egui::Grid::new("markov_states").striped(true).show(
+                                            ui,
+                                            |ui| {
                                                 ui.label(self.tr("Состояние", "State"));
                                                 ui.label("π");
                                                 ui.end_row();
                                                 let rows = chain.state_count().min(32);
                                                 for idx in 0..rows {
-                                                    ui.label(Self::format_marking(&chain.states[idx]));
+                                                    ui.label(Self::format_marking(
+                                                        &chain.states[idx],
+                                                    ));
                                                     ui.label(format!("{:.6}", stationary[idx]));
                                                     ui.end_row();
                                                 }
@@ -102,7 +103,8 @@ impl PetriApp {
                                                     ui.label("");
                                                     ui.end_row();
                                                 }
-                                            });
+                                            },
+                                        );
                                     } else {
                                         ui.label(self.tr(
                                             "Стационарное распределение не вычислено",
@@ -114,65 +116,85 @@ impl PetriApp {
                             ui.label(self.tr("Граф состояний", "State graph"));
                             egui::ScrollArea::vertical()
                                 .id_source("markov_state_graph")
-                                .max_height(220.0)
+                                .max_height(320.0)
                                 .show(ui, |ui| {
-                                    let mut rows = 0;
-                                    for (idx, edges) in chain.transitions.iter().enumerate() {
-                                        if rows >= 12 {
-                                            break;
-                                        }
-                                        if edges.is_empty() {
-                                            continue;
-                                        }
-                                        let sum: f64 = edges.iter().map(|(_, rate)| *rate).sum();
-                                        let transitions = edges
-                                            .iter()
-                                            .map(|(dest, rate)| {
-                                                let prob = if sum > 0.0 {
-                                                    (rate / sum).clamp(0.0, 1.0)
-                                                } else {
-                                                    0.0
-                                                };
-                                                format!("S{} ({:.2})", dest + 1, prob)
-                                            })
-                                            .collect::<Vec<_>>()
-                                            .join(", ");
-                                        ui.horizontal(|ui| {
-                                            ui.label(format!("S{} →", idx + 1));
-                                            ui.label(transitions);
-                                        });
-                                        rows += 1;
-                                    }
-                                    if rows == 0 {
+                                    let has_transitions =
+                                        chain.transitions.iter().any(|edges| !edges.is_empty());
+                                    if has_transitions {
+                                        egui::Grid::new("markov_state_graph_grid")
+                                            .striped(true)
+                                            .show(ui, |ui| {
+                                                ui.label(self.tr("Состояние", "State"));
+                                                ui.label(self.tr("Переходы", "Transitions"));
+                                                ui.end_row();
+                                                for (idx, edges) in
+                                                    chain.transitions.iter().enumerate()
+                                                {
+                                                    ui.label(format!("S{}", idx + 1));
+                                                    if edges.is_empty() {
+                                                        ui.label(
+                                                            self.tr(
+                                                                "Переходов нет",
+                                                                "No transitions",
+                                                            ),
+                                                        );
+                                                    } else {
+                                                        let total_rate: f64 =
+                                                            edges.iter().map(|(_, rate)| *rate).sum();
+                                                        ui.vertical(|ui| {
+                                                            for (dest, rate) in edges {
+                                                                let prob = if total_rate > 0.0 {
+                                                                    (rate / total_rate)
+                                                                        .clamp(0.0, 1.0)
+                                                                } else {
+                                                                    0.0
+                                                                };
+                                                                ui.label(format!(
+                                                                    "→ S{} ({:.2})",
+                                                                    dest + 1,
+                                                                    prob
+                                                                ));
+                                                            }
+                                                        });
+                                                    }
+                                                    ui.end_row();
+                                                }
+                                            });
+                                    } else {
                                         ui.label(self.tr(
                                             "Переходов не найдено",
                                             "No transitions detected",
                                         ));
-                                    } else if chain.state_count() > rows {
-                                        ui.label(format!(
-                                            "... {} {} ...",
-                                            chain.state_count() - rows,
-                                            self.tr("состояний пропущено", "states skipped"),
-                                        ));
                                     }
                                 });
-                            let markov_focus_places = self
+                            let markov_highlight_places = self
                                 .net
                                 .places
                                 .iter()
                                 .enumerate()
-                                .filter(|(_, place)| place.show_markov_model)
+                                .filter(|(_, place)| place.markov_highlight)
                                 .collect::<Vec<_>>();
-                            if !markov_focus_places.is_empty() {
+                            if markov_highlight_places.is_empty() {
                                 ui.separator();
-                                ui.label(self.tr("Марковская модель по позициям", "Markov model per place"));
+                                ui.label(self.tr(
+                                    "Отметьте марковскую метку в свойствах позиции, чтобы увидеть её отображение",
+                                    "Enable the Markov highlight on a place to view its display",
+                                ));
+                            } else {
+                                ui.separator();
+                                ui.label(
+                                    self.tr(
+                                        "Отображение марковской метки",
+                                        "Markov highlight display",
+                                    ),
+                                );
                                 let expectation =
                                     Self::markov_expected_tokens(chain, self.net.places.len());
                                 egui::ScrollArea::vertical()
                                     .id_source("markov_place_distribution")
                                     .max_height(320.0)
                                     .show(ui, |ui| {
-                                        for (place_idx, place) in &markov_focus_places {
+                                        for (place_idx, place) in &markov_highlight_places {
                                             ui.group(|ui| {
                                                 let place_label = if place.name.is_empty() {
                                                     format!("P{}", place.id)
@@ -199,8 +221,7 @@ impl PetriApp {
                                                     ));
                                                 }
                                                 let distribution = Self::markov_tokens_distribution(
-                                                    chain,
-                                                    *place_idx,
+                                                    chain, *place_idx,
                                                 );
                                                 if !distribution.is_empty() {
                                                     for (count, prob) in distribution.iter() {
@@ -210,7 +231,10 @@ impl PetriApp {
                                                                 count,
                                                                 self.tr("маркеров", "tokens")
                                                             ));
-                                                            ui.label(format!("{:.2}%", prob * 100.0));
+                                                            ui.label(format!(
+                                                                "{:.2}%",
+                                                                prob * 100.0
+                                                            ));
                                                         });
                                                     }
                                                 } else if stationary.is_some() {
