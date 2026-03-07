@@ -422,20 +422,38 @@ fn enabled_transitions(net: &PetriNet, state: &SimState) -> Vec<usize> {
 }
 
 fn pick_transition(net: &PetriNet, enabled: &[usize], rng: &mut SmallRng) -> usize {
-    let mut best_priority = *net.tables.mpr.get(enabled[0]).unwrap_or(&0);
-    for &t in enabled.iter().skip(1) {
-        let p = *net.tables.mpr.get(t).unwrap_or(&0);
-        best_priority = best_priority.max(p);
+    let mut best_priority = i32::MIN;
+    let mut best_pre_weight = 0_u32;
+    for &t in enabled {
+        let priority = *net.tables.mpr.get(t).unwrap_or(&0);
+        let pre_weight = transition_pre_weight(net, t);
+        if priority > best_priority {
+            best_priority = priority;
+            best_pre_weight = pre_weight;
+        } else if priority == best_priority {
+            best_pre_weight = best_pre_weight.max(pre_weight);
+        }
     }
 
     let mut candidates: Vec<usize> = enabled
         .iter()
         .copied()
-        .filter(|&t| *net.tables.mpr.get(t).unwrap_or(&0) == best_priority)
+        .filter(|&t| {
+            *net.tables.mpr.get(t).unwrap_or(&0) == best_priority
+                && transition_pre_weight(net, t) == best_pre_weight
+        })
         .collect();
     candidates.sort_unstable();
     let idx = rng.gen_range(0..candidates.len());
     candidates[idx]
+}
+
+fn transition_pre_weight(net: &PetriNet, transition_idx: usize) -> u32 {
+    net.tables
+        .pre
+        .iter()
+        .filter_map(|row| row.get(transition_idx).copied())
+        .sum()
 }
 
 fn fire_transition(
@@ -723,5 +741,18 @@ mod tests {
         assert!(res.log_entries_total > MAX_SIM_LOG_ENTRIES);
         assert!(res.logs.len() <= MAX_SIM_LOG_ENTRIES);
         assert!(res.log_sampling_stride >= 1);
+    }
+
+    #[test]
+    fn pick_transition_prefers_higher_weight() {
+        let mut net = PetriNet::new();
+        net.set_counts(1, 2);
+        net.tables.m0[0] = 2;
+        net.add_arc(NodeRef::Place(1), NodeRef::Transition(1), 1);
+        net.add_arc(NodeRef::Place(1), NodeRef::Transition(2), 2);
+        let mut rng = SmallRng::seed_from_u64(0xDEAD_BEEF);
+        let enabled = vec![0, 1];
+        let chosen = pick_transition(&net, &enabled, &mut rng);
+        assert_eq!(chosen, 1);
     }
 }
