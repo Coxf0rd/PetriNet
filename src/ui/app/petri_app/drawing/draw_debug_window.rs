@@ -66,6 +66,26 @@ impl PetriApp {
                     self.debug_animation_last_update = None;
                     self.sync_debug_animation_for_step();
                 }
+                if self.debug_playing && steps > 1 {
+                    let interval = Duration::from_millis(self.debug_interval_ms.max(1));
+                    let now = Instant::now();
+                    match self.debug_animation_last_update {
+                        Some(last) => {
+                            if now.duration_since(last) >= interval {
+                                if self.debug_step < steps - 1 {
+                                    self.debug_step += 1;
+                                    self.sync_debug_animation_for_step();
+                                } else {
+                                    self.debug_playing = false;
+                                }
+                                self.debug_animation_last_update = Some(now);
+                            }
+                        }
+                        None => {
+                            self.debug_animation_last_update = Some(now);
+                        }
+                    }
+                }
                 let animation_response = ui.checkbox(
                     &mut self.debug_animation_enabled,
                     t("Включить анимацию", "Enable animation"),
