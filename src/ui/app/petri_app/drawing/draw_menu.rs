@@ -58,21 +58,26 @@ impl PetriApp {
                 });
 
                 ui.menu_button("Окно", |ui| {
-                    if ui.button("Каскад").clicked() {
-                        self.layout_mode = LayoutMode::Cascade;
-                    }
-                    if ui.button("Плитка по горизонтали").clicked() {
-                        self.layout_mode = LayoutMode::TileHorizontal;
-                    }
-                    if ui.button("Плитка по вертикали").clicked() {
-                        self.layout_mode = LayoutMode::TileVertical;
-                    }
-                    if ui.button("Свернуть все").clicked() {
-                        self.layout_mode = LayoutMode::Minimized;
-                    }
-                    if ui.button("Упорядочить все").clicked() {
-                        self.layout_mode = LayoutMode::TileVertical;
-                        self.show_graph_view = true;
+                    let options = [
+                        (
+                            LayoutMode::TileHorizontal,
+                            self.tr("Плитка по горизонтали", "Tile horizontal"),
+                        ),
+                        (
+                            LayoutMode::TileVertical,
+                            self.tr("Плитка по вертикали", "Tile vertical"),
+                        ),
+                        (
+                            LayoutMode::Minimized,
+                            self.tr("Свернуть все", "Minimize all"),
+                        ),
+                    ];
+                    for (mode, label) in options {
+                        let selected = self.layout_mode == mode;
+                        let response = ui.add(egui::SelectableLabel::new(selected, label.as_ref()));
+                        if response.clicked() {
+                            self.layout_mode = mode;
+                        }
                     }
                 });
 
