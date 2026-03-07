@@ -22,6 +22,7 @@ impl<'a> WindowExt for Window<'a> {
         } else {
             viewport
         };
-        self.max_size(inner.size()).constrain_to(inner)
+        let size = inner.size();
+        self.default_size(size).max_size(size).constrain_to(inner)
     }
 }
