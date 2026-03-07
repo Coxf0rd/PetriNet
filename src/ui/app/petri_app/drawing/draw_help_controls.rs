@@ -10,7 +10,7 @@ impl PetriApp {
                 ui.heading("Основные кнопки и комбинации");
                 ui.separator();
                 ui.label("ЛКМ: создать/выбрать элемент (в зависимости от активного инструмента)");
-                ui.label("ПКМ + перетаскивание: двигать рабочую область");
+                ui.label("СКМ + перетаскивание: двигать рабочую область");
                 ui.label("Delete: удалить выделенное");
                 ui.separator();
                 ui.label("Ctrl+N: новый файл");
@@ -20,6 +20,7 @@ impl PetriApp {
                 ui.label("Ctrl+V: вставить");
                 ui.label("Ctrl+Z: отменить последнее действие");
                 ui.label("Ctrl+Q: выход");
+                ui.label("Ctrl + колесо: изменить масштаб графа");
             });
         self.show_help_controls = open;
     }
