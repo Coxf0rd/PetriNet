@@ -78,6 +78,7 @@ impl PetriApp {
                 netstar_export_validation: None,
                 show_new_element_props: false,
                 show_markov_window: false,
+                markov_model_enabled: false,
                 markov_model: None,
                 markov_limit_reached: false,
                 markov_annotations: HashMap::new(),

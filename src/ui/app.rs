@@ -408,6 +408,7 @@ pub struct PetriApp {
     netstar_export_validation: Option<NetstarExportValidationReport>,
     show_new_element_props: bool,
     show_markov_window: bool,
+    markov_model_enabled: bool,
     markov_model: Option<MarkovChain>,
     markov_limit_reached: bool,
     markov_annotations: HashMap<u64, String>,
