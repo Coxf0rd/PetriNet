@@ -588,16 +588,18 @@ impl PetriApp {
                                     },
                                 );
 
+                                let visible_log_indices = Self::debug_visible_log_indices(&result);
                                 egui::ScrollArea::vertical().max_height(320.0).show_rows(
                                     ui,
                                     row_h,
-                                    result.logs.len(),
+                                    visible_log_indices.len(),
                                     |ui, range| {
                                         egui::Grid::new("sim_log_grid_rows").striped(true).show(
                                             ui,
                                             |ui| {
-                                                for idx in range {
-                                                    let entry = &result.logs[idx];
+                                                for row_idx in range {
+                                                    let entry =
+                                                        &result.logs[visible_log_indices[row_idx]];
                                                     ui.label(format!("{:.3}", entry.time));
                                                     for token in &entry.marking {
                                                         ui.label(token.to_string());

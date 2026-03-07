@@ -19,6 +19,14 @@ impl PetriApp {
                     "Proof is generated from simulation trace.",
                 ));
                 ui.separator();
+                let visible_steps = Self::debug_visible_log_indices(result);
+                if visible_steps.is_empty() {
+                    ui.label(self.tr(
+                        "Р’СЃС‚СЂР°С‚ РµС‰Рµ РЅРµСЂРµР°Р» Р·Р°РїРёСЁ.",
+                        "Trace is empty.",
+                    ));
+                    return;
+                }
                 let row_h = ui.text_style_height(&egui::TextStyle::Body) + 4.0;
                 egui::Grid::new("proof_grid_header")
                     .striped(true)
@@ -32,14 +40,14 @@ impl PetriApp {
                 egui::ScrollArea::vertical().max_height(420.0).show_rows(
                     ui,
                     row_h,
-                    result.logs.len(),
+                    visible_steps.len(),
                     |ui, range| {
                         egui::Grid::new("proof_grid_rows")
                             .striped(true)
                             .show(ui, |ui| {
-                                for step in range {
-                                    let entry = &result.logs[step];
-                                    ui.label(step.to_string());
+                                for row_idx in range {
+                                    let entry = &result.logs[visible_steps[row_idx]];
+                                    ui.label(row_idx.to_string());
                                     ui.label(format!("{:.3}", entry.time));
                                     ui.label(
                                         entry
