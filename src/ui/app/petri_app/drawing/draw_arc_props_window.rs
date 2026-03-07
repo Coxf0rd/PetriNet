@@ -116,20 +116,6 @@ impl PetriApp {
                             corrected_inputs |= sanitize_u32(&mut threshold, 1, u32::MAX);
                         }
                     });
-                    if ui.checkbox(&mut show_weight, show_weight_label).changed() {
-                        // only refresh flag; label drawn below
-                    }
-                    if show_weight {
-                        ui.horizontal(|ui| {
-                            ui.label(weight_label);
-                            if ui
-                                .add(egui::DragValue::new(&mut weight).range(1..=u32::MAX))
-                                .changed()
-                            {
-                                corrected_inputs |= sanitize_u32(&mut weight, 1, u32::MAX);
-                            }
-                        });
-                    }
                 } else {
                     ui.horizontal(|ui| {
                         ui.label(weight_label);
@@ -140,6 +126,9 @@ impl PetriApp {
                             corrected_inputs |= sanitize_u32(&mut weight, 1, u32::MAX);
                         }
                     });
+                }
+                if ui.checkbox(&mut show_weight, show_weight_label).changed() {
+                    // flag only
                 }
                 ui.horizontal(|ui| {
                     ui.label(t("Цвет", "Color"));

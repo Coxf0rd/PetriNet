@@ -10,7 +10,7 @@ pub fn save_gpn2(path: &Path, model: &PetriNetModel) -> Result<()> {
     model.format_version = GPN2_FORMAT_VERSION;
     model.validate()?;
 
-    let json = serde_json::to_string_pretty(&model).context("Не удалось сериализовать GPN2")?;
+    let json = serde_json::to_string(&model).context("Не удалось сериализовать GPN2")?;
     let mut bytes = Vec::with_capacity(GPN2_MAGIC.len() + json.len());
     bytes.extend_from_slice(GPN2_MAGIC.as_bytes());
     bytes.extend_from_slice(json.as_bytes());

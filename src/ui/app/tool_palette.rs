@@ -87,6 +87,14 @@ impl PetriApp {
                         });
                 }
 
+                if ui
+                    .button(self.tr("Марковская модель", "Markov model"))
+                    .clicked()
+                {
+                    self.calculate_markov_model();
+                    self.show_markov_window = true;
+                }
+
                 let selected_arc_ids = self.collect_selected_arc_ids();
                 if !selected_arc_ids.is_empty() {
                     ui.separator();
@@ -262,6 +270,7 @@ impl PetriApp {
                 window = window.default_size(self.new_element_props_window_size);
             }
             let response = window.show(ctx, |ui| {
+                let mut corrected_inputs = false;
                 let size_text = |size: VisualSize| -> &'static str {
                     if is_ru {
                         match size {
@@ -335,14 +344,21 @@ impl PetriApp {
                         ui.label(t("Цвет", "Color"));
                         color_combo(ui, &mut self.new_place_color, is_ru);
                     });
+                    let mut marking = self.new_place_marking;
+                    corrected_inputs |= sanitize_u32(&mut marking, 0, u32::MAX);
                     ui.horizontal(|ui| {
                         ui.label(t("Маркеры", "Tokens"));
-                        ui.add(
-                            egui::DragValue::new(&mut self.new_place_marking).range(0..=u32::MAX),
-                        );
+                        if ui
+                            .add(egui::DragValue::new(&mut marking).range(0..=u32::MAX))
+                            .changed()
+                        {
+                            corrected_inputs |= sanitize_u32(&mut marking, 0, u32::MAX);
+                        }
                     });
+                    self.new_place_marking = marking;
+                    let mut cap = self.new_place_capacity.unwrap_or(0);
+                    corrected_inputs |= sanitize_u32(&mut cap, 0, u32::MAX);
                     ui.horizontal(|ui| {
-                        let mut cap = self.new_place_capacity.unwrap_or(0);
                         ui.label(t(
                             "Макс. емкость (0 = без ограничений)",
                             "Capacity (0 = unlimited)",
@@ -351,9 +367,10 @@ impl PetriApp {
                             .add(egui::DragValue::new(&mut cap).range(0..=u32::MAX))
                             .changed()
                         {
-                            self.new_place_capacity = if cap == 0 { None } else { Some(cap) };
+                            corrected_inputs |= sanitize_u32(&mut cap, 0, u32::MAX);
                         }
                     });
+                    self.new_place_capacity = if cap == 0 { None } else { Some(cap) };
                 });
 
                 ui.add_space(6.0);
@@ -382,22 +399,40 @@ impl PetriApp {
                         ui.label(t("Цвет", "Color"));
                         color_combo(ui, &mut self.new_transition_color, is_ru);
                     });
+                    let mut transition_priority = self.new_transition_priority;
+                    corrected_inputs |=
+                        sanitize_i32(&mut transition_priority, -1_000_000, 1_000_000);
                     ui.horizontal(|ui| {
                         ui.label(t("Приоритет", "Priority"));
-                        ui.add(
-                            egui::DragValue::new(&mut self.new_transition_priority)
-                                .range(-1_000_000..=1_000_000),
-                        );
+                        if ui
+                            .add(
+                                egui::DragValue::new(&mut transition_priority)
+                                    .range(-1_000_000..=1_000_000),
+                            )
+                            .changed()
+                        {
+                            corrected_inputs |=
+                                sanitize_i32(&mut transition_priority, -1_000_000, 1_000_000);
+                        }
                     });
+                    self.new_transition_priority = transition_priority;
                 });
 
                 ui.add_space(6.0);
                 ui.group(|ui| {
                     ui.label(t("Новые дуги", "New arcs"));
+                    let mut arc_weight = self.new_arc_weight;
+                    corrected_inputs |= sanitize_u32(&mut arc_weight, 1, u32::MAX);
                     ui.horizontal(|ui| {
                         ui.label(t("Кратность (вес)", "Weight"));
-                        ui.add(egui::DragValue::new(&mut self.new_arc_weight).range(1..=u32::MAX));
+                        if ui
+                            .add(egui::DragValue::new(&mut arc_weight).range(1..=u32::MAX))
+                            .changed()
+                        {
+                            corrected_inputs |= sanitize_u32(&mut arc_weight, 1, u32::MAX);
+                        }
                     });
+                    self.new_arc_weight = arc_weight;
                     ui.horizontal(|ui| {
                         ui.label(t("Цвет", "Color"));
                         color_combo(ui, &mut self.new_arc_color, is_ru);
@@ -407,13 +442,26 @@ impl PetriApp {
                     if self.new_arc_inhibitor {
                         ui.horizontal(|ui| {
                             ui.label(t("Порог", "Threshold"));
-                            ui.add(
-                                egui::DragValue::new(&mut self.new_arc_inhibitor_threshold)
-                                    .range(1..=u32::MAX),
-                            );
+                            let mut threshold = self.new_arc_inhibitor_threshold;
+                            corrected_inputs |= sanitize_u32(&mut threshold, 1, u32::MAX);
+                            if ui
+                                .add(egui::DragValue::new(&mut threshold).range(1..=u32::MAX))
+                                .changed()
+                            {
+                                corrected_inputs |= sanitize_u32(&mut threshold, 1, u32::MAX);
+                            }
+                            self.new_arc_inhibitor_threshold = threshold;
                         });
                     }
                 });
+                validation_hint(
+                    ui,
+                    corrected_inputs,
+                    &self.tr(
+                        "Некорректные значения были скорректированы",
+                        "Invalid inputs were adjusted",
+                    ),
+                );
             });
             if open {
                 if let Some(response) = response {
