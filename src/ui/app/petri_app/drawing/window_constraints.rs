@@ -13,7 +13,6 @@ impl<'a> WindowExt for Window<'a> {
         } else {
             screen_rect
         };
-        let size = viewport.size();
-        self.max_size(size).constrain_to(viewport)
+        self.constrain_to(viewport)
     }
 }
