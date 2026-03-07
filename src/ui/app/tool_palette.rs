@@ -87,14 +87,6 @@ impl PetriApp {
                         });
                 }
 
-                if ui
-                    .button(self.tr("Марковская модель", "Markov model"))
-                    .clicked()
-                {
-                    self.calculate_markov_model();
-                    self.show_markov_window = true;
-                }
-
                 let selected_arc_ids = self.collect_selected_arc_ids();
                 if !selected_arc_ids.is_empty() {
                     ui.separator();

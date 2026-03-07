@@ -52,6 +52,18 @@ pub enum NodeColor {
     Yellow,
 }
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+pub enum MarkovPlacement {
+    Bottom,
+    Top,
+}
+
+impl Default for MarkovPlacement {
+    fn default() -> Self {
+        Self::Bottom
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct MetaInfo {
     pub name: String,
@@ -173,6 +185,7 @@ pub struct Place {
     pub stochastic: StochasticDistribution,
     pub stats: PlaceStatisticsSelection,
     pub markov_highlight: bool,
+    pub markov_placement: MarkovPlacement,
     pub show_markov_model: bool,
 }
 

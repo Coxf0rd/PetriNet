@@ -17,6 +17,30 @@ impl PetriApp {
                         "Stationary probabilities solve Kolmogorov equations",
                     ));
                 });
+                ui.separator();
+                ui.label(self.tr(
+                    "Показать марковскую модель по позициям",
+                    "Show Markov model per place",
+                ));
+                egui::ScrollArea::vertical()
+                    .max_height(160.0)
+                    .show(ui, |ui| {
+                        for idx in 0..self.net.places.len() {
+                            let (place_label, mut show) = {
+                                let place = &self.net.places[idx];
+                                let label = if place.name.is_empty() {
+                                    format!("P{}", place.id)
+                                } else {
+                                    place.name.clone()
+                                };
+                                (label, place.show_markov_model)
+                            };
+                            if ui.checkbox(&mut show, place_label).changed() {
+                                self.net.places[idx].show_markov_model = show;
+                                self.calculate_markov_model();
+                            }
+                        }
+                    });
                 if let Some(chain) = &self.markov_model {
                     let stationary = chain.stationary.as_ref();
                     ui.label(format!(

@@ -76,6 +76,14 @@ impl PetriApp {
                     }
                 });
 
+                if ui
+                    .button(self.tr("Марковская модель", "Markov model"))
+                    .clicked()
+                {
+                    self.calculate_markov_model();
+                    self.show_markov_window = true;
+                }
+
                 if ui.button("Параметры симуляции").clicked() {
                     self.reset_sim_stop_controls();
                     self.show_sim_params = true;

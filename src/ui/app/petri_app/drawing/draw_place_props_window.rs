@@ -379,19 +379,25 @@ impl PetriApp {
                     self.net.places[place_idx].markov_highlight = markov_enabled;
                     self.update_markov_annotations();
                 }
-                let mut show_markov_model = self.net.places[place_idx].show_markov_model;
-                let markov_response = ui.checkbox(
-                    &mut show_markov_model,
-                    t("Отображать марковскую модель", "Display Markov model"),
-                );
-                if markov_response.changed() {
-                    self.net.places[place_idx].show_markov_model = show_markov_model;
-                    if show_markov_model {
-                        self.calculate_markov_model();
-                    }
-                } else if markov_response.clicked() && show_markov_model {
-                    self.calculate_markov_model();
-                }
+                let mut markov_placement = self.net.places[place_idx].markov_placement;
+                egui::ComboBox::from_label(t(
+                    "Положение марковской модели",
+                    "Markov model placement",
+                ))
+                .selected_text(Self::markov_placement_text(markov_placement, is_ru))
+                .show_ui(ui, |ui| {
+                    ui.selectable_value(
+                        &mut markov_placement,
+                        MarkovPlacement::Bottom,
+                        Self::markov_placement_text(MarkovPlacement::Bottom, is_ru),
+                    );
+                    ui.selectable_value(
+                        &mut markov_placement,
+                        MarkovPlacement::Top,
+                        Self::markov_placement_text(MarkovPlacement::Top, is_ru),
+                    );
+                });
+                self.net.places[place_idx].markov_placement = markov_placement;
                 ui.separator();
                 ui.label(t("Название", "Name"));
                 ui.text_edit_singleline(&mut self.net.places[place_idx].name);

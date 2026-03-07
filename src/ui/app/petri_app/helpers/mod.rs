@@ -7,6 +7,7 @@ mod color_to_egui;
 mod debug_visible_log_indices;
 mod format_marking;
 mod label_pos_text;
+mod markov_placement_text;
 mod node_color_text;
 mod place_radius;
 mod sampled_indices;

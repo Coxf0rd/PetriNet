@@ -16,8 +16,9 @@ use crate::formats::atf::generate_atf;
 use crate::io::{load_gpn, save_gpn_with_hints, LegacyExportHints};
 use crate::markov::{build_markov_chain, MarkovChain};
 use crate::model::{
-    LabelPosition, Language, NodeColor, NodeRef, PetriNet, Place, PlaceStatisticsSelection,
-    StochasticDistribution, Tool, Transition, UiDecorativeFrame, UiTextBlock, VisualSize,
+    LabelPosition, Language, MarkovPlacement, NodeColor, NodeRef, PetriNet, Place,
+    PlaceStatisticsSelection, StochasticDistribution, Tool, Transition, UiDecorativeFrame,
+    UiTextBlock, VisualSize,
 };
 use crate::sim::engine::{run_simulation, SimulationParams, SimulationResult};
 
