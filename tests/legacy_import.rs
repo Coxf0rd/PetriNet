@@ -82,7 +82,6 @@ fn legacy_import_restores_coordinates_and_arcs() {
         assert_eq!(imported.model.tables.m0[4], 1);
         assert_eq!(imported.model.tables.m0[7], 1);
         assert_eq!(imported.model.tables.m0[16], 1);
-        assert_eq!(imported.model.transitions[0].angle_deg, 90);
         assert!(!imported.model.places[0].name.trim().is_empty());
 
         let place16_id = imported.model.places[15].id;

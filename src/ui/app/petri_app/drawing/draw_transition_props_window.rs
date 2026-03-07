@@ -31,19 +31,6 @@ impl PetriApp {
                     }
                 });
                 self.net.tables.mpr[transition_idx] = priority;
-                ui.horizontal(|ui| {
-                    ui.label(t("Угол наклона", "Angle"));
-                    let mut angle = self.net.transitions[transition_idx].angle_deg;
-                    corrected_inputs |= sanitize_i32(&mut angle, -180, 180);
-                    if ui
-                        .add(egui::DragValue::new(&mut angle).range(-180..=180))
-                        .changed()
-                    {
-                        corrected_inputs |= sanitize_i32(&mut angle, -180, 180);
-                    }
-                    self.net.transitions[transition_idx].angle_deg = angle;
-                });
-
                 ui.label(t("Размер перехода", "Transition size"));
                 ui.horizontal(|ui| {
                     ui.radio_value(

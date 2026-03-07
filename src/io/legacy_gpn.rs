@@ -149,7 +149,6 @@ pub fn import_legacy_gpn(path: &Path) -> Result<LegacyImportResult, LegacyImport
                 tr.size = VisualSize::Medium;
                 let (w, h) = legacy_transition_dims(tr.size);
                 tr.pos = [first.x - w * 0.5, first.y - h * 0.5];
-                tr.angle_deg = first.angle_deg;
                 if !first.name.is_empty() {
                     tr.name = first.name.clone();
                     if tr.note.trim().is_empty() {
@@ -337,7 +336,6 @@ pub fn export_legacy_gpn_with_hints(
                 .unwrap_or(1)
                 .clamp(0, 1_000_000),
         );
-        write_i32(&mut record, 12, transition.angle_deg.clamp(-360, 360));
         write_i32(&mut record, 16, -131072);
         write_i32(&mut record, 20, -589825);
         write_i32(&mut record, 24, 196607);
@@ -483,7 +481,6 @@ struct LegacyTransitionNode {
     x: f32,
     y: f32,
     priority: i32,
-    angle_deg: i32,
     color_raw: i32,
     name: String,
 }
@@ -573,7 +570,6 @@ fn parse_transition_nodes_from_layout(
             break;
         };
         let priority = read_i32(bytes, off + 8).unwrap_or(1);
-        let angle_deg = read_i32(bytes, off + 12).unwrap_or(90);
         let color_raw = read_i32(bytes, off + 52).unwrap_or(0);
         let name = read_legacy_name(bytes, off, TRANSITION_RECORD_SIZE, TRANSITION_NAME_OFFSET);
         let valid = (-50_000..=50_000).contains(&x) && (-50_000..=50_000).contains(&y);
@@ -582,7 +578,6 @@ fn parse_transition_nodes_from_layout(
             x: x as f32,
             y: y as f32,
             priority: priority.clamp(0, 1_000_000),
-            angle_deg: angle_deg.clamp(-360, 360),
             color_raw,
             name,
         });

@@ -290,18 +290,6 @@ impl PetriApp {
                     mpr
                 ));
             }
-
-            if transition.angle_deg < -360 || transition.angle_deg > 360 {
-                report.warnings.push(format!(
-                    "{} T{} ({} -> диапазон -360..360)",
-                    self.tr(
-                        "Угол перехода будет ограничен при экспорте:",
-                        "Transition angle will be clamped during export:"
-                    ),
-                    idx + 1,
-                    transition.angle_deg
-                ));
-            }
         }
 
         let non_exportable_items = self.netstar_non_exportable_items();

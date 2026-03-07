@@ -243,7 +243,6 @@ pub struct Transition {
     pub pos: [f32; 2],
     pub note: String,
     pub color: NodeColor,
-    pub angle_deg: i32,
     pub label_position: LabelPosition,
     pub text_position: LabelPosition,
     pub size: VisualSize,
