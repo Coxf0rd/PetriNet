@@ -50,13 +50,14 @@ impl PetriApp {
     }
 
     fn build_markov_place_arcs(&self, chain: &MarkovChain) -> Vec<MarkovPlaceArc> {
-        let stationary = match chain.stationary.as_ref() {
-            Some(v) => v,
-            None => return Vec::new(),
-        };
         let mut arcs = HashMap::new();
+        let state_weights = chain
+            .stationary
+            .as_ref()
+            .cloned()
+            .unwrap_or_else(|| vec![1.0; chain.states.len()]);
         for (state_idx, edges) in chain.transitions.iter().enumerate() {
-            let state_prob = *stationary.get(state_idx).unwrap_or(&0.0);
+            let state_prob = *state_weights.get(state_idx).unwrap_or(&0.0);
             if state_prob <= 0.0 {
                 continue;
             }
@@ -104,6 +105,12 @@ impl PetriApp {
                 probability,
             })
             .collect::<Vec<_>>();
+        let total: f64 = result.iter().map(|arc| arc.probability).sum();
+        if total > 0.0 {
+            for arc in &mut result {
+                arc.probability /= total;
+            }
+        }
         result.sort_unstable_by(|a, b| {
             b.probability
                 .partial_cmp(&a.probability)
