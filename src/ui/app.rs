@@ -632,7 +632,8 @@ impl PetriApp {
             return Vec::new();
         };
         let transition_id = transition.id;
-        net.arcs
+        let mut arcs: Vec<(u64, u32, u64)> = net
+            .arcs
             .iter()
             .filter(|arc| arc.weight > 0)
             .filter_map(|arc| {
@@ -641,7 +642,7 @@ impl PetriApp {
                         (NodeRef::Place(place_id), NodeRef::Transition(id))
                             if *id == transition_id =>
                         {
-                            Some((arc.id, arc.weight, place_id))
+                            Some((arc.id, arc.weight, *place_id))
                         }
                         _ => None,
                     }
@@ -650,14 +651,17 @@ impl PetriApp {
                         (NodeRef::Transition(id), NodeRef::Place(place_id))
                             if *id == transition_id =>
                         {
-                            Some((arc.id, arc.weight, place_id))
+                            Some((arc.id, arc.weight, *place_id))
                         }
                         _ => None,
                     }
                 }
             })
+            .collect();
+        arcs.sort_unstable_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(&b.0)));
+        arcs.into_iter()
             .filter_map(|(arc_id, weight, place_id)| {
-                Self::place_index_by_id(net, *place_id).map(|place_idx| DebugAnimationArc {
+                Self::place_index_by_id(net, place_id).map(|place_idx| DebugAnimationArc {
                     arc_id,
                     weight,
                     place_idx,
