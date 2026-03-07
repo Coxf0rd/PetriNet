@@ -963,13 +963,19 @@ impl PetriApp {
         self.draw_markov_place_arcs(rect, &painter, ui);
 
         let use_debug_colors = self.debug_animation_enabled;
-        let debug_marking = if use_debug_colors {
+        let debug_state_active = self.sim_result.is_some()
+            && (self.show_debug || self.debug_animation_enabled);
+        let debug_marking = if debug_state_active {
             self.sim_result
                 .as_ref()
                 .and_then(|res| {
                     let visible = Self::debug_visible_log_indices(res);
+                    if visible.is_empty() {
+                        return None;
+                    }
+                    let step = self.debug_step.min(visible.len() - 1);
                     visible
-                        .get(self.debug_step)
+                        .get(step)
                         .and_then(|&log_idx| res.logs.get(log_idx))
                         .map(|entry| entry.marking.clone())
                 })
@@ -1035,6 +1041,16 @@ impl PetriApp {
                         .get(place_idx)
                         .cloned()
                         .unwrap_or_else(|| Vec::new()),
+                )
+            } else if debug_state_active {
+                (
+                    debug_marking
+                        .get(place_idx)
+                        .copied()
+                        .unwrap_or_else(|| {
+                            self.net.tables.m0.get(place_idx).copied().unwrap_or(0)
+                        }),
+                    Vec::new(),
                 )
             } else {
                 (
