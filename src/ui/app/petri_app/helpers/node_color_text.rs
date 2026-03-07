@@ -7,7 +7,7 @@ impl PetriApp {
             (NodeColor::Blue, true) => "Синий",
             (NodeColor::Red, true) => "Красный",
             (NodeColor::Green, true) => "Зеленый",
-            (NodeColor::Yellow, true) => "Р–РµР»С‚С‹Р№",
+            (NodeColor::Yellow, true) => "Желтый",
             (NodeColor::Default, false) => "Default",
             (NodeColor::Blue, false) => "Blue",
             (NodeColor::Red, false) => "Red",

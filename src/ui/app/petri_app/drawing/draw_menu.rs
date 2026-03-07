@@ -4,7 +4,7 @@ impl PetriApp {
     pub(in crate::ui::app) fn draw_menu(&mut self, ctx: &egui::Context) {
         egui::TopBottomPanel::top("menu").show(ctx, |ui| {
             egui::menu::bar(ui, |ui| {
-                ui.menu_button(self.tr("\u{424}\u{430}\u{439}\u{43B}", "File"), |ui| {
+                ui.menu_button(self.tr("Файл", "File"), |ui| {
                     if ui.button("Новый (Ctrl+N)").clicked() {
                         self.new_file();
                         ui.close_menu();

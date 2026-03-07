@@ -169,7 +169,7 @@ impl PetriApp {
             if self.show_struct_pre {
                 ui.separator();
                 ui.horizontal(|ui| {
-                    ui.label("Матрица инцидентций Pre");
+                    ui.label("Матрица инцидентности Pre");
                     if ui
                         .small_button(self.tr("Импорт CSV", "Import CSV"))
                         .clicked()
@@ -219,7 +219,7 @@ impl PetriApp {
             if self.show_struct_post {
                 ui.separator();
                 ui.horizontal(|ui| {
-                    ui.label("Матрица инцидентций Post");
+                    ui.label("Матрица инцидентности Post");
                     if ui
                         .small_button(self.tr("Импорт CSV", "Import CSV"))
                         .clicked()

@@ -13,9 +13,7 @@ impl PetriApp {
             self.arc_props_id = Some(id);
         }
         if let Some(arc_id) = self.arc_props_id {
-            let title = self
-                .tr("РЎРІРѕР№СЃС‚РІР° РґСѓРіРё", "Arc Properties")
-                .to_string();
+            let title = self.tr("Свойства дуги", "Arc Properties").to_string();
             self.show_arc_props = self.draw_arc_props_window(ctx, arc_id, title);
         } else {
             self.show_arc_props = false;

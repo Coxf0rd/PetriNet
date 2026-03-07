@@ -181,7 +181,7 @@ impl PetriApp {
                         ui.selectable_value(
                             &mut self.net.places[place_idx].color,
                             NodeColor::Yellow,
-                            t("Р–РµР»С‚С‹Р№", "Yellow"),
+                            t("Желтый", "Yellow"),
                         );
                     });
 

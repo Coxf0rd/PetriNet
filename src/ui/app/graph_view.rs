@@ -135,9 +135,7 @@ impl PetriApp {
                         self.text_blocks.push(CanvasTextBlock {
                             id,
                             pos: snapped,
-                            text: self
-                                .tr("\u{422}\u{435}\u{43A}\u{441}\u{442}", "Text")
-                                .to_string(),
+                            text: self.tr("Текст", "Text").to_string(),
                             font_name: "MS Sans Serif".to_string(),
                             font_size: 10.0,
                             color: NodeColor::Default,
@@ -1163,7 +1161,7 @@ impl PetriApp {
                     painter.text(
                         preview,
                         egui::Align2::CENTER_CENTER,
-                        self.tr("\u{422}\u{435}\u{43A}\u{441}\u{442}", "Text"),
+                        self.tr("Текст", "Text"),
                         egui::TextStyle::Body.resolve(ui.style()),
                         Color32::from_rgb(60, 120, 220),
                     );

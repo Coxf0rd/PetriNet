@@ -3,73 +3,72 @@ use super::*;
 impl PetriApp {
     pub(in crate::ui::app) fn draw_markov_window(&mut self, ctx: &egui::Context) {
         let mut open = self.show_markov_window;
-        egui::Window::new(self.tr("РњР°СЂРєРѕРІСЃРєР°СЏ РјРѕРґРµР»СЊ", "Markov model"))
+        egui::Window::new(self.tr("Марковская модель", "Markov model"))
             .id(egui::Id::new("markov_window"))
             .open(&mut open)
             .show(ctx, |ui| {
                 ui.horizontal(|ui| {
-                    if ui
-                        .small_button(self.tr("РџРµСЂРµС‡РёСЃС‚РёС‚СЊ", "Rebuild"))
-                        .clicked()
-                    {
+                    if ui.small_button(self.tr("Пересчитать", "Rebuild")).clicked() {
                         self.net.sanitize_values();
                         self.calculate_markov_model();
                     }
                     ui.label(self.tr(
-                        "РџРѕР»СѓС‡РµРЅРёРµ РїСЂРµРґРµР»РѕРІР°РЅРёСЏ РїРѕР»СЏРјРѕС‡РёРЅРµР№ РєРѕР»РјРѕРіРѕСЂРѕРІС‹С… СѓСЂР°РІРЅРµРЅРёР№",
+                        "Получение предельного распределения решений колмогоровских уравнений",
                         "Stationary probabilities solve Kolmogorov equations",
                     ));
                 });
                 if let Some(chain) = &self.markov_model {
                     ui.label(format!(
                         "{}: {}{}",
-                        self.tr("РЎРѕСЃС‚РѕСЏРЅРёР№", "States"),
+                        self.tr("Состояний,", "States"),
                         chain.state_count(),
                         if chain.limit_reached {
-                            format!(" ({})", self.tr("Р»РёРјРёС‚", "limit reached"))
+                            format!(" ({})", self.tr("лимит,", "limit reached"))
                         } else {
                             String::new()
                         }
                     ));
-                    let total_edges: usize =
-                        chain.transitions.iter().map(|edges| edges.len()).sum::<usize>();
+                    let total_edges: usize = chain
+                        .transitions
+                        .iter()
+                        .map(|edges| edges.len())
+                        .sum::<usize>();
                     ui.label(format!(
                         "{}: {}",
-                        self.tr("РџРµСЂРµС…РѕРґС‹", "Transitions"),
+                        self.tr("Переходы", "Transitions"),
                         total_edges
                     ));
                     if let Some(stationary) = &chain.stationary {
-                        ui.label(self.tr(
-                            "РЎС‚Р°С†РёРѕРЅР°СЂРЅРѕРµ РїРѕРґРµР»РµРЅРёРµ", 
-                            "Stationary distribution",
-                        ));
+                        ui.label(self.tr("Стационарное распределение", "Stationary distribution"));
                         egui::ScrollArea::vertical()
                             .max_height(280.0)
                             .show(ui, |ui| {
-                                egui::Grid::new("markov_states").striped(true).show(ui, |ui| {
-                                    ui.label(self.tr("РЎРѕСЃС‚РѕСЏРЅРёРµ", "State"));
-                                    ui.label(self.tr("π", "π"));
-                                    ui.end_row();
-                                    let rows = chain.state_count().min(32);
-                                    for idx in 0..rows {
-                                        ui.label(Self::format_marking(&chain.states[idx]));
-                                        ui.label(format!("{:.6}", stationary[idx]));
+                                egui::Grid::new("markov_states")
+                                    .striped(true)
+                                    .show(ui, |ui| {
+                                        ui.label(self.tr("Состояние", "State"));
+                                        ui.label(self.tr("π", "π"));
                                         ui.end_row();
-                                    }
-                                    if chain.state_count() > rows {
-                                        ui.label(format!(
-                                            "... {} ...",
-                                            chain.state_count() - rows
-                                        ));
-                                        ui.label("");
-                                        ui.end_row();
-                                    }
-                                });
+                                        let rows = chain.state_count().min(32);
+                                        for idx in 0..rows {
+                                            ui.label(Self::format_marking(&chain.states[idx]));
+                                            ui.label(format!("{:.6}", stationary[idx]));
+                                            ui.end_row();
+                                        }
+                                        if chain.state_count() > rows {
+                                            ui.label(format!(
+                                                "... {} ...",
+                                                chain.state_count() - rows
+                                            ));
+                                            ui.label("");
+                                            ui.end_row();
+                                        }
+                                    });
                             });
                     } else {
                         ui.label(self.tr(
-                            "РўРµСЂРѕС‚РѕРІР°РЅРёРµ РЅРµ РІС‹РїРѕР»РЅРµРЅРѕ",
-                            "Unable to compute stationary" ,
+                            "Стационарное распределение не вычислено",
+                            "Unable to compute stationary",
                         ));
                     }
                     ui.separator();
@@ -106,10 +105,9 @@ impl PetriApp {
                                 rows += 1;
                             }
                             if rows == 0 {
-                                ui.label(self.tr(
-                                    "Переходов не найдено",
-                                    "No transitions detected",
-                                ));
+                                ui.label(
+                                    self.tr("Переходов не найдено", "No transitions detected"),
+                                );
                             } else if chain.state_count() > rows {
                                 ui.label(format!(
                                     "... {} {} ...",
@@ -119,10 +117,7 @@ impl PetriApp {
                             }
                         });
                 } else {
-                    ui.label(self.tr(
-                        "РџРѕСЃС‚СЂРѕР№С‚Рµ РјРѕРґРµР»СЊ",
-                        "Build the model",
-                    ));
+                    ui.label(self.tr("Постройте модель", "Build the model"));
                 }
             });
         self.show_markov_window = open;
