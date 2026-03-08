@@ -7,7 +7,7 @@
 //! `show_hidden_vertical_scroll`, `show_list_with_scroll`, and
 //! `show_virtualized_rows` for details.
 
-use egui::{self, scroll_area::ScrollBarVisibility, Id, Ui};
+use egui::{self, scroll_area::ScrollBarVisibility, Ui};
 
 /// Show a vertical scroll area whose scroll bar is always hidden.
 ///
@@ -97,7 +97,7 @@ pub fn show_virtualized_rows(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use egui::{vec2, Pos2, Rect};
+    use egui::{vec2, Id, Pos2, Rect};
 
     #[test]
     fn test_shrink2_behaviour() {
@@ -118,8 +118,9 @@ mod tests {
         // with the expected signatures.  We don't execute them because they
         // require a real `egui::Ui`, but if the types change this test will
         // fail to compile.
-        let _hidden: fn(&mut Ui, _, f32, _) -> _ = show_hidden_vertical_scroll;
-        let _list: fn(&mut Ui, _, f32, _) -> _ = show_list_with_scroll;
-        let _virt: fn(&mut Ui, _, f32, f32, usize, _) = show_virtualized_rows;
+        let _hidden: fn(&mut Ui, Id, f32, fn(&mut Ui)) -> () = show_hidden_vertical_scroll;
+        let _list: fn(&mut Ui, Id, f32, fn(&mut Ui)) -> () = show_list_with_scroll;
+        let _virt: fn(&mut Ui, Id, f32, f32, usize, fn(&mut Ui, usize)) -> () =
+            show_virtualized_rows;
     }
 }
