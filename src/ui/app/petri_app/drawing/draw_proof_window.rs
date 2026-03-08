@@ -92,12 +92,17 @@ impl PetriApp {
                                 ui.label(self.tr("Маркировка", "Marking"));
                                 ui.end_row();
                             });
-                        // Use a vertical scroll area to show each step.  The height of
-                        // the scroll area adapts to the window, but we clamp it to a
-                        // reasonable size so that the header remains visible.
+                        // Use a vertical scroll area to show each step.  Instead of
+                        // hard‑coding a maximum height, compute it dynamically based on
+                        // the remaining available height.  This allows the proof
+                        // window to grow vertically together with other property
+                        // windows.  We still ensure a reasonable minimum height to
+                        // prevent the list from collapsing when space is limited.
+                        let available_h = ui.available_height();
+                        let max_height = available_h.max(360.0);
                         egui::ScrollArea::vertical()
                             .id_source("proof_grid_scroll")
-                            .max_height(360.0)
+                            .max_height(max_height)
                             .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::VisibleWhenNeeded)
                             .show_rows(ui, row_h, visible_steps.len(), |ui, range| {
                                 egui::Grid::new("proof_grid_rows")
