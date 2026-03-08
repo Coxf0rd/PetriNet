@@ -124,88 +124,89 @@ impl PetriApp {
         let available = ui.available_width();
         let marking_width = Self::markov_marking_column_width(available);
 
+        ui.horizontal(|ui| {
+            ui.label(RichText::new(self.tr("Состояние", "State")).strong());
+            ui.allocate_ui(Vec2::new(marking_width, 0.0), |ui| {
+                ui.label(RichText::new(self.tr("Маркировка", "Marking")).strong());
+            });
+            ui.label(RichText::new("π").strong());
+        });
+
+        let row_height = ui.text_style_height(&egui::TextStyle::Body) + 48.0;
         egui::ScrollArea::vertical()
             .id_source("markov_stationary_distribution")
             .max_height(360.0)
             .auto_shrink([false, false])
             .scroll_bar_visibility(scroll_area::ScrollBarVisibility::AlwaysHidden)
-            .show(ui, |ui| {
-                egui::Grid::new("markov_stationary_grid")
-                    .striped(true)
-                    .spacing([8.0, 6.0])
-                    .show(ui, |ui| {
-                        ui.label(RichText::new(self.tr("Состояние", "State")).strong());
-                        ui.label(RichText::new(self.tr("Маркировка", "Marking")).strong());
-                        ui.label(RichText::new("π").strong());
-                        ui.end_row();
-
-                        for idx in 0..stationary.len() {
-                            ui.label(format!("S{}", idx + 1));
-                            ui.allocate_ui(Vec2::new(marking_width, 0.0), |ui| {
-                                self.draw_state_marking_table(ui, &chain.states[idx], idx);
-                            });
-                            ui.label(format!("{:.6}", stationary[idx]));
-                            ui.end_row();
-                        }
+            .show_rows(ui, row_height, stationary.len(), |ui, rows| {
+                for idx in rows {
+                    ui.horizontal(|ui| {
+                        ui.label(format!("S{}", idx + 1));
+                        ui.allocate_ui(Vec2::new(marking_width, 0.0), |ui| {
+                            self.draw_state_marking_table(ui, &chain.states[idx], idx);
+                        });
+                        ui.label(format!("{:.6}", stationary[idx]));
                     });
+                    ui.add_space(6.0);
+                }
             });
     }
 
     fn draw_markov_state_graph(&self, ui: &mut egui::Ui, chain: &MarkovChain) {
         ui.label(self.tr("Граф состояний", "State graph"));
-        let has_transitions = chain.transitions.iter().any(|edges| !edges.is_empty());
         let available = ui.available_width();
         let transitions_width = Self::markov_transitions_column_width(available);
+
+        ui.horizontal(|ui| {
+            ui.label(RichText::new(self.tr("Состояние", "State")).strong());
+            ui.allocate_ui(Vec2::new(transitions_width, 0.0), |ui| {
+                ui.label(RichText::new(self.tr("Переходы", "Transitions")).strong());
+            });
+        });
+
+        let row_height = ui.text_style_height(&egui::TextStyle::Body) + 48.0;
         egui::ScrollArea::vertical()
             .id_source("markov_state_graph")
             .max_height(320.0)
             .auto_shrink([false, false])
             .scroll_bar_visibility(scroll_area::ScrollBarVisibility::AlwaysHidden)
-            .show(ui, |ui| {
-                if !has_transitions {
+            .show_rows(ui, row_height, chain.transitions.len(), |ui, rows| {
+                if rows.is_empty() {
                     ui.label(self.tr("Переходов не найдено", "No transitions detected"));
                     return;
                 }
-                egui::Grid::new("markov_state_graph_grid")
-                    .striped(true)
-                    .spacing([8.0, 6.0])
-                    .show(ui, |ui| {
-                        ui.label(RichText::new(self.tr("Состояние", "State")).strong());
+                for idx in rows {
+                    let edges = &chain.transitions[idx];
+                    ui.horizontal(|ui| {
+                        ui.label(format!("S{}", idx + 1));
                         ui.allocate_ui(Vec2::new(transitions_width, 0.0), |ui| {
-                            ui.label(RichText::new(self.tr("Переходы", "Transitions")).strong());
+                            if edges.is_empty() {
+                                ui.label(self.tr("Переходов нет", "No transitions"));
+                            } else {
+                                let total_rate: f64 = edges.iter().map(|(_, rate)| *rate).sum();
+                                ui.vertical(|ui| {
+                                    for (dest, rate) in edges {
+                                        let prob = if total_rate > 0.0 {
+                                            (rate / total_rate).clamp(0.0, 1.0)
+                                        } else {
+                                            0.0
+                                        };
+                                        ui.add_sized(
+                                            [transitions_width, 0.0],
+                                            egui::Label::new(format!(
+                                                "→ S{} ({:.2})",
+                                                dest + 1,
+                                                prob
+                                            ))
+                                            .wrap(),
+                                        );
+                                    }
+                                });
+                            }
                         });
-                        ui.end_row();
-
-                        for (idx, edges) in chain.transitions.iter().enumerate() {
-                            ui.label(format!("S{}", idx + 1));
-                            ui.allocate_ui(Vec2::new(transitions_width, 0.0), |ui| {
-                                if edges.is_empty() {
-                                    ui.label(self.tr("Переходов нет", "No transitions"));
-                                } else {
-                                    let total_rate: f64 = edges.iter().map(|(_, rate)| *rate).sum();
-                                    ui.vertical(|ui| {
-                                        for (dest, rate) in edges {
-                                            let prob = if total_rate > 0.0 {
-                                                (rate / total_rate).clamp(0.0, 1.0)
-                                            } else {
-                                                0.0
-                                            };
-                                            ui.add_sized(
-                                                [transitions_width, 0.0],
-                                                egui::Label::new(format!(
-                                                    "→ S{} ({:.2})",
-                                                    dest + 1,
-                                                    prob
-                                                ))
-                                                .wrap(),
-                                            );
-                                        }
-                                    });
-                                }
-                            });
-                            ui.end_row();
-                        }
                     });
+                    ui.add_space(6.0);
+                }
             });
     }
 
