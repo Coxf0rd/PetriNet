@@ -1,0 +1,391 @@
+build_portable_exe.ps1 failed: 20260308-232404
+ProjectDir: C:\Users\KDFX Modes\Desktop\PetriNet_Project\PetriNet
+Cargo: C:\Users\KDFX Modes\.cargo\bin\cargo.exe
+CargoExitCode: 101
+
+ERROR:
+System.Management.Automation.RuntimeException: Cargo build failed with exit code 101
+
+CARGO STDERR:
+   Compiling proc-macro2 v1.0.106
+   Compiling unicode-ident v1.0.24
+   Compiling quote v1.0.44
+   Compiling serde_core v1.0.228
+   Compiling cfg-if v1.0.4
+   Compiling stable_deref_trait v1.2.1
+   Compiling autocfg v1.5.0
+   Compiling windows_x86_64_msvc v0.48.5
+   Compiling khronos_api v3.1.0
+   Compiling smallvec v1.15.1
+   Compiling zerocopy v0.8.40
+   Compiling serde v1.0.228
+   Compiling cfg_aliases v0.1.1
+   Compiling writeable v0.6.2
+   Compiling libm v0.2.16
+   Compiling litemap v0.8.1
+   Compiling log v0.4.29
+   Compiling windows-link v0.2.1
+   Compiling xml-rs v0.8.28
+   Compiling once_cell v1.21.3
+   Compiling icu_properties_data v2.1.2
+   Compiling icu_normalizer_data v2.1.1
+   Compiling version_check v0.9.5
+   Compiling crc32fast v1.5.0
+   Compiling parking_lot_core v0.9.12
+   Compiling simd-adler32 v0.3.8
+   Compiling windows_x86_64_msvc v0.53.1
+   Compiling ttf-parser v0.25.1
+   Compiling adler2 v2.0.1
+   Compiling scopeguard v1.2.0
+   Compiling ab_glyph_rasterizer v0.1.10
+   Compiling percent-encoding v2.3.2
+   Compiling winit v0.29.15
+   Compiling base64 v0.21.7
+   Compiling lock_api v0.4.14
+   Compiling miniz_oxide v0.8.9
+   Compiling fdeflate v0.3.7
+   Compiling raw-window-handle v0.6.2
+   Compiling raw-window-handle v0.5.2
+   Compiling nohash-hasher v0.2.0
+   Compiling utf8_iter v1.0.4
+   Compiling form_urlencoded v1.2.2
+   Compiling glutin v0.31.3
+   Compiling getrandom v0.2.17
+   Compiling cursor-icon v1.2.0
+   Compiling smol_str v0.2.2
+   Compiling ahash v0.8.12
+   Compiling error-code v3.3.2
+   Compiling unicode-segmentation v1.12.0
+   Compiling byteorder-lite v0.1.0
+   Compiling rand_core v0.6.4
+   Compiling num-traits v0.2.19
+   Compiling memoffset v0.9.1
+   Compiling windows-targets v0.48.5
+   Compiling glutin-winit v0.4.2
+   Compiling libloading v0.8.9
+   Compiling zmij v1.0.21
+   Compiling windows-targets v0.53.5
+   Compiling option-ext v0.2.0
+   Compiling winapi v0.3.9
+   Compiling clipboard-win v5.4.1
+   Compiling serde_json v1.0.149
+   Compiling litrs v1.0.0
+   Compiling windows-sys v0.48.0
+   Compiling windows-sys v0.60.2
+   Compiling web-time v0.2.4
+   Compiling anyhow v1.0.102
+   Compiling glow v0.13.1
+   Compiling rfd v0.14.1
+   Compiling memchr v2.8.0
+   Compiling static_assertions v1.1.0
+   Compiling gl_generator v0.14.0
+   Compiling flate2 v1.1.9
+   Compiling itoa v1.0.17
+   Compiling encoding_rs v0.8.35
+   Compiling parking_lot v0.12.5
+   Compiling document-features v0.2.12
+   Compiling glutin_wgl_sys v0.5.0
+   Compiling glutin_egl_sys v0.6.0
+   Compiling syn v2.0.117
+   Compiling pxfm v0.1.27
+   Compiling owned_ttf_parser v0.25.1
+   Compiling ab_glyph v0.2.32
+   Compiling bitflags v2.11.0
+   Compiling png v0.18.1
+   Compiling toml v0.5.11
+   Compiling synstructure v0.13.2
+   Compiling zerovec-derive v0.11.2
+   Compiling displaydoc v0.2.5
+   Compiling serde_derive v1.0.228
+   Compiling bytemuck_derive v1.10.2
+   Compiling zerofrom-derive v0.1.6
+   Compiling yoke-derive v0.8.1
+   Compiling winres v0.1.12
+   Compiling zerofrom v0.1.6
+   Compiling yoke v0.8.1
+   Compiling petri_net_legacy_editor v0.7.110 (C:\Users\KDFX Modes\Desktop\PetriNet_Project\PetriNet)
+   Compiling zerotrie v0.2.3
+   Compiling zerovec v0.11.5
+   Compiling bytemuck v1.25.0
+   Compiling ppv-lite86 v0.2.21
+   Compiling moxcms v0.7.11
+   Compiling tinystr v0.8.2
+   Compiling potential_utf v0.1.4
+   Compiling rand_chacha v0.3.1
+   Compiling dirs-sys v0.4.1
+   Compiling icu_collections v2.1.1
+   Compiling directories v5.0.1
+   Compiling icu_locale_core v2.1.1
+   Compiling rand v0.8.5
+   Compiling rand_distr v0.4.3
+   Compiling icu_provider v2.1.1
+   Compiling icu_properties v2.1.2
+   Compiling icu_normalizer v2.1.1
+   Compiling emath v0.28.1
+   Compiling ron v0.8.1
+   Compiling ecolor v0.28.1
+   Compiling epaint v0.28.1
+   Compiling idna_adapter v1.2.1
+   Compiling idna v1.1.0
+   Compiling url v2.5.8
+   Compiling webbrowser v1.1.0
+   Compiling egui v0.28.1
+   Compiling image v0.25.9
+   Compiling arboard v3.6.1
+   Compiling egui-winit v0.28.1
+   Compiling egui_glow v0.28.1
+   Compiling eframe v0.28.1
+warning: unused import: `Id`
+  --> src\ui\scroll_utils.rs:10:52
+   |
+10 | use egui::{self, scroll_area::ScrollBarVisibility, Id, Ui};
+   |                                                    ^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+error[E0308]: mismatched types
+  --> src\ui\app\table_view.rs:87:24
+   |
+87 |                 label: self.tr(label_ru, label_en),
+   |                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^ expected `WidgetText`, found `Cow<'_, str>`
+   |
+   = note: expected enum `WidgetText`
+              found enum `std::borrow::Cow<'_, str>`
+help: call `Into::into` on this expression to convert `std::borrow::Cow<'_, str>` into `WidgetText`
+   |
+87 |                 label: self.tr(label_ru, label_en).into(),
+   |                                                   +++++++
+
+error[E0063]: missing field `top_spacing` in initializer of `PropertySectionConfig`
+  --> src\ui\app\table_view.rs:85:26
+   |
+85 |             let config = PropertySectionConfig {
+   |                          ^^^^^^^^^^^^^^^^^^^^^ missing `top_spacing`
+
+error[E0599]: no function or associated item named `scroll_area_rows` found for struct `app::PetriApp` in the current scope
+   --> src\ui\app\table_view.rs:96:23
+    |
+ 96 |                 Self::scroll_area_rows(
+    |                       ^^^^^^^^^^^^^^^^ function or associated item not found in `app::PetriApp`
+    |
+   ::: src\ui\app.rs:344:1
+    |
+344 | pub struct PetriApp {
+    | ------------------- function or associated item `scroll_area_rows` not found for this struct
+    |
+note: if you're trying to build a new `app::PetriApp`, consider using `new::<impl app::PetriApp>::new` which returns `app::PetriApp`
+   --> src\ui\app\petri_app\file_ops\new.rs:4:5
+    |
+  4 |     pub fn new(_cc: &eframe::CreationContext<'_>) -> Self {
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error[E0282]: type annotations needed
+   --> src\ui\app\table_view.rs:102:22
+    |
+102 |                     |ui, rows| {
+    |                      ^^
+103 |                         // Reset minimum width so the grid spans the available width.
+104 |                         ui.set_min_width(0.0);
+    |                         -- type must be known at this point
+    |
+help: consider giving this closure parameter an explicit type
+    |
+102 |                     |ui: /* Type */, rows| {
+    |                        ++++++++++++
+
+error[E0308]: mismatched types
+   --> src\ui\app\table_view.rs:123:24
+    |
+123 |                 label: self.tr(label_ru, label_en),
+    |                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^ expected `WidgetText`, found `Cow<'_, str>`
+    |
+    = note: expected enum `WidgetText`
+               found enum `std::borrow::Cow<'_, str>`
+help: call `Into::into` on this expression to convert `std::borrow::Cow<'_, str>` into `WidgetText`
+    |
+123 |                 label: self.tr(label_ru, label_en).into(),
+    |                                                   +++++++
+
+error[E0063]: missing field `top_spacing` in initializer of `PropertySectionConfig`
+   --> src\ui\app\table_view.rs:121:26
+    |
+121 |             let config = PropertySectionConfig {
+    |                          ^^^^^^^^^^^^^^^^^^^^^ missing `top_spacing`
+
+error[E0599]: no function or associated item named `scroll_area_rows` found for struct `app::PetriApp` in the current scope
+   --> src\ui\app\table_view.rs:142:23
+    |
+142 |                 Self::scroll_area_rows(
+    |                       ^^^^^^^^^^^^^^^^ function or associated item not found in `app::PetriApp`
+    |
+   ::: src\ui\app.rs:344:1
+    |
+344 | pub struct PetriApp {
+    | ------------------- function or associated item `scroll_area_rows` not found for this struct
+    |
+note: if you're trying to build a new `app::PetriApp`, consider using `new::<impl app::PetriApp>::new` which returns `app::PetriApp`
+   --> src\ui\app\petri_app\file_ops\new.rs:4:5
+    |
+  4 |     pub fn new(_cc: &eframe::CreationContext<'_>) -> Self {
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error[E0282]: type annotations needed
+   --> src\ui\app\table_view.rs:148:22
+    |
+148 |                     |ui, rows| {
+    |                      ^^
+149 |                         ui.set_min_width(0.0);
+    |                         -- type must be known at this point
+    |
+help: consider giving this closure parameter an explicit type
+    |
+148 |                     |ui: /* Type */, rows| {
+    |                        ++++++++++++
+
+error[E0277]: no implementation for `bool |= std::option::Option<bool>`
+   --> src\ui\app\table_view.rs:255:30
+    |
+255 |             matrices_changed |= pre_changed;
+    |                              ^^ no implementation for `bool |= std::option::Option<bool>`
+    |
+    = help: the trait `BitOrAssign<std::option::Option<bool>>` is not implemented for `bool`
+help: the following other types implement trait `BitOrAssign<Rhs>`
+   --> /rustc/01f6ddf7588f42ae2d7eb0a2f21d44e8e96674cf\library\core\src\ops\bit.rs:830:1
+    |
+    = note: `bool` implements `BitOrAssign<&bool>`
+    |
+    = note: `bool` implements `BitOrAssign`
+    = note: this error originates in the macro `forward_ref_op_assign` which comes from the expansion of the macro `bitor_assign_impl` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0277]: no implementation for `bool |= std::option::Option<bool>`
+   --> src\ui\app\table_view.rs:290:30
+    |
+290 |             matrices_changed |= post_changed;
+    |                              ^^ no implementation for `bool |= std::option::Option<bool>`
+    |
+    = help: the trait `BitOrAssign<std::option::Option<bool>>` is not implemented for `bool`
+help: the following other types implement trait `BitOrAssign<Rhs>`
+   --> /rustc/01f6ddf7588f42ae2d7eb0a2f21d44e8e96674cf\library\core\src\ops\bit.rs:830:1
+    |
+    = note: `bool` implements `BitOrAssign<&bool>`
+    |
+    = note: `bool` implements `BitOrAssign`
+    = note: this error originates in the macro `forward_ref_op_assign` which comes from the expansion of the macro `bitor_assign_impl` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0277]: no implementation for `bool |= std::option::Option<bool>`
+   --> src\ui\app\table_view.rs:325:30
+    |
+325 |             matrices_changed |= inh_changed;
+    |                              ^^ no implementation for `bool |= std::option::Option<bool>`
+    |
+    = help: the trait `BitOrAssign<std::option::Option<bool>>` is not implemented for `bool`
+help: the following other types implement trait `BitOrAssign<Rhs>`
+   --> /rustc/01f6ddf7588f42ae2d7eb0a2f21d44e8e96674cf\library\core\src\ops\bit.rs:830:1
+    |
+    = note: `bool` implements `BitOrAssign<&bool>`
+    |
+    = note: `bool` implements `BitOrAssign`
+    = note: this error originates in the macro `forward_ref_op_assign` which comes from the expansion of the macro `bitor_assign_impl` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0308]: mismatched types
+   --> src\ui\app\table_view.rs:509:44
+    |
+509 | ...                   label: self.tr("Р–СѓСЂРЅР°Р» (С‚Р°Р±Р»РёС†Р°)", "Log (table)"),
+    |                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ expected `WidgetText`, found `Cow<'_, str>`
+    |
+    = note: expected enum `WidgetText`
+               found enum `std::borrow::Cow<'_, str>`
+help: call `Into::into` on this expression to convert `std::borrow::Cow<'_, str>` into `WidgetText`
+    |
+509 |                                     label: self.tr("Р–СѓСЂРЅР°Р» (С‚Р°Р±Р»РёС†Р°)", "Log (table)").into(),
+    |                                                                                      +++++++
+
+error[E0063]: missing field `top_spacing` in initializer of `PropertySectionConfig`
+   --> src\ui\app\table_view.rs:507:33
+    |
+507 | ...                   PropertySectionConfig {
+    |                       ^^^^^^^^^^^^^^^^^^^^^ missing `top_spacing`
+
+error[E0308]: mismatched types
+   --> src\ui\app\table_view.rs:634:52
+    |
+634 |   ...                   label: self.tr(
+    |  ______________________________^
+635 | | ...                       "РЎС‚Р°С‚РёСЃС‚РёРєР° РјР°СЂРєРµСЂРѕРІ (min/max/avg)",
+636 | | ...                       "Token statistics (min/max/avg)",
+637 | | ...                   ),
+    | |_______________________^ expected `WidgetText`, found `Cow<'_, str>`
+    |
+    = note: expected enum `WidgetText`
+               found enum `std::borrow::Cow<'_, str>`
+help: call `Into::into` on this expression to convert `std::borrow::Cow<'_, str>` into `WidgetText`
+    |
+637 |                                             ).into(),
+    |                                              +++++++
+
+error[E0063]: missing field `top_spacing` in initializer of `PropertySectionConfig`
+   --> src\ui\app\table_view.rs:632:41
+    |
+632 | ...                   PropertySectionConfig {
+    |                       ^^^^^^^^^^^^^^^^^^^^^ missing `top_spacing`
+
+error[E0308]: mismatched types
+   --> src\ui\app\table_view.rs:707:52
+    |
+707 | ...                   label: self.tr("РџРѕС‚РѕРєРё (РІС…РѕРґ/РІС‹С…РѕРґ)", "Flows (in/out)"),
+    |                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ expected `WidgetText`, found `Cow<'_, str>`
+    |
+    = note: expected enum `WidgetText`
+               found enum `std::borrow::Cow<'_, str>`
+help: call `Into::into` on this expression to convert `std::borrow::Cow<'_, str>` into `WidgetText`
+    |
+707 |                                             label: self.tr("РџРѕС‚РѕРєРё (РІС…РѕРґ/РІС‹С…РѕРґ)", "Flows (in/out)").into(),
+    |                                                                                                    +++++++
+
+error[E0063]: missing field `top_spacing` in initializer of `PropertySectionConfig`
+   --> src\ui\app\table_view.rs:705:41
+    |
+705 | ...                   PropertySectionConfig {
+    |                       ^^^^^^^^^^^^^^^^^^^^^ missing `top_spacing`
+
+error[E0308]: mismatched types
+   --> src\ui\app\table_view.rs:774:52
+    |
+774 | ...                   label: self.tr("Р—Р°РіСЂСѓР¶РµРЅРЅРѕСЃС‚СЊ", "Load"),
+    |                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ expected `WidgetText`, found `Cow<'_, str>`
+    |
+    = note: expected enum `WidgetText`
+               found enum `std::borrow::Cow<'_, str>`
+help: call `Into::into` on this expression to convert `std::borrow::Cow<'_, str>` into `WidgetText`
+    |
+774 |                                             label: self.tr("Р—Р°РіСЂСѓР¶РµРЅРЅРѕСЃС‚СЊ", "Load").into(),
+    |                                                                                    +++++++
+
+error[E0063]: missing field `top_spacing` in initializer of `PropertySectionConfig`
+   --> src\ui\app\table_view.rs:772:41
+    |
+772 | ...                   PropertySectionConfig {
+    |                       ^^^^^^^^^^^^^^^^^^^^^ missing `top_spacing`
+
+error[E0599]: no method named `draw_place_statistics_window` found for mutable reference `&mut app::PetriApp` in the current scope
+   --> src\ui\app.rs:742:14
+    |
+742 |         self.draw_place_statistics_window(ctx);
+    |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+help: there is a method `draw_place_props_window` with a similar name, but with different arguments
+   --> src\ui\app\petri_app\drawing\draw_place_props_window.rs:12:5
+    |
+ 12 | /     pub(in crate::ui::app) fn draw_place_props_window(
+ 13 | |         &mut self,
+ 14 | |         ctx: &egui::Context,
+ 15 | |         place_id: u64,
+ 16 | |         title: String,
+ 17 | |     ) -> bool {
+    | |_____________^
+
+Some errors have detailed explanations: E0063, E0277, E0282, E0308, E0599.
+For more information about an error, try `rustc --explain E0063`.
+warning: `petri_net_legacy_editor` (lib) generated 1 warning
+error: could not compile `petri_net_legacy_editor` (lib) due to 20 previous errors; 1 warning emitted
+warning: build failed, waiting for other jobs to finish...
