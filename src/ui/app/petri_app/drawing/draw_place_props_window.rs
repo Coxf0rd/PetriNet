@@ -18,13 +18,14 @@ impl PetriApp {
             title,
             &mut open,
             PropertyWindowConfig::new("place_props_window"),
-            |ui| {
+            |ui: &mut egui::Ui| {
                 let mut corrected_inputs = false;
                 ui.label(format!("ID: P{}", place_id));
                 ui.separator();
+
                 let mut markers = self.net.tables.m0[place_idx];
                 corrected_inputs |= sanitize_u32(&mut markers, 0, u32::MAX);
-                ui.horizontal(|ui| {
+                ui.horizontal(|ui: &mut egui::Ui| {
                     ui.label(t("Число маркеров", "Markers"));
                     if ui
                         .add(egui::DragValue::new(&mut markers).range(0..=u32::MAX))
@@ -37,7 +38,7 @@ impl PetriApp {
 
                 let mut cap = self.net.tables.mo[place_idx].unwrap_or(0);
                 corrected_inputs |= sanitize_u32(&mut cap, 0, u32::MAX);
-                ui.horizontal(|ui| {
+                ui.horizontal(|ui: &mut egui::Ui| {
                     ui.label(t(
                         "Макс. емкость (0 = без ограничений)",
                         "Capacity (0 = unlimited)",
@@ -53,7 +54,7 @@ impl PetriApp {
 
                 let mut delay = self.net.tables.mz[place_idx];
                 corrected_inputs |= sanitize_f64(&mut delay, 0.0, 10_000.0);
-                ui.horizontal(|ui| {
+                ui.horizontal(|ui: &mut egui::Ui| {
                     ui.label(t("Время задержки (сек)", "Delay (sec)"));
                     if ui
                         .add(
@@ -70,7 +71,7 @@ impl PetriApp {
 
                 ui.separator();
                 ui.label(t("Размер позиции", "Place size"));
-                ui.horizontal(|ui| {
+                ui.horizontal(|ui: &mut egui::Ui| {
                     ui.radio_value(
                         &mut self.net.places[place_idx].size,
                         VisualSize::Small,
@@ -93,7 +94,7 @@ impl PetriApp {
                         self.net.places[place_idx].marker_label_position,
                         is_ru,
                     ))
-                    .show_ui(ui, |ui| {
+                    .show_ui(ui, |ui: &mut egui::Ui| {
                         ui.selectable_value(
                             &mut self.net.places[place_idx].marker_label_position,
                             LabelPosition::Top,
@@ -126,7 +127,7 @@ impl PetriApp {
                         self.net.places[place_idx].text_position,
                         is_ru,
                     ))
-                    .show_ui(ui, |ui| {
+                    .show_ui(ui, |ui: &mut egui::Ui| {
                         ui.selectable_value(
                             &mut self.net.places[place_idx].text_position,
                             LabelPosition::Top,
@@ -159,7 +160,7 @@ impl PetriApp {
                         self.net.places[place_idx].color,
                         is_ru,
                     ))
-                    .show_ui(ui, |ui| {
+                    .show_ui(ui, |ui: &mut egui::Ui| {
                         ui.selectable_value(
                             &mut self.net.places[place_idx].color,
                             NodeColor::Default,
@@ -203,7 +204,7 @@ impl PetriApp {
                     ),
                 );
                 if self.net.places[place_idx].input_module {
-                    ui.horizontal(|ui| {
+                    ui.horizontal(|ui: &mut egui::Ui| {
                         ui.label(t("Номер входа", "Input number"));
                         let mut input_number = self.net.places[place_idx].input_number;
                         corrected_inputs |= sanitize_u32(&mut input_number, 1, u32::MAX);
@@ -220,7 +221,7 @@ impl PetriApp {
                 }
 
                 ui.separator();
-                ui.horizontal(|ui| {
+                ui.horizontal(|ui: &mut egui::Ui| {
                     ui.label(t("Стохастичестие процессы", "Stochastic processes"));
                     let stats_enabled = self.net.ui.marker_count_stats;
                     if ui
@@ -235,12 +236,13 @@ impl PetriApp {
                             Some((place_id, self.net.places[place_idx].stats));
                     }
                 });
+
                 egui::ComboBox::from_label(t("Распределение", "Distribution"))
                     .selected_text(Self::stochastic_text(
                         &self.net.places[place_idx].stochastic,
                         is_ru,
                     ))
-                    .show_ui(ui, |ui| {
+                    .show_ui(ui, |ui: &mut egui::Ui| {
                         ui.selectable_value(
                             &mut self.net.places[place_idx].stochastic,
                             StochasticDistribution::None,
@@ -303,7 +305,7 @@ impl PetriApp {
                 match &mut self.net.places[place_idx].stochastic {
                     StochasticDistribution::None => {}
                     StochasticDistribution::Uniform { min, max } => {
-                        ui.horizontal(|ui| {
+                        ui.horizontal(|ui: &mut egui::Ui| {
                             ui.label(t("min", "min"));
                             ui.add(egui::DragValue::new(min).speed(0.1).range(0.0..=10_000.0));
                             ui.label(t("max", "max"));
@@ -317,7 +319,7 @@ impl PetriApp {
                         }
                     }
                     StochasticDistribution::Normal { mean, std_dev } => {
-                        ui.horizontal(|ui| {
+                        ui.horizontal(|ui: &mut egui::Ui| {
                             ui.label(t("mean", "mean"));
                             ui.add(egui::DragValue::new(mean).speed(0.1).range(0.0..=10_000.0));
                             ui.label(t("std", "std"));
@@ -331,7 +333,7 @@ impl PetriApp {
                         corrected_inputs |= sanitize_f64(std_dev, 0.0, 10_000.0);
                     }
                     StochasticDistribution::Gamma { shape, scale } => {
-                        ui.horizontal(|ui| {
+                        ui.horizontal(|ui: &mut egui::Ui| {
                             ui.label(t("shape", "shape"));
                             ui.add(
                                 egui::DragValue::new(shape)
@@ -350,7 +352,7 @@ impl PetriApp {
                     }
                     StochasticDistribution::Exponential { lambda }
                     | StochasticDistribution::Poisson { lambda } => {
-                        ui.horizontal(|ui| {
+                        ui.horizontal(|ui: &mut egui::Ui| {
                             ui.label(t("lambda", "lambda"));
                             ui.add(
                                 egui::DragValue::new(lambda)
@@ -370,6 +372,7 @@ impl PetriApp {
                         "Invalid inputs were adjusted",
                     ),
                 );
+
                 let mut markov_enabled = self.net.places[place_idx].markov_highlight;
                 if ui
                     .checkbox(
@@ -381,13 +384,14 @@ impl PetriApp {
                     self.net.places[place_idx].markov_highlight = markov_enabled;
                     self.update_markov_annotations();
                 }
+
                 let mut markov_placement = self.net.places[place_idx].markov_placement;
                 egui::ComboBox::from_label(t(
                     "Положение марковской метки",
                     "Markov highlight placement",
                 ))
                 .selected_text(Self::markov_placement_text(markov_placement, is_ru))
-                .show_ui(ui, |ui| {
+                .show_ui(ui, |ui: &mut egui::Ui| {
                     ui.selectable_value(
                         &mut markov_placement,
                         MarkovPlacement::Bottom,
@@ -400,6 +404,7 @@ impl PetriApp {
                     );
                 });
                 self.net.places[place_idx].markov_placement = markov_placement;
+
                 ui.separator();
                 ui.label(t("Название", "Name"));
                 ui.text_edit_singleline(&mut self.net.places[place_idx].name);

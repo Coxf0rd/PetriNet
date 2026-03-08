@@ -1,7 +1,7 @@
 use eframe::egui;
 
 #[derive(Debug)]
-pub(super) struct PropertyWindowConfig<'a> {
+pub(crate) struct PropertyWindowConfig<'a> {
     pub id: egui::Id,
     pub default_size: egui::Vec2,
     pub min_size: egui::Vec2,
@@ -48,7 +48,7 @@ impl<'a> PropertyWindowConfig<'a> {
     }
 }
 
-pub(super) fn viewport_rect(ctx: &egui::Context) -> egui::Rect {
+pub(crate) fn viewport_rect(ctx: &egui::Context) -> egui::Rect {
     let screen_rect = ctx.input(|input| input.screen_rect());
     if screen_rect == egui::Rect::EVERYTHING {
         ctx.available_rect()
@@ -57,7 +57,7 @@ pub(super) fn viewport_rect(ctx: &egui::Context) -> egui::Rect {
     }
 }
 
-pub(super) fn show_property_window<R>(
+pub(crate) fn show_property_window<R>(
     ctx: &egui::Context,
     title: impl Into<egui::WidgetText>,
     open: &mut bool,
@@ -81,11 +81,11 @@ pub(super) fn show_property_window<R>(
         window = window.default_size(default_size);
     }
 
-    let response = window.show(ctx, |ui| {
+    let response = window.show(ctx, |ui: &mut egui::Ui| {
         ui.set_max_width(ui.available_width());
         egui::ScrollArea::vertical()
             .auto_shrink([false, false])
-            .show(ui, |ui| {
+            .show(ui, |ui: &mut egui::Ui| {
                 ui.set_min_width(0.0);
                 ui.set_max_width(ui.available_width());
                 add_contents(ui)
@@ -94,7 +94,8 @@ pub(super) fn show_property_window<R>(
     });
 
     if *open {
-        if let (Some(size), Some(response)) = (config.remember_size.as_deref_mut(), response.as_ref()) {
+        if let (Some(size), Some(response)) = (config.remember_size.as_deref_mut(), response.as_ref())
+        {
             let actual_size = response.response.rect.size();
             if actual_size.x > 0.0 && actual_size.y > 0.0 {
                 *size = actual_size;

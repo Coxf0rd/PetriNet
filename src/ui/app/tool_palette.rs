@@ -1,4 +1,8 @@
 use super::*;
+use crate::ui::property_section::{
+    show_collapsible_property_section, PropertySectionConfig,
+use crate::ui::property_section::{show_collapsible_property_section, PropertySectionConfig};
+};
 
 impl PetriApp {
     pub(super) fn draw_tool_palette(&mut self, ctx: &egui::Context) {
@@ -8,7 +12,7 @@ impl PetriApp {
 
         let panel = egui::SidePanel::left("tools")
             .resizable(true)
-            .show(ctx, |ui| {
+            .show(ctx, |ui: &mut egui::Ui| {
                 ui.heading("Инструменты");
                 ui.separator();
 
@@ -104,11 +108,11 @@ impl PetriApp {
                 let title = self.tr("Показать/скрыть сетку", "Show/hide grid");
                 ui.checkbox(&mut self.canvas_show_grid, title);
                 ui.checkbox(
-                    &mut self.canvas_snap_to_grid,
+                    &mut self.canvas.snap_to_grid,
                     self.tr("Привязка к сетке", "Snap to grid"),
                 );
                 ui.checkbox(
-                    &mut self.canvas_show_labels,
+                    &mut self.canvas.show_labels,
                     self.tr("Показывать подписи", "Show labels"),
                 );
 
@@ -121,7 +125,7 @@ impl PetriApp {
                     self.canvas.selected_arc.is_some() || !self.canvas.selected_arcs.is_empty();
 
                 if places_selected {
-                    let selected_place_ids = if self.canvas.selected_places.is_empty() {
+                let selected_place_ids = if self.canvas.selected_places.is_empty() {
                         self.canvas.selected_place.into_iter().collect::<Vec<_>>()
                     } else {
                         self.canvas.selected_places.clone()
@@ -137,7 +141,7 @@ impl PetriApp {
                             .unwrap_or(VisualSize::Medium);
 
                         ui.label(self.tr("Размер выбранных позиций", "Selected place size"));
-                        ui.horizontal(|ui| {
+                        ui.horizontal(|ui: &mut egui::Ui| {
                             ui.radio_value(
                                 &mut bulk_place_size,
                                 VisualSize::Small,
@@ -185,7 +189,7 @@ impl PetriApp {
                         ui.label(self.tr("Цвет выбранных позиций", "Selected place color"));
                         egui::ComboBox::from_id_source("bulk_place_color_combo")
                             .selected_text(Self::node_color_text(bulk_color, is_ru))
-                            .show_ui(ui, |ui| {
+                            .show_ui(ui, |ui: &mut egui::Ui| {
                                 ui.selectable_value(
                                     &mut bulk_color,
                                     NodeColor::Default,
@@ -245,7 +249,7 @@ impl PetriApp {
                             "Размер выбранных переходов",
                             "Selected transition size",
                         ));
-                        ui.horizontal(|ui| {
+                        ui.horizontal(|ui: &mut egui::Ui| {
                             ui.radio_value(
                                 &mut bulk_transition_size,
                                 VisualSize::Small,
@@ -294,7 +298,7 @@ impl PetriApp {
                         ui.label(self.tr("Цвет выбранных переходов", "Selected transition color"));
                         egui::ComboBox::from_id_source("bulk_transition_color_combo")
                             .selected_text(Self::node_color_text(bulk_color, is_ru))
-                            .show_ui(ui, |ui| {
+                            .show_ui(ui, |ui: &mut egui::Ui| {
                                 ui.selectable_value(
                                     &mut bulk_color,
                                     NodeColor::Default,
@@ -362,7 +366,7 @@ impl PetriApp {
                         ui.label(self.tr("Цвет выбранных дуг", "Selected arc color"));
                         egui::ComboBox::from_id_source("bulk_arc_color_combo")
                             .selected_text(Self::node_color_text(bulk_color, is_ru))
-                            .show_ui(ui, |ui| {
+                            .show_ui(ui, |ui: &mut egui::Ui| {
                                 ui.selectable_value(
                                     &mut bulk_color,
                                     NodeColor::Default,
@@ -436,8 +440,9 @@ impl PetriApp {
                 PropertyWindowConfig::new("new_element_props_window")
                     .remember_size(&mut self.new_element_props_window_size)
                     .apply_default_size(apply_default_size),
-                |ui| {
+                |ui: &mut egui::Ui| {
                     let mut corrected_inputs = false;
+
                     let size_text = |size: VisualSize| -> &'static str {
                         if is_ru {
                             match size {
@@ -457,7 +462,7 @@ impl PetriApp {
                     let color_combo = |ui: &mut egui::Ui, value: &mut NodeColor, is_ru: bool| {
                         egui::ComboBox::from_id_source(ui.next_auto_id())
                             .selected_text(Self::node_color_text(*value, is_ru))
-                            .show_ui(ui, |ui| {
+                            .show_ui(ui, |ui: &mut egui::Ui| {
                                 ui.selectable_value(
                                     value,
                                     NodeColor::Default,
@@ -486,141 +491,171 @@ impl PetriApp {
                             });
                     };
 
-                    ui.group(|ui| {
-                        ui.label(t("Новые позиции", "New positions"));
-                        egui::ComboBox::from_label(t("Размер позиции", "Position size"))
-                            .selected_text(size_text(self.new_place_size))
-                            .show_ui(ui, |ui| {
-                                ui.selectable_value(
-                                    &mut self.new_place_size,
-                                    VisualSize::Small,
-                                    size_text(VisualSize::Small),
-                                );
-                                ui.selectable_value(
-                                    &mut self.new_place_size,
-                                    VisualSize::Medium,
-                                    size_text(VisualSize::Medium),
-                                );
-                                ui.selectable_value(
-                                    &mut self.new_place_size,
-                                    VisualSize::Large,
-                                    size_text(VisualSize::Large),
-                                );
-                            });
-                        ui.horizontal(|ui| {
-                            ui.label(t("Цвет", "Color"));
-                            color_combo(ui, &mut self.new_place_color, is_ru);
-                        });
-                        let mut marking = self.new_place_marking;
-                        corrected_inputs |= sanitize_u32(&mut marking, 0, u32::MAX);
-                        ui.horizontal(|ui| {
-                            ui.label(t("Маркеры", "Tokens"));
-                            if ui
-                                .add(egui::DragValue::new(&mut marking).range(0..=u32::MAX))
-                                .changed()
-                            {
-                                corrected_inputs |= sanitize_u32(&mut marking, 0, u32::MAX);
-                            }
-                        });
-                        self.new_place_marking = marking;
-                        let mut cap = self.new_place_capacity.unwrap_or(0);
-                        corrected_inputs |= sanitize_u32(&mut cap, 0, u32::MAX);
-                        ui.horizontal(|ui| {
-                            ui.label(t(
-                                "Макс. емкость (0 = без ограничений)",
-                                "Capacity (0 = unlimited)",
-                            ));
-                            if ui
-                                .add(egui::DragValue::new(&mut cap).range(0..=u32::MAX))
-                                .changed()
-                            {
-                                corrected_inputs |= sanitize_u32(&mut cap, 0, u32::MAX);
-                            }
-                        });
-                        self.new_place_capacity = if cap == 0 { None } else { Some(cap) };
-                    });
+                    show_collapsible_property_section(
+                        ui,
+                        t("Новые позиции", "New positions"),
+                        PropertySectionConfig::new("new_element_props_place_section")
+                            .default_open(true),
+                        |ui: &mut egui::Ui| {
+                            egui::ComboBox::from_label(t("Размер позиции", "Position size"))
+                                .selected_text(size_text(self.new_place_size))
+                                .show_ui(ui, |ui: &mut egui::Ui| {
+                                    ui.selectable_value(
+                                        &mut self.new_place_size,
+                                        VisualSize::Small,
+                                        size_text(VisualSize::Small),
+                                    );
+                                    ui.selectable_value(
+                                        &mut self.new_place_size,
+                                        VisualSize::Medium,
+                                        size_text(VisualSize::Medium),
+                                    );
+                                    ui.selectable_value(
+                                        &mut self.new_place_size,
+                                        VisualSize::Large,
+                                        size_text(VisualSize::Large),
+                                    );
+                                });
 
-                    ui.add_space(6.0);
-                    ui.group(|ui| {
-                        ui.label(t("Новые переходы", "New transitions"));
-                        egui::ComboBox::from_label(t("Размер перехода", "Transition size"))
-                            .selected_text(size_text(self.new_transition_size))
-                            .show_ui(ui, |ui| {
-                                ui.selectable_value(
-                                    &mut self.new_transition_size,
-                                    VisualSize::Small,
-                                    size_text(VisualSize::Small),
-                                );
-                                ui.selectable_value(
-                                    &mut self.new_transition_size,
-                                    VisualSize::Medium,
-                                    size_text(VisualSize::Medium),
-                                );
-                                ui.selectable_value(
-                                    &mut self.new_transition_size,
-                                    VisualSize::Large,
-                                    size_text(VisualSize::Large),
-                                );
+                            ui.horizontal(|ui: &mut egui::Ui| {
+                                ui.label(t("Цвет", "Color"));
+                                color_combo(ui, &mut self.new_place_color, is_ru);
                             });
-                        ui.horizontal(|ui| {
-                            ui.label(t("Цвет", "Color"));
-                            color_combo(ui, &mut self.new_transition_color, is_ru);
-                        });
-                        let mut transition_priority = self.new_transition_priority;
-                        corrected_inputs |=
-                            sanitize_i32(&mut transition_priority, -1_000_000, 1_000_000);
-                        ui.horizontal(|ui| {
-                            ui.label(t("Приоритет", "Priority"));
-                            if ui
-                                .add(
-                                    egui::DragValue::new(&mut transition_priority)
-                                        .range(-1_000_000..=1_000_000),
-                                )
-                                .changed()
-                            {
-                                corrected_inputs |=
-                                    sanitize_i32(&mut transition_priority, -1_000_000, 1_000_000);
-                            }
-                        });
-                        self.new_transition_priority = transition_priority;
-                    });
 
-                    ui.add_space(6.0);
-                    ui.group(|ui| {
-                        ui.label(t("Новые дуги", "New arcs"));
-                        let mut arc_weight = self.new_arc_weight;
-                        corrected_inputs |= sanitize_u32(&mut arc_weight, 1, u32::MAX);
-                        ui.horizontal(|ui| {
-                            ui.label(t("Кратность (вес)", "Weight"));
-                            if ui
-                                .add(egui::DragValue::new(&mut arc_weight).range(1..=u32::MAX))
-                                .changed()
-                            {
-                                corrected_inputs |= sanitize_u32(&mut arc_weight, 1, u32::MAX);
-                            }
-                        });
-                        self.new_arc_weight = arc_weight;
-                        ui.horizontal(|ui| {
-                            ui.label(t("Цвет", "Color"));
-                            color_combo(ui, &mut self.new_arc_color, is_ru);
-                        });
-                        let inhibitor_label = t("Ингибиторная дуга", "Inhibitor arc");
-                        ui.checkbox(&mut self.new_arc_inhibitor, inhibitor_label);
-                        if self.new_arc_inhibitor {
-                            ui.horizontal(|ui| {
-                                ui.label(t("Порог", "Threshold"));
-                                let mut threshold = self.new_arc_inhibitor_threshold;
-                                corrected_inputs |= sanitize_u32(&mut threshold, 1, u32::MAX);
+                            let mut marking = self.new_place_marking;
+                            corrected_inputs |= sanitize_u32(&mut marking, 0, u32::MAX);
+                            ui.horizontal(|ui: &mut egui::Ui| {
+                                ui.label(t("Маркеры", "Tokens"));
                                 if ui
-                                    .add(egui::DragValue::new(&mut threshold).range(1..=u32::MAX))
+                                    .add(egui::DragValue::new(&mut marking).range(0..=u32::MAX))
                                     .changed()
                                 {
-                                    corrected_inputs |= sanitize_u32(&mut threshold, 1, u32::MAX);
+                                    corrected_inputs |= sanitize_u32(&mut marking, 0, u32::MAX);
                                 }
-                                self.new_arc_inhibitor_threshold = threshold;
                             });
-                        }
-                    });
+                            self.new_place_marking = marking;
+
+                            let mut cap = self.new_place_capacity.unwrap_or(0);
+                            corrected_inputs |= sanitize_u32(&mut cap, 0, u32::MAX);
+                            ui.horizontal(|ui: &mut egui::Ui| {
+                                ui.label(t(
+                                    "Макс. емкость (0 = без ограничений)",
+                                    "Capacity (0 = unlimited)",
+                                ));
+                                if ui
+                                    .add(egui::DragValue::new(&mut cap).range(0..=u32::MAX))
+                                    .changed()
+                                {
+                                    corrected_inputs |= sanitize_u32(&mut cap, 0, u32::MAX);
+                                }
+                            });
+                            self.new_place_capacity = if cap == 0 { None } else { Some(cap) };
+                        },
+                    );
+
+                    show_collapsible_property_section(
+                        ui,
+                        t("Новые переходы", "New transitions"),
+                        PropertySectionConfig::new("new_element_props_transition_section")
+                            .default_open(true)
+                            .top_spacing(6.0),
+                        |ui: &mut egui::Ui| {
+                            egui::ComboBox::from_label(t("Размер перехода", "Transition size"))
+                                .selected_text(size_text(self.new_transition_size))
+                                .show_ui(ui, |ui: &mut egui::Ui| {
+                                    ui.selectable_value(
+                                        &mut self.new_transition_size,
+                                        VisualSize::Small,
+                                        size_text(VisualSize::Small),
+                                    );
+                                    ui.selectable_value(
+                                        &mut self.new_transition_size,
+                                        VisualSize::Medium,
+                                        size_text(VisualSize::Medium),
+                                    );
+                                    ui.selectable_value(
+                                        &mut self.new_transition_size,
+                                        VisualSize::Large,
+                                        size_text(VisualSize::Large),
+                                    );
+                                });
+
+                            ui.horizontal(|ui: &mut egui::Ui| {
+                                ui.label(t("Цвет", "Color"));
+                                color_combo(ui, &mut self.new_transition_color, is_ru);
+                            });
+
+                            let mut transition_priority = self.new_transition_priority;
+                            corrected_inputs |=
+                                sanitize_i32(&mut transition_priority, -1_000_000, 1_000_000);
+                            ui.horizontal(|ui: &mut egui::Ui| {
+                                ui.label(t("Приоритет", "Priority"));
+                                if ui
+                                    .add(
+                                        egui::DragValue::new(&mut transition_priority)
+                                            .range(-1_000_000..=1_000_000),
+                                    )
+                                    .changed()
+                                {
+                                    corrected_inputs |= sanitize_i32(
+                                        &mut transition_priority,
+                                        -1_000_000,
+                                        1_000_000,
+                                    );
+                                }
+                            });
+                            self.new_transition_priority = transition_priority;
+                        },
+                    );
+
+                    show_collapsible_property_section(
+                        ui,
+                        t("Новые дуги", "New arcs"),
+                        PropertySectionConfig::new("new_element_props_arc_section")
+                            .default_open(true)
+                            .top_spacing(6.0),
+                        |ui: &mut egui::Ui| {
+                            let mut arc_weight = self.new_arc_weight;
+                            corrected_inputs |= sanitize_u32(&mut arc_weight, 1, u32::MAX);
+                            ui.horizontal(|ui: &mut egui::Ui| {
+                                ui.label(t("Кратность (вес)", "Weight"));
+                                if ui
+                                    .add(egui::DragValue::new(&mut arc_weight).range(1..=u32::MAX))
+                                    .changed()
+                                {
+                                    corrected_inputs |= sanitize_u32(&mut arc_weight, 1, u32::MAX);
+                                }
+                            });
+                            self.new_arc_weight = arc_weight;
+
+                            ui.horizontal(|ui: &mut egui::Ui| {
+                                ui.label(t("Цвет", "Color"));
+                                color_combo(ui, &mut self.new_arc_color, is_ru);
+                            });
+
+                            let inhibitor_label = t("Ингибиторная дуга", "Inhibitor arc");
+                            ui.checkbox(&mut self.new_arc_inhibitor, inhibitor_label);
+                            if self.new_arc_inhibitor {
+                                ui.horizontal(|ui: &mut egui::Ui| {
+                                    ui.label(t("Порог", "Threshold"));
+                                    let mut threshold = self.new_arc_inhibitor_threshold;
+                                    corrected_inputs |= sanitize_u32(&mut threshold, 1, u32::MAX);
+                                    if ui
+                                        .add(
+                                            egui::DragValue::new(&mut threshold)
+                                                .range(1..=u32::MAX),
+                                        )
+                                        .changed()
+                                    {
+                                        corrected_inputs |=
+                                            sanitize_u32(&mut threshold, 1, u32::MAX);
+                                    }
+                                    self.new_arc_inhibitor_threshold = threshold;
+                                });
+                            }
+                        },
+                    );
+
                     validation_hint(
                         ui,
                         corrected_inputs,

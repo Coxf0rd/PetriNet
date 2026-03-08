@@ -20,21 +20,23 @@ impl PetriApp {
             title,
             &mut open,
             PropertyWindowConfig::new("transition_props_window"),
-            |ui| {
+            |ui: &mut egui::Ui| {
                 let mut corrected_inputs = false;
                 ui.label(format!("ID: T{}", transition_id));
                 ui.separator();
+
                 let mut priority = self.net.tables.mpr[transition_idx];
                 corrected_inputs |= sanitize_i32(&mut priority, -1_000_000, 1_000_000);
-                ui.horizontal(|ui| {
+                ui.horizontal(|ui: &mut egui::Ui| {
                     ui.label(t("Приоритет", "Priority"));
                     if ui.add(egui::DragValue::new(&mut priority)).changed() {
                         corrected_inputs |= sanitize_i32(&mut priority, -1_000_000, 1_000_000);
                     }
                 });
                 self.net.tables.mpr[transition_idx] = priority;
+
                 ui.label(t("Размер перехода", "Transition size"));
-                ui.horizontal(|ui| {
+                ui.horizontal(|ui: &mut egui::Ui| {
                     ui.radio_value(
                         &mut self.net.transitions[transition_idx].size,
                         VisualSize::Small,
@@ -57,7 +59,7 @@ impl PetriApp {
                         self.net.transitions[transition_idx].label_position,
                         is_ru,
                     ))
-                    .show_ui(ui, |ui| {
+                    .show_ui(ui, |ui: &mut egui::Ui| {
                         ui.selectable_value(
                             &mut self.net.transitions[transition_idx].label_position,
                             LabelPosition::Top,
@@ -90,7 +92,7 @@ impl PetriApp {
                         self.net.transitions[transition_idx].text_position,
                         is_ru,
                     ))
-                    .show_ui(ui, |ui| {
+                    .show_ui(ui, |ui: &mut egui::Ui| {
                         ui.selectable_value(
                             &mut self.net.transitions[transition_idx].text_position,
                             LabelPosition::Top,
@@ -123,7 +125,7 @@ impl PetriApp {
                         self.net.transitions[transition_idx].color,
                         is_ru,
                     ))
-                    .show_ui(ui, |ui| {
+                    .show_ui(ui, |ui: &mut egui::Ui| {
                         ui.selectable_value(
                             &mut self.net.transitions[transition_idx].color,
                             NodeColor::Default,
@@ -154,6 +156,7 @@ impl PetriApp {
                 ui.separator();
                 ui.label(t("Название", "Name"));
                 ui.text_edit_singleline(&mut self.net.transitions[transition_idx].name);
+
                 validation_hint(
                     ui,
                     corrected_inputs,

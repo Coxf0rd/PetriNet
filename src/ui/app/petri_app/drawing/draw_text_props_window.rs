@@ -21,13 +21,14 @@ impl PetriApp {
             PropertyWindowConfig::new("text_props_window")
                 .default_size(egui::vec2(460.0, 360.0))
                 .min_size(egui::vec2(360.0, 260.0)),
-            |ui| {
+            |ui: &mut egui::Ui| {
                 let text = &mut self.text_blocks[text_idx];
-                ui.horizontal(|ui| {
+
+                ui.horizontal(|ui: &mut egui::Ui| {
                     ui.label(t("Шрифт", "Font"));
                     egui::ComboBox::from_id_source("text_font_combo")
                         .selected_text(text.font_name.clone())
-                        .show_ui(ui, |ui| {
+                        .show_ui(ui, |ui: &mut egui::Ui| {
                             for name in Self::text_font_candidates() {
                                 ui.selectable_value(
                                     &mut text.font_name,
@@ -43,7 +44,7 @@ impl PetriApp {
                     ui.label(t("Цвет", "Color"));
                     egui::ComboBox::from_id_source("text_color_combo")
                         .selected_text(Self::text_color_text(text.color, is_ru))
-                        .show_ui(ui, |ui| {
+                        .show_ui(ui, |ui: &mut egui::Ui| {
                             ui.selectable_value(
                                 &mut text.color,
                                 NodeColor::Default,

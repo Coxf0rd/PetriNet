@@ -55,7 +55,7 @@ impl PetriApp {
         let color_combo = |ui: &mut egui::Ui, value: &mut NodeColor| {
             egui::ComboBox::from_id_source(ui.next_auto_id())
                 .selected_text(Self::node_color_text(*value, is_ru))
-                .show_ui(ui, |ui| {
+                .show_ui(ui, |ui: &mut egui::Ui| {
                     ui.selectable_value(
                         value,
                         NodeColor::Default,
@@ -92,26 +92,31 @@ impl PetriApp {
             PropertyWindowConfig::new("arc_props_window")
                 .default_size(egui::vec2(420.0, 440.0))
                 .min_size(egui::vec2(320.0, 320.0)),
-            |ui| {
+            |ui: &mut egui::Ui| {
                 let mut corrected_inputs = false;
                 ui.label(format!("ID: A{}", arc_id));
                 ui.separator();
-                ui.add_enabled_ui(can_be_inhibitor, |ui| {
+
+                ui.add_enabled_ui(can_be_inhibitor, |ui: &mut egui::Ui| {
                     ui.checkbox(&mut is_inhibitor, t("Ингибиторная дуга", "Inhibitor arc"));
                 });
+
                 if matches!(variant, SelectedArc::Regular(_)) && !can_be_inhibitor {
                     ui.label(t(
                         "Ингибиторная дуга должна начинаться с позиции и заканчиваться на переходе",
                         "Inhibitor arcs must start at a position and end at a transition",
                     ));
                 }
+
                 corrected_inputs |= sanitize_u32(&mut threshold, 1, u32::MAX);
                 corrected_inputs |= sanitize_u32(&mut weight, 1, u32::MAX);
+
                 let weight_label = t("Кратность (вес)", "Weight");
                 let show_weight_label =
                     t("Показывать кратность (вес)", "Show multiplicity (weight)");
+
                 if is_inhibitor {
-                    ui.horizontal(|ui| {
+                    ui.horizontal(|ui: &mut egui::Ui| {
                         ui.label(t("Порог", "Threshold"));
                         if ui
                             .add(egui::DragValue::new(&mut threshold).range(1..=u32::MAX))
@@ -121,7 +126,7 @@ impl PetriApp {
                         }
                     });
                 } else {
-                    ui.horizontal(|ui| {
+                    ui.horizontal(|ui: &mut egui::Ui| {
                         ui.label(weight_label);
                         if ui
                             .add(egui::DragValue::new(&mut weight).range(1..=u32::MAX))
@@ -131,13 +136,14 @@ impl PetriApp {
                         }
                     });
                 }
-                if ui.checkbox(&mut show_weight, show_weight_label).changed() {
-                    // flag only
-                }
-                ui.horizontal(|ui| {
+
+                ui.checkbox(&mut show_weight, show_weight_label);
+
+                ui.horizontal(|ui: &mut egui::Ui| {
                     ui.label(t("Цвет", "Color"));
                     color_combo(ui, &mut color);
                 });
+
                 validation_hint(
                     ui,
                     corrected_inputs,
@@ -152,6 +158,7 @@ impl PetriApp {
         let new_weight = weight.max(1);
         let new_threshold = threshold.max(1);
         let mut should_rebuild = false;
+
         match variant {
             SelectedArc::Regular(idx) => {
                 if is_inhibitor {
