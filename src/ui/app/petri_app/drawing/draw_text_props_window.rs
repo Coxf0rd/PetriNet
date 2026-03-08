@@ -14,14 +14,14 @@ impl PetriApp {
         let t = |ru: &'static str, en: &'static str| if is_ru { ru } else { en };
 
         let mut open = true;
-        egui::Window::new(title)
-            .constrained_to_viewport(ctx)
-            .id(egui::Id::new("text_props_window"))
-            .open(&mut open)
-            .resizable(true)
-            .default_size(egui::vec2(460.0, 360.0))
-            .min_size(egui::vec2(360.0, 260.0))
-            .show(ctx, |ui| {
+        show_property_window(
+            ctx,
+            title,
+            &mut open,
+            PropertyWindowConfig::new("text_props_window")
+                .default_size(egui::vec2(460.0, 360.0))
+                .min_size(egui::vec2(360.0, 260.0)),
+            |ui| {
                 let text = &mut self.text_blocks[text_idx];
                 ui.horizontal(|ui| {
                     ui.label(t("Шрифт", "Font"));
@@ -76,9 +76,10 @@ impl PetriApp {
                 ui.add(
                     egui::TextEdit::multiline(&mut text.text)
                         .desired_rows(6)
-                        .desired_width(380.0),
+                        .desired_width(f32::INFINITY),
                 );
-            });
+            },
+        );
         open
     }
 }

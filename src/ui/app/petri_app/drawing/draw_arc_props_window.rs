@@ -85,14 +85,14 @@ impl PetriApp {
         };
 
         let mut open = true;
-        egui::Window::new(title)
-            .constrained_to_viewport(ctx)
-            .id(egui::Id::new("arc_props_window"))
-            .resizable(true)
-            .default_size(egui::vec2(420.0, 440.0))
-            .min_size(egui::vec2(320.0, 320.0))
-            .open(&mut open)
-            .show(ctx, |ui| {
+        show_property_window(
+            ctx,
+            title,
+            &mut open,
+            PropertyWindowConfig::new("arc_props_window")
+                .default_size(egui::vec2(420.0, 440.0))
+                .min_size(egui::vec2(320.0, 320.0)),
+            |ui| {
                 let mut corrected_inputs = false;
                 ui.label(format!("ID: A{}", arc_id));
                 ui.separator();
@@ -146,7 +146,8 @@ impl PetriApp {
                         "Invalid inputs were adjusted",
                     ),
                 );
-            });
+            },
+        );
 
         let new_weight = weight.max(1);
         let new_threshold = threshold.max(1);

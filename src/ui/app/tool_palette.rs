@@ -81,7 +81,11 @@ impl PetriApp {
                                 NodeColor::Blue,
                                 c_blue,
                             );
-                            ui.selectable_value(&mut self.arc_display_color, NodeColor::Red, c_red);
+                            ui.selectable_value(
+                                &mut self.arc_display_color,
+                                NodeColor::Red,
+                                c_red,
+                            );
                             ui.selectable_value(
                                 &mut self.arc_display_color,
                                 NodeColor::Green,
@@ -95,108 +99,270 @@ impl PetriApp {
                         });
                 }
 
-                let selected_arc_ids = self.collect_selected_arc_ids();
-                if !selected_arc_ids.is_empty() {
-                    ui.separator();
-                    let color_label = self.tr("Цвет", "Color");
+                ui.separator();
+                ui.label(self.tr("Редактор", "Editor"));
+                let title = self.tr("Показать/скрыть сетку", "Show/hide grid");
+                ui.checkbox(&mut self.canvas_show_grid, title);
+                ui.checkbox(
+                    &mut self.canvas_snap_to_grid,
+                    self.tr("Привязка к сетке", "Snap to grid"),
+                );
+                ui.checkbox(
+                    &mut self.canvas_show_labels,
+                    self.tr("Показывать подписи", "Show labels"),
+                );
 
-                    if selected_arc_ids.len() == 1 {
-                        let arc_id = selected_arc_ids[0];
-                        ui.label(self.tr("Выбранная связь", "Selected link"));
+                ui.separator();
+                ui.label(self.tr("Выделение", "Selection"));
 
-                        if let Some(arc) = self.net.arcs.iter_mut().find(|a| a.id == arc_id) {
-                            egui::ComboBox::from_label(color_label)
-                                .selected_text(Self::node_color_text(arc.color, is_ru))
-                                .show_ui(ui, |ui: &mut egui::Ui| {
-                                    ui.selectable_value(
-                                        &mut arc.color,
-                                        NodeColor::Default,
-                                        Self::node_color_text(NodeColor::Default, is_ru),
-                                    );
-                                    ui.selectable_value(
-                                        &mut arc.color,
-                                        NodeColor::Blue,
-                                        Self::node_color_text(NodeColor::Blue, is_ru),
-                                    );
-                                    ui.selectable_value(
-                                        &mut arc.color,
-                                        NodeColor::Red,
-                                        Self::node_color_text(NodeColor::Red, is_ru),
-                                    );
-                                    ui.selectable_value(
-                                        &mut arc.color,
-                                        NodeColor::Green,
-                                        Self::node_color_text(NodeColor::Green, is_ru),
-                                    );
-                                    ui.selectable_value(
-                                        &mut arc.color,
-                                        NodeColor::Yellow,
-                                        Self::node_color_text(NodeColor::Yellow, is_ru),
-                                    );
-                                });
-                        } else if let Some(inh) =
-                            self.net.inhibitor_arcs.iter_mut().find(|a| a.id == arc_id)
-                        {
-                            egui::ComboBox::from_label(color_label)
-                                .selected_text(Self::node_color_text(inh.color, is_ru))
-                                .show_ui(ui, |ui: &mut egui::Ui| {
-                                    ui.selectable_value(
-                                        &mut inh.color,
-                                        NodeColor::Default,
-                                        Self::node_color_text(NodeColor::Default, is_ru),
-                                    );
-                                    ui.selectable_value(
-                                        &mut inh.color,
-                                        NodeColor::Blue,
-                                        Self::node_color_text(NodeColor::Blue, is_ru),
-                                    );
-                                    ui.selectable_value(
-                                        &mut inh.color,
-                                        NodeColor::Red,
-                                        Self::node_color_text(NodeColor::Red, is_ru),
-                                    );
-                                    ui.selectable_value(
-                                        &mut inh.color,
-                                        NodeColor::Green,
-                                        Self::node_color_text(NodeColor::Green, is_ru),
-                                    );
-                                    ui.selectable_value(
-                                        &mut inh.color,
-                                        NodeColor::Yellow,
-                                        Self::node_color_text(NodeColor::Yellow, is_ru),
-                                    );
-                                });
-                        }
+                let places_selected = !self.canvas.selected_places.is_empty();
+                let transitions_selected = !self.canvas.selected_transitions.is_empty();
+                let arcs_selected =
+                    self.canvas.selected_arc.is_some() || !self.canvas.selected_arcs.is_empty();
+
+                if places_selected {
+                    let selected_place_ids = if self.canvas.selected_places.is_empty() {
+                        self.canvas.selected_place.into_iter().collect::<Vec<_>>()
                     } else {
-                        let selected_label = if is_ru {
-                            format!("Выбрано связей: {}", selected_arc_ids.len())
-                        } else {
-                            format!("Selected links: {}", selected_arc_ids.len())
-                        };
-                        ui.label(selected_label);
+                        self.canvas.selected_places.clone()
+                    };
 
-                        let mut bulk_color = selected_arc_ids
+                    if !selected_place_ids.is_empty() {
+                        let mut bulk_place_size = self
+                            .net
+                            .places
                             .iter()
-                            .find_map(|id| {
+                            .find(|p| p.id == selected_place_ids[0])
+                            .map(|p| p.size)
+                            .unwrap_or(VisualSize::Medium);
+
+                        ui.label(self.tr("Размер выбранных позиций", "Selected place size"));
+                        ui.horizontal(|ui| {
+                            ui.radio_value(
+                                &mut bulk_place_size,
+                                VisualSize::Small,
+                                self.tr("Малый", "Small"),
+                            );
+                            ui.radio_value(
+                                &mut bulk_place_size,
+                                VisualSize::Medium,
+                                self.tr("Средний", "Medium"),
+                            );
+                            ui.radio_value(
+                                &mut bulk_place_size,
+                                VisualSize::Large,
+                                self.tr("Большой", "Large"),
+                            );
+                        });
+
+                        if bulk_place_size
+                            != self
+                                .net
+                                .places
+                                .iter()
+                                .find(|p| p.id == selected_place_ids[0])
+                                .map(|p| p.size)
+                                .unwrap_or(VisualSize::Medium)
+                        {
+                            self.push_undo_snapshot();
+                            let ids: HashSet<u64> = selected_place_ids.iter().copied().collect();
+                            for place in &mut self.net.places {
+                                if ids.contains(&place.id) {
+                                    place.size = bulk_place_size;
+                                }
+                            }
+                        }
+
+                        let mut bulk_color = self
+                            .net
+                            .places
+                            .iter()
+                            .find(|p| p.id == selected_place_ids[0])
+                            .map(|p| p.color)
+                            .unwrap_or(NodeColor::Default);
+                        let previous_color = bulk_color;
+
+                        ui.label(self.tr("Цвет выбранных позиций", "Selected place color"));
+                        egui::ComboBox::from_id_source("bulk_place_color_combo")
+                            .selected_text(Self::node_color_text(bulk_color, is_ru))
+                            .show_ui(ui, |ui| {
+                                ui.selectable_value(
+                                    &mut bulk_color,
+                                    NodeColor::Default,
+                                    Self::node_color_text(NodeColor::Default, is_ru),
+                                );
+                                ui.selectable_value(
+                                    &mut bulk_color,
+                                    NodeColor::Blue,
+                                    Self::node_color_text(NodeColor::Blue, is_ru),
+                                );
+                                ui.selectable_value(
+                                    &mut bulk_color,
+                                    NodeColor::Red,
+                                    Self::node_color_text(NodeColor::Red, is_ru),
+                                );
+                                ui.selectable_value(
+                                    &mut bulk_color,
+                                    NodeColor::Green,
+                                    Self::node_color_text(NodeColor::Green, is_ru),
+                                );
+                                ui.selectable_value(
+                                    &mut bulk_color,
+                                    NodeColor::Yellow,
+                                    Self::node_color_text(NodeColor::Yellow, is_ru),
+                                );
+                            });
+
+                        if bulk_color != previous_color {
+                            self.push_undo_snapshot();
+                            let ids: HashSet<u64> = selected_place_ids.iter().copied().collect();
+                            for place in &mut self.net.places {
+                                if ids.contains(&place.id) {
+                                    place.color = bulk_color;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if transitions_selected {
+                    let selected_transition_ids = if self.canvas.selected_transitions.is_empty() {
+                        self.canvas.selected_transition.into_iter().collect::<Vec<_>>()
+                    } else {
+                        self.canvas.selected_transitions.clone()
+                    };
+
+                    if !selected_transition_ids.is_empty() {
+                        let mut bulk_transition_size = self
+                            .net
+                            .transitions
+                            .iter()
+                            .find(|t| t.id == selected_transition_ids[0])
+                            .map(|t| t.size)
+                            .unwrap_or(VisualSize::Medium);
+
+                        ui.label(self.tr(
+                            "Размер выбранных переходов",
+                            "Selected transition size",
+                        ));
+                        ui.horizontal(|ui| {
+                            ui.radio_value(
+                                &mut bulk_transition_size,
+                                VisualSize::Small,
+                                self.tr("Малый", "Small"),
+                            );
+                            ui.radio_value(
+                                &mut bulk_transition_size,
+                                VisualSize::Medium,
+                                self.tr("Средний", "Medium"),
+                            );
+                            ui.radio_value(
+                                &mut bulk_transition_size,
+                                VisualSize::Large,
+                                self.tr("Большой", "Large"),
+                            );
+                        });
+
+                        if bulk_transition_size
+                            != self
+                                .net
+                                .transitions
+                                .iter()
+                                .find(|t| t.id == selected_transition_ids[0])
+                                .map(|t| t.size)
+                                .unwrap_or(VisualSize::Medium)
+                        {
+                            self.push_undo_snapshot();
+                            let ids: HashSet<u64> =
+                                selected_transition_ids.iter().copied().collect();
+                            for transition in &mut self.net.transitions {
+                                if ids.contains(&transition.id) {
+                                    transition.size = bulk_transition_size;
+                                }
+                            }
+                        }
+
+                        let mut bulk_color = self
+                            .net
+                            .transitions
+                            .iter()
+                            .find(|t| t.id == selected_transition_ids[0])
+                            .map(|t| t.color)
+                            .unwrap_or(NodeColor::Default);
+                        let previous_color = bulk_color;
+
+                        ui.label(self.tr("Цвет выбранных переходов", "Selected transition color"));
+                        egui::ComboBox::from_id_source("bulk_transition_color_combo")
+                            .selected_text(Self::node_color_text(bulk_color, is_ru))
+                            .show_ui(ui, |ui| {
+                                ui.selectable_value(
+                                    &mut bulk_color,
+                                    NodeColor::Default,
+                                    Self::node_color_text(NodeColor::Default, is_ru),
+                                );
+                                ui.selectable_value(
+                                    &mut bulk_color,
+                                    NodeColor::Blue,
+                                    Self::node_color_text(NodeColor::Blue, is_ru),
+                                );
+                                ui.selectable_value(
+                                    &mut bulk_color,
+                                    NodeColor::Red,
+                                    Self::node_color_text(NodeColor::Red, is_ru),
+                                );
+                                ui.selectable_value(
+                                    &mut bulk_color,
+                                    NodeColor::Green,
+                                    Self::node_color_text(NodeColor::Green, is_ru),
+                                );
+                                ui.selectable_value(
+                                    &mut bulk_color,
+                                    NodeColor::Yellow,
+                                    Self::node_color_text(NodeColor::Yellow, is_ru),
+                                );
+                            });
+
+                        if bulk_color != previous_color {
+                            self.push_undo_snapshot();
+                            let ids: HashSet<u64> =
+                                selected_transition_ids.iter().copied().collect();
+                            for transition in &mut self.net.transitions {
+                                if ids.contains(&transition.id) {
+                                    transition.color = bulk_color;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if arcs_selected {
+                    let selected_arc_ids = if self.canvas.selected_arcs.is_empty() {
+                        self.canvas.selected_arc.into_iter().collect::<Vec<_>>()
+                    } else {
+                        self.canvas.selected_arcs.clone()
+                    };
+
+                    if !selected_arc_ids.is_empty() {
+                        let mut bulk_color = self
+                            .net
+                            .arcs
+                            .iter()
+                            .find(|a| a.id == selected_arc_ids[0])
+                            .map(|a| a.color)
+                            .or_else(|| {
                                 self.net
-                                    .arcs
+                                    .inhibitor_arcs
                                     .iter()
-                                    .find(|a| a.id == *id)
+                                    .find(|a| a.id == selected_arc_ids[0])
                                     .map(|a| a.color)
-                                    .or_else(|| {
-                                        self.net
-                                            .inhibitor_arcs
-                                            .iter()
-                                            .find(|a| a.id == *id)
-                                            .map(|a| a.color)
-                                    })
                             })
                             .unwrap_or(NodeColor::Default);
                         let previous_color = bulk_color;
 
-                        egui::ComboBox::from_label(color_label)
+                        ui.label(self.tr("Цвет выбранных дуг", "Selected arc color"));
+                        egui::ComboBox::from_id_source("bulk_arc_color_combo")
                             .selected_text(Self::node_color_text(bulk_color, is_ru))
-                            .show_ui(ui, |ui: &mut egui::Ui| {
+                            .show_ui(ui, |ui| {
                                 ui.selectable_value(
                                     &mut bulk_color,
                                     NodeColor::Default,
@@ -260,217 +426,211 @@ impl PetriApp {
             let mut open = self.show_new_element_props;
             let was_open = self.new_element_props_window_was_open;
             let apply_default_size = !was_open && open;
-            let mut window = egui::Window::new(t(
-                "Свойства создаваемых элементов",
-                "New Element Properties",
-            ))
-            .open(&mut open)
-            .resizable(true);
-            if apply_default_size {
-                window = window.default_size(self.new_element_props_window_size);
-            }
-            let response = window.show(ctx, |ui| {
-                let mut corrected_inputs = false;
-                let size_text = |size: VisualSize| -> &'static str {
-                    if is_ru {
-                        match size {
-                            VisualSize::Small => "Малый",
-                            VisualSize::Medium => "Средний",
-                            VisualSize::Large => "Большой",
+            show_property_window(
+                ctx,
+                t(
+                    "Свойства создаваемых элементов",
+                    "New Element Properties",
+                ),
+                &mut open,
+                PropertyWindowConfig::new("new_element_props_window")
+                    .remember_size(&mut self.new_element_props_window_size)
+                    .apply_default_size(apply_default_size),
+                |ui| {
+                    let mut corrected_inputs = false;
+                    let size_text = |size: VisualSize| -> &'static str {
+                        if is_ru {
+                            match size {
+                                VisualSize::Small => "Малый",
+                                VisualSize::Medium => "Средний",
+                                VisualSize::Large => "Большой",
+                            }
+                        } else {
+                            match size {
+                                VisualSize::Small => "Small",
+                                VisualSize::Medium => "Medium",
+                                VisualSize::Large => "Large",
+                            }
                         }
-                    } else {
-                        match size {
-                            VisualSize::Small => "Small",
-                            VisualSize::Medium => "Medium",
-                            VisualSize::Large => "Large",
-                        }
-                    }
-                };
+                    };
 
-                let color_combo = |ui: &mut egui::Ui, value: &mut NodeColor, is_ru: bool| {
-                    egui::ComboBox::from_id_source(ui.next_auto_id())
-                        .selected_text(Self::node_color_text(*value, is_ru))
-                        .show_ui(ui, |ui| {
-                            ui.selectable_value(
-                                value,
-                                NodeColor::Default,
-                                Self::node_color_text(NodeColor::Default, is_ru),
-                            );
-                            ui.selectable_value(
-                                value,
-                                NodeColor::Blue,
-                                Self::node_color_text(NodeColor::Blue, is_ru),
-                            );
-                            ui.selectable_value(
-                                value,
-                                NodeColor::Red,
-                                Self::node_color_text(NodeColor::Red, is_ru),
-                            );
-                            ui.selectable_value(
-                                value,
-                                NodeColor::Green,
-                                Self::node_color_text(NodeColor::Green, is_ru),
-                            );
-                            ui.selectable_value(
-                                value,
-                                NodeColor::Yellow,
-                                Self::node_color_text(NodeColor::Yellow, is_ru),
-                            );
-                        });
-                };
+                    let color_combo = |ui: &mut egui::Ui, value: &mut NodeColor, is_ru: bool| {
+                        egui::ComboBox::from_id_source(ui.next_auto_id())
+                            .selected_text(Self::node_color_text(*value, is_ru))
+                            .show_ui(ui, |ui| {
+                                ui.selectable_value(
+                                    value,
+                                    NodeColor::Default,
+                                    Self::node_color_text(NodeColor::Default, is_ru),
+                                );
+                                ui.selectable_value(
+                                    value,
+                                    NodeColor::Blue,
+                                    Self::node_color_text(NodeColor::Blue, is_ru),
+                                );
+                                ui.selectable_value(
+                                    value,
+                                    NodeColor::Red,
+                                    Self::node_color_text(NodeColor::Red, is_ru),
+                                );
+                                ui.selectable_value(
+                                    value,
+                                    NodeColor::Green,
+                                    Self::node_color_text(NodeColor::Green, is_ru),
+                                );
+                                ui.selectable_value(
+                                    value,
+                                    NodeColor::Yellow,
+                                    Self::node_color_text(NodeColor::Yellow, is_ru),
+                                );
+                            });
+                    };
 
-                ui.group(|ui| {
-                    ui.label(t("Новые позиции", "New positions"));
-                    egui::ComboBox::from_label(t("Размер позиции", "Position size"))
-                        .selected_text(size_text(self.new_place_size))
-                        .show_ui(ui, |ui| {
-                            ui.selectable_value(
-                                &mut self.new_place_size,
-                                VisualSize::Small,
-                                size_text(VisualSize::Small),
-                            );
-                            ui.selectable_value(
-                                &mut self.new_place_size,
-                                VisualSize::Medium,
-                                size_text(VisualSize::Medium),
-                            );
-                            ui.selectable_value(
-                                &mut self.new_place_size,
-                                VisualSize::Large,
-                                size_text(VisualSize::Large),
-                            );
-                        });
-                    ui.horizontal(|ui| {
-                        ui.label(t("Цвет", "Color"));
-                        color_combo(ui, &mut self.new_place_color, is_ru);
-                    });
-                    let mut marking = self.new_place_marking;
-                    corrected_inputs |= sanitize_u32(&mut marking, 0, u32::MAX);
-                    ui.horizontal(|ui| {
-                        ui.label(t("Маркеры", "Tokens"));
-                        if ui
-                            .add(egui::DragValue::new(&mut marking).range(0..=u32::MAX))
-                            .changed()
-                        {
-                            corrected_inputs |= sanitize_u32(&mut marking, 0, u32::MAX);
-                        }
-                    });
-                    self.new_place_marking = marking;
-                    let mut cap = self.new_place_capacity.unwrap_or(0);
-                    corrected_inputs |= sanitize_u32(&mut cap, 0, u32::MAX);
-                    ui.horizontal(|ui| {
-                        ui.label(t(
-                            "Макс. емкость (0 = без ограничений)",
-                            "Capacity (0 = unlimited)",
-                        ));
-                        if ui
-                            .add(egui::DragValue::new(&mut cap).range(0..=u32::MAX))
-                            .changed()
-                        {
-                            corrected_inputs |= sanitize_u32(&mut cap, 0, u32::MAX);
-                        }
-                    });
-                    self.new_place_capacity = if cap == 0 { None } else { Some(cap) };
-                });
-
-                ui.add_space(6.0);
-                ui.group(|ui| {
-                    ui.label(t("Новые переходы", "New transitions"));
-                    egui::ComboBox::from_label(t("Размер перехода", "Transition size"))
-                        .selected_text(size_text(self.new_transition_size))
-                        .show_ui(ui, |ui| {
-                            ui.selectable_value(
-                                &mut self.new_transition_size,
-                                VisualSize::Small,
-                                size_text(VisualSize::Small),
-                            );
-                            ui.selectable_value(
-                                &mut self.new_transition_size,
-                                VisualSize::Medium,
-                                size_text(VisualSize::Medium),
-                            );
-                            ui.selectable_value(
-                                &mut self.new_transition_size,
-                                VisualSize::Large,
-                                size_text(VisualSize::Large),
-                            );
-                        });
-                    ui.horizontal(|ui| {
-                        ui.label(t("Цвет", "Color"));
-                        color_combo(ui, &mut self.new_transition_color, is_ru);
-                    });
-                    let mut transition_priority = self.new_transition_priority;
-                    corrected_inputs |=
-                        sanitize_i32(&mut transition_priority, -1_000_000, 1_000_000);
-                    ui.horizontal(|ui| {
-                        ui.label(t("Приоритет", "Priority"));
-                        if ui
-                            .add(
-                                egui::DragValue::new(&mut transition_priority)
-                                    .range(-1_000_000..=1_000_000),
-                            )
-                            .changed()
-                        {
-                            corrected_inputs |=
-                                sanitize_i32(&mut transition_priority, -1_000_000, 1_000_000);
-                        }
-                    });
-                    self.new_transition_priority = transition_priority;
-                });
-
-                ui.add_space(6.0);
-                ui.group(|ui| {
-                    ui.label(t("Новые дуги", "New arcs"));
-                    let mut arc_weight = self.new_arc_weight;
-                    corrected_inputs |= sanitize_u32(&mut arc_weight, 1, u32::MAX);
-                    ui.horizontal(|ui| {
-                        ui.label(t("Кратность (вес)", "Weight"));
-                        if ui
-                            .add(egui::DragValue::new(&mut arc_weight).range(1..=u32::MAX))
-                            .changed()
-                        {
-                            corrected_inputs |= sanitize_u32(&mut arc_weight, 1, u32::MAX);
-                        }
-                    });
-                    self.new_arc_weight = arc_weight;
-                    ui.horizontal(|ui| {
-                        ui.label(t("Цвет", "Color"));
-                        color_combo(ui, &mut self.new_arc_color, is_ru);
-                    });
-                    let inhibitor_label = t("Ингибиторная дуга", "Inhibitor arc");
-                    ui.checkbox(&mut self.new_arc_inhibitor, inhibitor_label);
-                    if self.new_arc_inhibitor {
+                    ui.group(|ui| {
+                        ui.label(t("Новые позиции", "New positions"));
+                        egui::ComboBox::from_label(t("Размер позиции", "Position size"))
+                            .selected_text(size_text(self.new_place_size))
+                            .show_ui(ui, |ui| {
+                                ui.selectable_value(
+                                    &mut self.new_place_size,
+                                    VisualSize::Small,
+                                    size_text(VisualSize::Small),
+                                );
+                                ui.selectable_value(
+                                    &mut self.new_place_size,
+                                    VisualSize::Medium,
+                                    size_text(VisualSize::Medium),
+                                );
+                                ui.selectable_value(
+                                    &mut self.new_place_size,
+                                    VisualSize::Large,
+                                    size_text(VisualSize::Large),
+                                );
+                            });
                         ui.horizontal(|ui| {
-                            ui.label(t("Порог", "Threshold"));
-                            let mut threshold = self.new_arc_inhibitor_threshold;
-                            corrected_inputs |= sanitize_u32(&mut threshold, 1, u32::MAX);
+                            ui.label(t("Цвет", "Color"));
+                            color_combo(ui, &mut self.new_place_color, is_ru);
+                        });
+                        let mut marking = self.new_place_marking;
+                        corrected_inputs |= sanitize_u32(&mut marking, 0, u32::MAX);
+                        ui.horizontal(|ui| {
+                            ui.label(t("Маркеры", "Tokens"));
                             if ui
-                                .add(egui::DragValue::new(&mut threshold).range(1..=u32::MAX))
+                                .add(egui::DragValue::new(&mut marking).range(0..=u32::MAX))
                                 .changed()
                             {
-                                corrected_inputs |= sanitize_u32(&mut threshold, 1, u32::MAX);
+                                corrected_inputs |= sanitize_u32(&mut marking, 0, u32::MAX);
                             }
-                            self.new_arc_inhibitor_threshold = threshold;
                         });
-                    }
-                });
-                validation_hint(
-                    ui,
-                    corrected_inputs,
-                    &self.tr(
-                        "Некорректные значения были скорректированы",
-                        "Invalid inputs were adjusted",
-                    ),
-                );
-            });
-            if open {
-                if let Some(response) = response {
-                    let size = response.response.rect.size();
-                    if size.x > 0.0 && size.y > 0.0 {
-                        self.new_element_props_window_size = size;
-                    }
-                }
-            }
+                        self.new_place_marking = marking;
+                        let mut cap = self.new_place_capacity.unwrap_or(0);
+                        corrected_inputs |= sanitize_u32(&mut cap, 0, u32::MAX);
+                        ui.horizontal(|ui| {
+                            ui.label(t(
+                                "Макс. емкость (0 = без ограничений)",
+                                "Capacity (0 = unlimited)",
+                            ));
+                            if ui
+                                .add(egui::DragValue::new(&mut cap).range(0..=u32::MAX))
+                                .changed()
+                            {
+                                corrected_inputs |= sanitize_u32(&mut cap, 0, u32::MAX);
+                            }
+                        });
+                        self.new_place_capacity = if cap == 0 { None } else { Some(cap) };
+                    });
+
+                    ui.add_space(6.0);
+                    ui.group(|ui| {
+                        ui.label(t("Новые переходы", "New transitions"));
+                        egui::ComboBox::from_label(t("Размер перехода", "Transition size"))
+                            .selected_text(size_text(self.new_transition_size))
+                            .show_ui(ui, |ui| {
+                                ui.selectable_value(
+                                    &mut self.new_transition_size,
+                                    VisualSize::Small,
+                                    size_text(VisualSize::Small),
+                                );
+                                ui.selectable_value(
+                                    &mut self.new_transition_size,
+                                    VisualSize::Medium,
+                                    size_text(VisualSize::Medium),
+                                );
+                                ui.selectable_value(
+                                    &mut self.new_transition_size,
+                                    VisualSize::Large,
+                                    size_text(VisualSize::Large),
+                                );
+                            });
+                        ui.horizontal(|ui| {
+                            ui.label(t("Цвет", "Color"));
+                            color_combo(ui, &mut self.new_transition_color, is_ru);
+                        });
+                        let mut transition_priority = self.new_transition_priority;
+                        corrected_inputs |=
+                            sanitize_i32(&mut transition_priority, -1_000_000, 1_000_000);
+                        ui.horizontal(|ui| {
+                            ui.label(t("Приоритет", "Priority"));
+                            if ui
+                                .add(
+                                    egui::DragValue::new(&mut transition_priority)
+                                        .range(-1_000_000..=1_000_000),
+                                )
+                                .changed()
+                            {
+                                corrected_inputs |=
+                                    sanitize_i32(&mut transition_priority, -1_000_000, 1_000_000);
+                            }
+                        });
+                        self.new_transition_priority = transition_priority;
+                    });
+
+                    ui.add_space(6.0);
+                    ui.group(|ui| {
+                        ui.label(t("Новые дуги", "New arcs"));
+                        let mut arc_weight = self.new_arc_weight;
+                        corrected_inputs |= sanitize_u32(&mut arc_weight, 1, u32::MAX);
+                        ui.horizontal(|ui| {
+                            ui.label(t("Кратность (вес)", "Weight"));
+                            if ui
+                                .add(egui::DragValue::new(&mut arc_weight).range(1..=u32::MAX))
+                                .changed()
+                            {
+                                corrected_inputs |= sanitize_u32(&mut arc_weight, 1, u32::MAX);
+                            }
+                        });
+                        self.new_arc_weight = arc_weight;
+                        ui.horizontal(|ui| {
+                            ui.label(t("Цвет", "Color"));
+                            color_combo(ui, &mut self.new_arc_color, is_ru);
+                        });
+                        let inhibitor_label = t("Ингибиторная дуга", "Inhibitor arc");
+                        ui.checkbox(&mut self.new_arc_inhibitor, inhibitor_label);
+                        if self.new_arc_inhibitor {
+                            ui.horizontal(|ui| {
+                                ui.label(t("Порог", "Threshold"));
+                                let mut threshold = self.new_arc_inhibitor_threshold;
+                                corrected_inputs |= sanitize_u32(&mut threshold, 1, u32::MAX);
+                                if ui
+                                    .add(egui::DragValue::new(&mut threshold).range(1..=u32::MAX))
+                                    .changed()
+                                {
+                                    corrected_inputs |= sanitize_u32(&mut threshold, 1, u32::MAX);
+                                }
+                                self.new_arc_inhibitor_threshold = threshold;
+                            });
+                        }
+                    });
+                    validation_hint(
+                        ui,
+                        corrected_inputs,
+                        &self.tr(
+                            "Некорректные значения были скорректированы",
+                            "Invalid inputs were adjusted",
+                        ),
+                    );
+                },
+            );
             self.show_new_element_props = open;
             self.new_element_props_window_was_open = open;
         }

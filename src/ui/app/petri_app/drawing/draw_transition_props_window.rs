@@ -15,14 +15,12 @@ impl PetriApp {
         let t = |ru: &'static str, en: &'static str| if is_ru { ru } else { en };
 
         let mut open = true;
-        egui::Window::new(title)
-            .constrained_to_viewport(ctx)
-            .id(egui::Id::new("transition_props_window"))
-            .resizable(true)
-            .default_size(egui::vec2(420.0, 520.0))
-            .min_size(egui::vec2(320.0, 360.0))
-            .open(&mut open)
-            .show(ctx, |ui| {
+        show_property_window(
+            ctx,
+            title,
+            &mut open,
+            PropertyWindowConfig::new("transition_props_window"),
+            |ui| {
                 let mut corrected_inputs = false;
                 ui.label(format!("ID: T{}", transition_id));
                 ui.separator();
@@ -164,7 +162,8 @@ impl PetriApp {
                         "Invalid inputs were adjusted",
                     ),
                 );
-            });
+            },
+        );
         open
     }
 }

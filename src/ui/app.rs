@@ -24,9 +24,12 @@ use crate::sim::engine::{run_simulation, SimulationParams, SimulationResult};
 
 mod graph_view;
 mod petri_app;
+mod property_window;
 mod shortcuts;
 mod table_view;
 mod tool_palette;
+
+pub(super) use property_window::{show_property_window, PropertyWindowConfig};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum LayoutMode {
