@@ -99,16 +99,19 @@ impl PetriApp {
             ui.label(format!(
                 "{}: {}",
                 self.tr("Переходов", "Transitions"),
-                chain.transitions.iter().map(|edges| edges.len()).sum::<usize>()
+                chain
+                    .transitions
+                    .iter()
+                    .map(|edges| edges.len())
+                    .sum::<usize>()
             ));
         });
 
         ui.separator();
 
-        egui::CollapsingHeader::new(self.tr(
-            "Стационарное распределение",
-            "Stationary distribution",
-        ))
+        egui::CollapsingHeader::new(
+            self.tr("Стационарное распределение", "Stationary distribution"),
+        )
         .id_source("markov_stationary_section")
         .default_open(false)
         .show(ui, |ui| {
@@ -129,10 +132,9 @@ impl PetriApp {
                 self.draw_markov_state_graph(ui, chain);
             });
 
-        egui::CollapsingHeader::new(self.tr(
-            "Отображение марковской метки",
-            "Markov highlight display",
-        ))
+        egui::CollapsingHeader::new(
+            self.tr("Отображение марковской метки", "Markov highlight display"),
+        )
         .id_source("markov_highlight_section")
         .default_open(false)
         .show(ui, |ui| {

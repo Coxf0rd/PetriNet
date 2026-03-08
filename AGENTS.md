@@ -23,17 +23,3 @@
    - `git diff --name-only -- '*.rs' | ForEach-Object { rustfmt --check $_ }` (проверка форматирования только изменённых Rust-файлов)
    - `rg -n "�|\?\?\?\?" src README.md` (вывод должен быть пустым)
 8. Если хотя бы одна проверка не пройдена, коммит не делать до исправления.
-## Структура раздела `src/ui/app/petri_app/` (функциональные модули)
-
-- `src/ui/app/petri_app/mod.rs` — точка входа модуля `petri_app`; он теперь делится на вложенные подпапки по смыслу.
-- `src/ui/app/petri_app/drawing/` — отрисовочные окна, статус и панель меню (`draw_*`).
-- `src/ui/app/petri_app/file_ops/` — создание/загрузка/сохранение файла, импорт, синхронизация UI и подсказки (`new`, `open`, `save`, `ui_sidecar_path`, `sync_*`, `load_legacy_*`, `arc_topology_fingerprint` и т.п.).
-- `src/ui/app/petri_app/netstar/` — экспорт/валидация Net* (функции `validate_netstar_export`, `export_netstar_file`, `netstar_non_exportable_items`, `start/clear/confirm` и вспомогательные проверки).
-- `src/ui/app/petri_app/selection/` — логика выбора, копирования, отмены и собирания ID (`clear_selection`, `push_undo_snapshot`, `collect_selected_*`, `toggle_selected_id` и т.д.).
-- `src/ui/app/petri_app/clipboard/` — код работы с буфером обмена и копированием объектов.
-- `src/ui/app/petri_app/geometry/` — геометрические вычисления холста и фильтры (сетку, привязку, преобразования координат, работа с рамками/дугами).
-- `src/ui/app/petri_app/indexing/` — поиск индексов/ID (места, переходы, дуги, уступы, тексты, рамки).
-- `src/ui/app/petri_app/helpers/` — текстовые/цветовые/стилистические утилиты, вспомогательные метрики и форматирование (`tr`, `node_color_text`, `format_marking`, `approx_text_rect`, `sampled_indices` и т.д.).
-- `src/ui/app/petri_app/markov/` — расчёт цепи Маркова и аннотаций.
-
-Эта структура отражает выделенные функциональные блоки: интерфейс (drawing), управление файлом/синхронизация (file_ops), экспорт/валидация (netstar), выбор/отмена (selection), геометрия/хитрые расчёты (geometry), индексирование объектов (indexing), буфер обмена (clipboard), вспомогательные утилиты (helpers) и статистика/Markov (markov).
