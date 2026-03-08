@@ -15,64 +15,59 @@ impl PetriApp {
             .max_size(Vec2::new(max_width, max_height))
             .open(&mut open)
             .show(ctx, |ui| {
-                egui::ScrollArea::vertical()
-                    .auto_shrink([false, false])
-                    .scroll_bar_visibility(scroll_area::ScrollBarVisibility::AlwaysHidden)
-                    .show(ui, |ui| {
-                        ui.vertical(|ui| {
-                            let simulation_ready = self.sim_result.is_some();
-                            let mut toggle_changed = false;
-                            let markov_checkbox_label =
-                                self.tr("включить марковскую модель", "Enable Markov model");
-                            let simulation_hint = self.tr(
-                                "Сначала запустите симуляцию, чтобы включить марковскую модель",
-                                "Run a simulation first to enable the model",
-                            );
-                            ui.horizontal(|ui| {
-                                ui.add_enabled_ui(simulation_ready, |ui| {
-                                    if ui
-                                        .checkbox(
-                                            &mut self.markov_model_enabled,
-                                            markov_checkbox_label.as_ref(),
-                                        )
-                                        .changed()
-                                    {
-                                        toggle_changed = true;
-                                    }
-                                });
-                                if !simulation_ready {
-                                    ui.colored_label(
-                                        Color32::from_rgb(190, 40, 40),
-                                        simulation_hint.as_ref(),
-                                    );
-                                }
-                            });
-                            if toggle_changed {
-                                for place in &mut self.net.places {
-                                    place.show_markov_model = self.markov_model_enabled;
-                                }
-                                if self.markov_model_enabled {
-                                    self.calculate_markov_model();
-                                } else {
-                                    self.markov_place_arcs.clear();
-                                }
-                            }
-                            ui.separator();
-                            ui.add_space(6.0);
-                            if let Some(chain) = &self.markov_model {
-                                self.draw_markov_chain_summary(ui, chain);
-                            } else {
-                                ui.label(self.tr("Постройте модель", "Build the model"));
-                            }
-                            if !self.markov_model_enabled {
-                                ui.separator();
-                                ui.label(self.tr(
-                                    "Включите флажок выше, чтобы увидеть марковскую модель",
-                                    "Toggle the checkbox above to display the Markov model",
-                                ));
+                ui.vertical(|ui| {
+                    let simulation_ready = self.sim_result.is_some();
+                    let mut toggle_changed = false;
+                    let markov_checkbox_label =
+                        self.tr("включить марковскую модель", "Enable Markov model");
+                    let simulation_hint = self.tr(
+                        "Сначала запустите симуляцию, чтобы включить марковскую модель",
+                        "Run a simulation first to enable the model",
+                    );
+                    ui.horizontal(|ui| {
+                        ui.add_enabled_ui(simulation_ready, |ui| {
+                            if ui
+                                .checkbox(
+                                    &mut self.markov_model_enabled,
+                                    markov_checkbox_label.as_ref(),
+                                )
+                                .changed()
+                            {
+                                toggle_changed = true;
                             }
                         });
+                        if !simulation_ready {
+                            ui.colored_label(
+                                Color32::from_rgb(190, 40, 40),
+                                simulation_hint.as_ref(),
+                            );
+                        }
                     });
+                    if toggle_changed {
+                        for place in &mut self.net.places {
+                            place.show_markov_model = self.markov_model_enabled;
+                        }
+                        if self.markov_model_enabled {
+                            self.calculate_markov_model();
+                        } else {
+                            self.markov_place_arcs.clear();
+                        }
+                    }
+                    ui.separator();
+                    ui.add_space(6.0);
+                    if let Some(chain) = &self.markov_model {
+                        self.draw_markov_chain_summary(ui, chain);
+                    } else {
+                        ui.label(self.tr("Постройте модель", "Build the model"));
+                    }
+                    if !self.markov_model_enabled {
+                        ui.separator();
+                        ui.label(self.tr(
+                            "Включите флажок выше, чтобы увидеть марковскую модель",
+                            "Toggle the checkbox above to display the Markov model",
+                        ));
+                    }
+                });
             });
         self.show_markov_window = open;
     }
@@ -125,7 +120,7 @@ impl PetriApp {
             ui.label(self.tr("Состояний не найдено", "No states found"));
             return;
         }
-        let row_height = ui.text_style_height(&egui::TextStyle::Body) + 60.0;
+        let row_height = ui.text_style_height(&egui::TextStyle::Body) + 48.0;
         egui::ScrollArea::vertical()
             .id_source("markov_stationary_distribution")
             .max_height(360.0)
@@ -167,6 +162,13 @@ impl PetriApp {
                 .show_rows(ui, row_height, chain.transitions.len(), |ui, rows| {
                     let available = ui.available_width();
                     let transitions_width = Self::markov_transitions_column_width(available);
+                    ui.horizontal(|ui| {
+                        ui.label(RichText::new(self.tr("Состояние", "State")).strong());
+                        ui.allocate_ui(Vec2::new(transitions_width, 0.0), |ui| {
+                            ui.label(RichText::new(self.tr("Переходы", "Transitions")).strong());
+                        });
+                    });
+                    ui.separator();
                     for idx in rows {
                         let edges = &chain.transitions[idx];
                         ui.horizontal(|ui| {
