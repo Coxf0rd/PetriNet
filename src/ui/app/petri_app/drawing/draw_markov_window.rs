@@ -116,8 +116,9 @@ impl PetriApp {
         // effects only.
         let _ = show_collapsible_property_section(
             ui,
-            self.tr("Стационарное распределение", "Stationary distribution"),
-            PropertySectionConfig::new("markov_stationary_section").default_open(false),
+            PropertySectionConfig::new("markov_stationary_section")
+                .label(self.tr("Стационарное распределение", "Stationary distribution"))
+                .default_open(false),
             |ui| {
                 if let Some(stationary) = stationary {
                     self.draw_markov_stationary_grid(ui, chain, stationary);
@@ -132,8 +133,9 @@ impl PetriApp {
 
         let _ = show_collapsible_property_section(
             ui,
-            self.tr("Граф состояний", "State graph"),
-            PropertySectionConfig::new("markov_state_graph_section").default_open(false),
+            PropertySectionConfig::new("markov_state_graph_section")
+                .label(self.tr("Граф состояний", "State graph"))
+                .default_open(false),
             |ui| {
                 self.draw_markov_state_graph(ui, chain);
             },
@@ -141,8 +143,12 @@ impl PetriApp {
 
         let _ = show_collapsible_property_section(
             ui,
-            self.tr("Отображение марковской метки", "Markov highlight display"),
-            PropertySectionConfig::new("markov_highlight_section").default_open(false),
+            PropertySectionConfig::new("markov_highlight_section")
+                .label(self.tr(
+                    "Отображение марковской метки",
+                    "Markov highlight display",
+                ))
+                .default_open(false),
             |ui| {
                 self.draw_markov_highlight(ui, chain, stationary);
             },

@@ -170,8 +170,8 @@ impl PetriApp {
 
                     show_collapsible_property_section(
                         ui,
-                        t("Новые позиции", "New positions"),
                         PropertySectionConfig::new("new_element_props_place_section")
+                            .label(t("Новые позиции", "New positions"))
                             .default_open(true),
                         |ui: &mut egui::Ui| {
                             egui::ComboBox::from_label(t("Размер позиции", "Position size"))
@@ -226,8 +226,8 @@ impl PetriApp {
 
                     show_collapsible_property_section(
                         ui,
-                        t("Новые переходы", "New transitions"),
                         PropertySectionConfig::new("new_element_props_transition_section")
+                            .label(t("Новые переходы", "New transitions"))
                             .default_open(true)
                             .top_spacing(6.0),
                         |ui: &mut egui::Ui| {
@@ -270,8 +270,8 @@ impl PetriApp {
 
                     show_collapsible_property_section(
                         ui,
-                        t("Новые дуги", "New arcs"),
                         PropertySectionConfig::new("new_element_props_arc_section")
+                            .label(t("Новые дуги", "New arcs"))
                             .default_open(true)
                             .top_spacing(6.0),
                         |ui: &mut egui::Ui| {
