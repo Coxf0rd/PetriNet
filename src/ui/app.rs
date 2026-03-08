@@ -30,7 +30,6 @@ mod tool_palette;
 
 use crate::ui::property_window::{show_property_window, PropertyWindowConfig};
 
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum LayoutMode {
     Cascade,

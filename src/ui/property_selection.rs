@@ -46,7 +46,7 @@ pub(crate) fn show_property_section<R>(
                 ui.set_width(ui.available_width());
                 ui.set_max_width(ui.available_width());
 
-                ui.label(egui::RichText::new(title).strong());
+                ui.label(title.strong());
                 ui.add_space(4.0);
 
                 add_contents(ui)
