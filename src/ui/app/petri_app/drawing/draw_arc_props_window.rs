@@ -1,3 +1,14 @@
+// This patched version of the arc properties window adjusts the default window
+// size to be 20% larger than its minimum size. The original file defined a
+// default size of 420×440 and a minimum size of 320×320. According to the new
+// project guidelines, the default size should be 20% larger than the minimum
+// size. Twenty percent of 320 is 64, so the default dimensions become
+// 384×384.
+//
+// Apart from the size adjustments, the rest of the original logic remains
+// unchanged. All behaviour regarding arc types (regular vs inhibitor), weight
+// and threshold editing, colour selection and validation is preserved.
+
 use super::*;
 
 impl PetriApp {
@@ -85,12 +96,13 @@ impl PetriApp {
         };
 
         let mut open = true;
+        // Use show_property_window with adjusted default size (20% larger than min)
         show_property_window(
             ctx,
             title,
             &mut open,
             PropertyWindowConfig::new("arc_props_window")
-                .default_size(egui::vec2(420.0, 440.0))
+                .default_size(egui::vec2(384.0, 384.0))
                 .min_size(egui::vec2(320.0, 320.0)),
             |ui: &mut egui::Ui| {
                 let mut corrected_inputs = false;

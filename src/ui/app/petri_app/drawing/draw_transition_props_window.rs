@@ -1,6 +1,12 @@
 use super::*;
 
 impl PetriApp {
+    /// Show the property window for a transition node.
+    ///
+    /// This method mirrors the original implementation but adjusts the default
+    /// window size so that it is 20% larger than its minimum size. The base
+    /// minimum size remains 320×360, while the default size becomes 384×432.
+    /// All contents and logic are kept intact.
     pub(in crate::ui::app) fn draw_transition_props_window(
         &mut self,
         ctx: &egui::Context,
@@ -10,21 +16,22 @@ impl PetriApp {
         let Some(transition_idx) = self.transition_idx_by_id(transition_id) else {
             return false;
         };
-
         let is_ru = matches!(self.net.ui.language, Language::Ru);
         let t = |ru: &'static str, en: &'static str| if is_ru { ru } else { en };
-
         let mut open = true;
         show_property_window(
             ctx,
             title,
             &mut open,
-            PropertyWindowConfig::new("transition_props_window"),
+            PropertyWindowConfig::new("transition_props_window")
+                // Minimum size: 320×360. Default size: 384×432 (20% larger).
+                .default_size(egui::vec2(384.0, 432.0))
+                .min_size(egui::vec2(320.0, 360.0)),
             |ui: &mut egui::Ui| {
                 let mut corrected_inputs = false;
                 ui.label(format!("ID: T{}", transition_id));
                 ui.separator();
-
+                // priority
                 let mut priority = self.net.tables.mpr[transition_idx];
                 corrected_inputs |= sanitize_i32(&mut priority, -1_000_000, 1_000_000);
                 ui.horizontal(|ui: &mut egui::Ui| {
@@ -34,7 +41,7 @@ impl PetriApp {
                     }
                 });
                 self.net.tables.mpr[transition_idx] = priority;
-
+                // size
                 ui.label(t("Размер перехода", "Transition size"));
                 ui.horizontal(|ui: &mut egui::Ui| {
                     ui.radio_value(
@@ -53,7 +60,7 @@ impl PetriApp {
                         t("Большой", "Large"),
                     );
                 });
-
+                // label position
                 egui::ComboBox::from_label(t("Положение метки", "Label position"))
                     .selected_text(Self::label_pos_text(
                         self.net.transitions[transition_idx].label_position,
@@ -86,7 +93,7 @@ impl PetriApp {
                             t("По центру", "Center"),
                         );
                     });
-
+                // text position
                 egui::ComboBox::from_label(t("Положение текста", "Text position"))
                     .selected_text(Self::label_pos_text(
                         self.net.transitions[transition_idx].text_position,
@@ -119,7 +126,7 @@ impl PetriApp {
                             t("По центру", "Center"),
                         );
                     });
-
+                // color
                 egui::ComboBox::from_label(t("Цвет", "Color"))
                     .selected_text(Self::node_color_text(
                         self.net.transitions[transition_idx].color,
@@ -152,11 +159,9 @@ impl PetriApp {
                             t("Желтый", "Yellow"),
                         );
                     });
-
                 ui.separator();
                 ui.label(t("Название", "Name"));
                 ui.text_edit_singleline(&mut self.net.transitions[transition_idx].name);
-
                 validation_hint(
                     ui,
                     corrected_inputs,

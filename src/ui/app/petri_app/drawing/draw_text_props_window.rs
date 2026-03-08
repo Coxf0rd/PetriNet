@@ -1,6 +1,11 @@
 use super::*;
 
 impl PetriApp {
+    /// Show the property window for a text block.
+    ///
+    /// The default window size is increased to be 20% larger than the minimum
+    /// size (360×260 → 432×312). The minimum size remains the same. All
+    /// functionality from the original implementation is preserved.
     pub(in crate::ui::app) fn draw_text_props_window(
         &mut self,
         ctx: &egui::Context,
@@ -12,35 +17,28 @@ impl PetriApp {
         };
         let is_ru = matches!(self.net.ui.language, Language::Ru);
         let t = |ru: &'static str, en: &'static str| if is_ru { ru } else { en };
-
         let mut open = true;
         show_property_window(
             ctx,
             title,
             &mut open,
             PropertyWindowConfig::new("text_props_window")
-                .default_size(egui::vec2(460.0, 360.0))
+                // Minimum size: 360×260. Default size: 432×312 (20% larger).
+                .default_size(egui::vec2(432.0, 312.0))
                 .min_size(egui::vec2(360.0, 260.0)),
             |ui: &mut egui::Ui| {
                 let text = &mut self.text_blocks[text_idx];
-
                 ui.horizontal(|ui: &mut egui::Ui| {
                     ui.label(t("Шрифт", "Font"));
                     egui::ComboBox::from_id_source("text_font_combo")
                         .selected_text(text.font_name.clone())
                         .show_ui(ui, |ui: &mut egui::Ui| {
                             for name in Self::text_font_candidates() {
-                                ui.selectable_value(
-                                    &mut text.font_name,
-                                    (*name).to_string(),
-                                    *name,
-                                );
+                                ui.selectable_value(&mut text.font_name, (*name).to_string(), *name);
                             }
                         });
-
                     ui.label(t("Размер", "Size"));
                     ui.add(egui::DragValue::new(&mut text.font_size).range(6.0..=72.0));
-
                     ui.label(t("Цвет", "Color"));
                     egui::ComboBox::from_id_source("text_color_combo")
                         .selected_text(Self::text_color_text(text.color, is_ru))
@@ -72,7 +70,6 @@ impl PetriApp {
                             );
                         });
                 });
-
                 ui.separator();
                 ui.add(
                     egui::TextEdit::multiline(&mut text.text)
