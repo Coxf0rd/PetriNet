@@ -120,58 +120,63 @@ impl PetriApp {
             ui.label(self.tr("Состояний не найдено", "No states found"));
             return;
         }
-        let row_height = ui.text_style_height(&egui::TextStyle::Body) + 48.0;
+
+        let available = ui.available_width();
+        let marking_width = Self::markov_marking_column_width(available);
+
         egui::ScrollArea::vertical()
             .id_source("markov_stationary_distribution")
             .max_height(360.0)
-            .scroll_bar_visibility(scroll_area::ScrollBarVisibility::VisibleWhenNeeded)
-            .show_rows(ui, row_height, stationary.len(), |ui, rows| {
-                let available = ui.available_width();
-                let marking_width = Self::markov_marking_column_width(available);
-                for idx in rows {
-                    ui.horizontal(|ui| {
-                        ui.label(format!("S{}", idx + 1));
-                        ui.allocate_ui(Vec2::new(marking_width, 0.0), |ui| {
-                            self.draw_state_marking_table(ui, &chain.states[idx], idx);
-                        });
-                        ui.label(format!("{:.6}", stationary[idx]));
+            .auto_shrink([false, false])
+            .scroll_bar_visibility(scroll_area::ScrollBarVisibility::AlwaysHidden)
+            .show(ui, |ui| {
+                egui::Grid::new("markov_stationary_grid")
+                    .striped(true)
+                    .spacing([8.0, 6.0])
+                    .show(ui, |ui| {
+                        ui.label(RichText::new(self.tr("Состояние", "State")).strong());
+                        ui.label(RichText::new(self.tr("Маркировка", "Marking")).strong());
+                        ui.label(RichText::new("π").strong());
+                        ui.end_row();
+
+                        for idx in 0..stationary.len() {
+                            ui.label(format!("S{}", idx + 1));
+                            ui.allocate_ui(Vec2::new(marking_width, 0.0), |ui| {
+                                self.draw_state_marking_table(ui, &chain.states[idx], idx);
+                            });
+                            ui.label(format!("{:.6}", stationary[idx]));
+                            ui.end_row();
+                        }
                     });
-                    ui.add_space(6.0);
-                }
             });
     }
 
     fn draw_markov_state_graph(&self, ui: &mut egui::Ui, chain: &MarkovChain) {
         ui.label(self.tr("Граф состояний", "State graph"));
         let has_transitions = chain.transitions.iter().any(|edges| !edges.is_empty());
-        if has_transitions {
-            let transitions_header_width =
-                Self::markov_transitions_column_width(ui.available_width());
-            ui.horizontal(|ui| {
-                ui.label(RichText::new(self.tr("Состояние", "State")).strong());
-                ui.allocate_ui(Vec2::new(transitions_header_width, 0.0), |ui| {
-                    ui.label(RichText::new(self.tr("Переходы", "Transitions")).strong());
-                });
-            });
-            ui.separator();
-            let row_height = ui.text_style_height(&egui::TextStyle::Body) + 48.0;
-            egui::ScrollArea::vertical()
-                .id_source("markov_state_graph")
-                .max_height(320.0)
-                .scroll_bar_visibility(scroll_area::ScrollBarVisibility::VisibleWhenNeeded)
-                .show_rows(ui, row_height, chain.transitions.len(), |ui, rows| {
-                    let available = ui.available_width();
-                    let transitions_width = Self::markov_transitions_column_width(available);
-                    ui.horizontal(|ui| {
+        let available = ui.available_width();
+        let transitions_width = Self::markov_transitions_column_width(available);
+        egui::ScrollArea::vertical()
+            .id_source("markov_state_graph")
+            .max_height(320.0)
+            .auto_shrink([false, false])
+            .scroll_bar_visibility(scroll_area::ScrollBarVisibility::AlwaysHidden)
+            .show(ui, |ui| {
+                if !has_transitions {
+                    ui.label(self.tr("Переходов не найдено", "No transitions detected"));
+                    return;
+                }
+                egui::Grid::new("markov_state_graph_grid")
+                    .striped(true)
+                    .spacing([8.0, 6.0])
+                    .show(ui, |ui| {
                         ui.label(RichText::new(self.tr("Состояние", "State")).strong());
                         ui.allocate_ui(Vec2::new(transitions_width, 0.0), |ui| {
                             ui.label(RichText::new(self.tr("Переходы", "Transitions")).strong());
                         });
-                    });
-                    ui.separator();
-                    for idx in rows {
-                        let edges = &chain.transitions[idx];
-                        ui.horizontal(|ui| {
+                        ui.end_row();
+
+                        for (idx, edges) in chain.transitions.iter().enumerate() {
                             ui.label(format!("S{}", idx + 1));
                             ui.allocate_ui(Vec2::new(transitions_width, 0.0), |ui| {
                                 if edges.is_empty() {
@@ -198,19 +203,10 @@ impl PetriApp {
                                     });
                                 }
                             });
-                        });
-                        ui.add_space(6.0);
-                    }
-                });
-        } else {
-            egui::ScrollArea::vertical()
-                .id_source("markov_state_graph")
-                .max_height(320.0)
-                .scroll_bar_visibility(scroll_area::ScrollBarVisibility::AlwaysHidden)
-                .show(ui, |ui| {
-                    ui.label(self.tr("Переходов не найдено", "No transitions detected"));
-                });
-        }
+                            ui.end_row();
+                        }
+                    });
+            });
     }
 
     fn draw_markov_highlight(
@@ -309,11 +305,6 @@ impl PetriApp {
         .striped(true)
         .spacing([6.0, 2.0])
         .show(ui, |ui| {
-            ui.label(self.tr("Позиция", "Place"));
-            ui.label(self.tr("Маркеров", "Tokens"));
-            ui.label(self.tr("Позиция", "Place"));
-            ui.label(self.tr("Маркеров", "Tokens"));
-            ui.end_row();
             for row in 0..rows {
                 for col in 0..COLUMNS {
                     let idx = row + col * rows;
