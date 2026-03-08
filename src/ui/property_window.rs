@@ -63,7 +63,7 @@ pub(crate) fn show_property_window<R>(
     open: &mut bool,
     mut config: PropertyWindowConfig<'_>,
     add_contents: impl FnOnce(&mut egui::Ui) -> R,
-) -> Option<egui::InnerResponse<R>> {
+) {
     let viewport = viewport_rect(ctx);
     let max_size = viewport.size();
     let default_size = config.default_size.min(max_size);
@@ -88,20 +88,16 @@ pub(crate) fn show_property_window<R>(
             .show(ui, |ui: &mut egui::Ui| {
                 ui.set_min_width(0.0);
                 ui.set_max_width(ui.available_width());
-                add_contents(ui)
-            })
-            .inner
+                add_contents(ui);
+            });
     });
 
     if *open {
-        if let (Some(size), Some(response)) = (config.remember_size.as_deref_mut(), response.as_ref())
-        {
+        if let (Some(size), Some(response)) = (config.remember_size.as_deref_mut(), response.as_ref()) {
             let actual_size = response.response.rect.size();
             if actual_size.x > 0.0 && actual_size.y > 0.0 {
                 *size = actual_size;
             }
         }
     }
-
-    response
 }
