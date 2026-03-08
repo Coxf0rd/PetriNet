@@ -93,7 +93,12 @@ pub(crate) fn show_property_window<R>(
     // Shrink the viewport by the margin so that constraints are applied inside
     // the shrunken area.  `shrink()` returns a new rectangle reduced on all
     // sides.
-    let constrained_viewport = viewport.shrink(margin);
+    // Use shrink2 instead of shrink to apply the margin on both axes.  In egui
+    // 0.22, `shrink2` reduces the rectangle by the given vector on all sides
+    // (x on left/right and y on top/bottom).  Using `shrink` here would
+    // incorrectly interpret the Vec2 as a uniform scalar and trigger a type
+    // mismatch during compilation.  See build logs for details.
+    let constrained_viewport = viewport.shrink2(margin);
     let mut max_size = constrained_viewport.size();
     // Clamp to zero in case the viewport is smaller than twice the margin.
     if max_size.x < 0.0 {

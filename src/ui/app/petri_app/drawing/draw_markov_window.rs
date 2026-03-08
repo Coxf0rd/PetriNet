@@ -1,5 +1,7 @@
 use super::*;
 use egui::{scroll_area, Color32, RichText, Vec2};
+// Import the property section helpers to unify collapsible sections across the UI.
+use crate::ui::property_selection::{show_collapsible_property_section, PropertySectionConfig};
 
 impl PetriApp {
     pub(in crate::ui::app) fn draw_markov_window(&mut self, ctx: &egui::Context) {
@@ -29,10 +31,7 @@ impl PetriApp {
                     ui.horizontal(|ui| {
                         ui.add_enabled_ui(simulation_ready, |ui| {
                             if ui
-                                .checkbox(
-                                    &mut self.markov_model_enabled,
-                                    markov_checkbox_label.as_ref(),
-                                )
+                                .checkbox(&mut self.markov_model_enabled, markov_checkbox_label.as_ref())
                                 .changed()
                             {
                                 toggle_changed = true;
@@ -109,37 +108,44 @@ impl PetriApp {
 
         ui.separator();
 
-        egui::CollapsingHeader::new(
+        // Replace the ad-hoc CollapsingHeader calls with the unified property
+        // section helper.  Each section is identified by a unique ID so that
+        // collapsed/expanded state persists across redraws.  We ignore the
+        // optional return value because the contents are rendered for side
+        // effects only.
+        let _ = show_collapsible_property_section(
+            ui,
             self.tr("Стационарное распределение", "Stationary distribution"),
-        )
-        .id_source("markov_stationary_section")
-        .default_open(false)
-        .show(ui, |ui| {
-            if let Some(stationary) = stationary {
-                self.draw_markov_stationary_grid(ui, chain, stationary);
-            } else {
-                ui.label(self.tr(
-                    "Стационарное распределение не вычислено",
-                    "Unable to compute stationary",
-                ));
-            }
-        });
+            PropertySectionConfig::new("markov_stationary_section").default_open(false),
+            |ui| {
+                if let Some(stationary) = stationary {
+                    self.draw_markov_stationary_grid(ui, chain, stationary);
+                } else {
+                    ui.label(self.tr(
+                        "Стационарное распределение не вычислено",
+                        "Unable to compute stationary",
+                    ));
+                }
+            },
+        );
 
-        egui::CollapsingHeader::new(self.tr("Граф состояний", "State graph"))
-            .id_source("markov_state_graph_section")
-            .default_open(false)
-            .show(ui, |ui| {
+        let _ = show_collapsible_property_section(
+            ui,
+            self.tr("Граф состояний", "State graph"),
+            PropertySectionConfig::new("markov_state_graph_section").default_open(false),
+            |ui| {
                 self.draw_markov_state_graph(ui, chain);
-            });
+            },
+        );
 
-        egui::CollapsingHeader::new(
+        let _ = show_collapsible_property_section(
+            ui,
             self.tr("Отображение марковской метки", "Markov highlight display"),
-        )
-        .id_source("markov_highlight_section")
-        .default_open(false)
-        .show(ui, |ui| {
-            self.draw_markov_highlight(ui, chain, stationary);
-        });
+            PropertySectionConfig::new("markov_highlight_section").default_open(false),
+            |ui| {
+                self.draw_markov_highlight(ui, chain, stationary);
+            },
+        );
     }
 
     fn draw_markov_stationary_grid(

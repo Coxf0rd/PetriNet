@@ -55,6 +55,15 @@ impl PetriApp {
                 }
                 // Height of each row in the grid depends on the body font.
                 let row_h = ui.text_style_height(&egui::TextStyle::Body) + 4.0;
+                // Before constructing the scroll areas, clamp the available width to
+                // ensure that the proof window does not grow wider than the viewport.
+                // Without this call the `ScrollArea::horizontal()` may take on the
+                // width of its contents (the Marking column), causing the window
+                // itself to expand beyond its allowed size.  Setting the maximum
+                // width here restricts the content width and forces the horizontal
+                // scroll area to activate instead of enlarging the window.
+                ui.set_max_width(ui.available_width());
+
                 // Wrap the grid and its rows in a horizontal scroll area.  This allows
                 // the Marking column to extend beyond the window width while
                 // keeping the header aligned with the rows.  The horizontal
