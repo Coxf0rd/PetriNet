@@ -55,39 +55,55 @@ impl PetriApp {
                 }
                 // Height of each row in the grid depends on the body font.
                 let row_h = ui.text_style_height(&egui::TextStyle::Body) + 4.0;
-                // Draw the header of the grid.
-                egui::Grid::new("proof_grid_header")
-                    .striped(true)
+                // Wrap the grid and its rows in a horizontal scroll area.  This allows
+                // the Marking column to extend beyond the window width while
+                // keeping the header aligned with the rows.  The horizontal
+                // scrollbar appears only when needed (on hover) so it doesn’t
+                // clutter the UI.
+                egui::ScrollArea::horizontal()
+                    .id_source("proof_grid_horizontal")
+                    .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::VisibleWhenNeeded)
                     .show(ui, |ui| {
-                        ui.label(self.tr("Шаг", "Step"));
-                        ui.label(self.tr("Время", "Time"));
-                        ui.label(self.tr("Сработал переход", "Fired transition"));
-                        ui.label(self.tr("Маркировка", "Marking"));
-                        ui.end_row();
-                    });
-                // Use a vertical scroll area to show each step. The height of
-                // the scroll area adapts to the window, but we clamp it to a
-                // reasonable size so that the header remains visible.
-                egui::ScrollArea::vertical()
-                    .id_source("proof_grid_scroll")
-                    .max_height(360.0)
-                    .show_rows(ui, row_h, visible_steps.len(), |ui, range| {
-                        egui::Grid::new("proof_grid_rows")
+                        // Draw the header of the grid.  We place it inside the horizontal
+                        // scroll area so that it scrolls together with the row contents.
+                        egui::Grid::new("proof_grid_header")
                             .striped(true)
                             .show(ui, |ui| {
-                                for row_idx in range {
-                                    let entry = &result.logs[visible_steps[row_idx]];
-                                    ui.label(row_idx.to_string());
-                                    ui.label(format!("{:.3}", entry.time));
-                                    ui.label(
-                                        entry
-                                            .fired_transition
-                                            .map(|i| format!("T{}", i + 1))
-                                            .unwrap_or_else(|| "-".to_string()),
-                                    );
-                                    ui.label(format!("{:?}", entry.marking));
-                                    ui.end_row();
-                                }
+                                ui.label(self.tr("Шаг", "Step"));
+                                ui.label(self.tr("Время", "Time"));
+                                ui.label(self.tr("Сработал переход", "Fired transition"));
+                                ui.label(self.tr("Маркировка", "Marking"));
+                                ui.end_row();
+                            });
+                        // Use a vertical scroll area to show each step.  The height of
+                        // the scroll area adapts to the window, but we clamp it to a
+                        // reasonable size so that the header remains visible.
+                        egui::ScrollArea::vertical()
+                            .id_source("proof_grid_scroll")
+                            .max_height(360.0)
+                            .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::VisibleWhenNeeded)
+                            .show_rows(ui, row_h, visible_steps.len(), |ui, range| {
+                                egui::Grid::new("proof_grid_rows")
+                                    .striped(true)
+                                    .show(ui, |ui| {
+                                        for row_idx in range {
+                                            let entry = &result.logs[visible_steps[row_idx]];
+                                            ui.label(row_idx.to_string());
+                                            ui.label(format!("{:.3}", entry.time));
+                                            ui.label(
+                                                entry
+                                                    .fired_transition
+                                                    .map(|i| format!("T{}", i + 1))
+                                                    .unwrap_or_else(|| "-".to_string()),
+                                            );
+                                            // The marking can be long; wrapping it in its own
+                                            // `Label` ensures it can shrink and expand as needed.  We
+                                            // rely on the horizontal scroll area to allow the row to
+                                            // exceed the window width.
+                                            ui.label(format!("{:?}", entry.marking));
+                                            ui.end_row();
+                                        }
+                                    });
                             });
                     });
             },

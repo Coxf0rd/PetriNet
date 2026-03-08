@@ -84,9 +84,18 @@ pub(crate) fn show_property_window<R>(
     // Introduce a small margin so that the max size is slightly smaller than the
     // viewport.  Without this adjustment, windows could be as large as the
     // viewport itself.
+    // Apply the margin on all sides.  The window's maximum size should be
+    // smaller than the viewport by twice the margin so that there is always a
+    // visible gap between the window and each edge, even when the user
+    // resizes it to the maximum allowed dimensions.  We shrink the viewport
+    // rectangle by `margin` on all sides before calculating the max size.
     let margin = egui::vec2(20.0, 20.0);
-    let mut max_size = viewport.size() - margin;
-    // Clamp to zero in case the viewport is smaller than the margin.
+    // Shrink the viewport by the margin so that constraints are applied inside
+    // the shrunken area.  `shrink()` returns a new rectangle reduced on all
+    // sides.
+    let constrained_viewport = viewport.shrink(margin);
+    let mut max_size = constrained_viewport.size();
+    // Clamp to zero in case the viewport is smaller than twice the margin.
     if max_size.x < 0.0 {
         max_size.x = 0.0;
     }
@@ -96,9 +105,11 @@ pub(crate) fn show_property_window<R>(
     let default_size = config.default_size.min(max_size);
     let min_size = config.min_size.min(max_size);
 
+    // Constrain the window to the shrunken viewport rather than the full
+    // viewport.  This prevents the window from extending into the margin area.
     let mut window = egui::Window::new(title)
         .id(config.id)
-        .constrain_to(viewport)
+        .constrain_to(constrained_viewport)
         .max_size(max_size)
         .resizable(config.resizable)
         .min_size(min_size)
