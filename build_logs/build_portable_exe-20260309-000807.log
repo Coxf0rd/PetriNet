@@ -1,0 +1,797 @@
+build_portable_exe.ps1 failed: 20260309-000807
+ProjectDir: C:\Users\KDFX Modes\Desktop\PetriNet_Project\PetriNet
+Cargo: C:\Users\KDFX Modes\.cargo\bin\cargo.exe
+CargoExitCode: 101
+
+ERROR:
+System.Management.Automation.RuntimeException: Cargo build failed with exit code 101
+
+CARGO STDERR:
+   Compiling proc-macro2 v1.0.106
+   Compiling unicode-ident v1.0.24
+   Compiling quote v1.0.44
+   Compiling serde_core v1.0.228
+   Compiling cfg-if v1.0.4
+   Compiling stable_deref_trait v1.2.1
+   Compiling autocfg v1.5.0
+   Compiling windows_x86_64_msvc v0.48.5
+   Compiling zerocopy v0.8.40
+   Compiling khronos_api v3.1.0
+   Compiling smallvec v1.15.1
+   Compiling serde v1.0.228
+   Compiling cfg_aliases v0.1.1
+   Compiling log v0.4.29
+   Compiling writeable v0.6.2
+   Compiling litemap v0.8.1
+   Compiling libm v0.2.16
+   Compiling xml-rs v0.8.28
+   Compiling windows-link v0.2.1
+   Compiling icu_normalizer_data v2.1.1
+   Compiling once_cell v1.21.3
+   Compiling icu_properties_data v2.1.2
+   Compiling simd-adler32 v0.3.8
+   Compiling parking_lot_core v0.9.12
+   Compiling version_check v0.9.5
+   Compiling crc32fast v1.5.0
+   Compiling windows_x86_64_msvc v0.53.1
+   Compiling adler2 v2.0.1
+   Compiling scopeguard v1.2.0
+   Compiling ttf-parser v0.25.1
+   Compiling ab_glyph_rasterizer v0.1.10
+   Compiling winit v0.29.15
+   Compiling nohash-hasher v0.2.0
+   Compiling base64 v0.21.7
+   Compiling lock_api v0.4.14
+   Compiling miniz_oxide v0.8.9
+   Compiling fdeflate v0.3.7
+   Compiling raw-window-handle v0.5.2
+   Compiling raw-window-handle v0.6.2
+   Compiling percent-encoding v2.3.2
+   Compiling utf8_iter v1.0.4
+   Compiling glutin v0.31.3
+   Compiling getrandom v0.2.17
+   Compiling error-code v3.3.2
+   Compiling cursor-icon v1.2.0
+   Compiling unicode-segmentation v1.12.0
+   Compiling form_urlencoded v1.2.2
+   Compiling ahash v0.8.12
+   Compiling windows-targets v0.48.5
+   Compiling byteorder-lite v0.1.0
+   Compiling num-traits v0.2.19
+   Compiling memoffset v0.9.1
+   Compiling smol_str v0.2.2
+   Compiling clipboard-win v5.4.1
+   Compiling rand_core v0.6.4
+   Compiling libloading v0.8.9
+   Compiling glutin-winit v0.4.2
+   Compiling winapi v0.3.9
+   Compiling option-ext v0.2.0
+   Compiling windows-sys v0.48.0
+   Compiling zmij v1.0.21
+   Compiling anyhow v1.0.102
+   Compiling serde_json v1.0.149
+   Compiling windows-targets v0.53.5
+   Compiling rfd v0.14.1
+   Compiling web-time v0.2.4
+   Compiling litrs v1.0.0
+   Compiling windows-sys v0.60.2
+   Compiling glow v0.13.1
+   Compiling memchr v2.8.0
+   Compiling parking_lot v0.12.5
+   Compiling gl_generator v0.14.0
+   Compiling flate2 v1.1.9
+   Compiling static_assertions v1.1.0
+   Compiling itoa v1.0.17
+   Compiling encoding_rs v0.8.35
+   Compiling document-features v0.2.12
+   Compiling syn v2.0.117
+   Compiling glutin_egl_sys v0.6.0
+   Compiling glutin_wgl_sys v0.5.0
+   Compiling pxfm v0.1.27
+   Compiling owned_ttf_parser v0.25.1
+   Compiling ab_glyph v0.2.32
+   Compiling bitflags v2.11.0
+   Compiling png v0.18.1
+   Compiling synstructure v0.13.2
+   Compiling toml v0.5.11
+   Compiling zerovec-derive v0.11.2
+   Compiling displaydoc v0.2.5
+   Compiling bytemuck_derive v1.10.2
+   Compiling serde_derive v1.0.228
+   Compiling zerofrom-derive v0.1.6
+   Compiling yoke-derive v0.8.1
+   Compiling winres v0.1.12
+   Compiling zerofrom v0.1.6
+   Compiling yoke v0.8.1
+   Compiling petri_net_legacy_editor v0.7.111 (C:\Users\KDFX Modes\Desktop\PetriNet_Project\PetriNet)
+   Compiling zerotrie v0.2.3
+   Compiling zerovec v0.11.5
+   Compiling bytemuck v1.25.0
+   Compiling ppv-lite86 v0.2.21
+   Compiling tinystr v0.8.2
+   Compiling potential_utf v0.1.4
+   Compiling moxcms v0.7.11
+   Compiling rand_chacha v0.3.1
+   Compiling icu_collections v2.1.1
+   Compiling dirs-sys v0.4.1
+   Compiling icu_locale_core v2.1.1
+   Compiling directories v5.0.1
+   Compiling rand v0.8.5
+   Compiling rand_distr v0.4.3
+   Compiling icu_provider v2.1.1
+   Compiling icu_normalizer v2.1.1
+   Compiling icu_properties v2.1.2
+   Compiling emath v0.28.1
+   Compiling ron v0.8.1
+   Compiling ecolor v0.28.1
+   Compiling epaint v0.28.1
+   Compiling idna_adapter v1.2.1
+   Compiling idna v1.1.0
+   Compiling url v2.5.8
+   Compiling webbrowser v1.1.0
+   Compiling image v0.25.9
+   Compiling egui v0.28.1
+   Compiling arboard v3.6.1
+   Compiling egui_glow v0.28.1
+   Compiling egui-winit v0.28.1
+   Compiling eframe v0.28.1
+error[E0425]: cannot find value `label_import_csv` in this scope
+   --> src\ui\app\table_view.rs:298:48
+    |
+298 | ...                   if ui.small_button(label_import_csv.clone()).clicked() {
+    |                                          ^^^^^^^^^^^^^^^^ not found in this scope
+
+error[E0425]: cannot find value `label_import_csv` in this scope
+   --> src\ui\app\table_view.rs:368:48
+    |
+368 | ...                   if ui.small_button(label_import_csv.clone()).clicked() {
+    |                                          ^^^^^^^^^^^^^^^^ not found in this scope
+
+error[E0425]: cannot find value `label_import_csv` in this scope
+   --> src\ui\app\table_view.rs:437:48
+    |
+437 | ...                   if ui.small_button(label_import_csv.clone()).clicked() {
+    |                                          ^^^^^^^^^^^^^^^^ not found in this scope
+
+warning: unused import: `Id`
+  --> src\ui\scroll_utils.rs:10:52
+   |
+10 | use egui::{self, scroll_area::ScrollBarVisibility, Id, Ui};
+   |                                                    ^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+error[E0277]: expected a `FnOnce(&mut Ui)` closure, found `PropertySectionConfig`
+   --> src\ui\app\table_view.rs:118:21
+    |
+115 |                 show_collapsible_property_section(
+    |                 --------------------------------- required by a bound introduced by this call
+...
+118 |                     PropertySectionConfig::new("m0").default_open(true),
+    |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ expected an `FnOnce(&mut Ui)` closure, found `PropertySectionConfig`
+    |
+help: the trait `for<'a> FnOnce(&'a mut Ui)` is not implemented for `PropertySectionConfig`
+   --> src\ui\property_selection.rs:9:1
+    |
+  9 | pub(crate) struct PropertySectionConfig {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+note: required by a bound in `show_collapsible_property_section`
+   --> src\ui\property_selection.rs:80:24
+    |
+ 77 | pub(crate) fn show_collapsible_property_section<R>(
+    |               --------------------------------- required by a bound in this function
+...
+ 80 |     add_contents: impl FnOnce(&mut egui::Ui) -> R,
+    |                        ^^^^^^^^^^^^^^^^^^^^^^^^^^ required by this bound in `show_collapsible_property_section`
+
+error[E0599]: no function or associated item named `scroll_area_rows` found for struct `app::PetriApp` in the current scope
+   --> src\ui\app\table_view.rs:123:31
+    |
+123 |                         Self::scroll_area_rows(
+    |                               ^^^^^^^^^^^^^^^^ function or associated item not found in `app::PetriApp`
+    |
+   ::: src\ui\app.rs:344:1
+    |
+344 | pub struct PetriApp {
+    | ------------------- function or associated item `scroll_area_rows` not found for this struct
+    |
+note: if you're trying to build a new `app::PetriApp`, consider using `new::<impl app::PetriApp>::new` which returns `app::PetriApp`
+   --> src\ui\app\petri_app\file_ops\new.rs:4:5
+    |
+  4 |     pub fn new(_cc: &eframe::CreationContext<'_>) -> Self {
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error[E0061]: this function takes 3 arguments but 4 arguments were supplied
+   --> src\ui\app\table_view.rs:115:17
+    |
+115 |                   show_collapsible_property_section(
+    |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+119 | /                     |ui: &mut egui::Ui| {
+120 | |                         // Compute dynamic height relative to available space (max 60% up to predefined vector height).
+121 | |                         let avail_height = ui.available_height();
+122 | |                         let dynamic_height = (avail_height * 0.6).min(vector_scroll_height);
+...   |
+150 | |                         );
+151 | |                     },
+    | |_____________________- unexpected argument #4 of type `{closure@src\ui\app\table_view.rs:119:21: 119:40}`
+    |
+note: expected `PropertySectionConfig`, found `Cow<'_, str>`
+   --> src\ui\app\table_view.rs:117:21
+    |
+117 |                     label_m0.clone(),
+    |                     ^^^^^^^^^^^^^^^^
+    = note: expected struct `PropertySectionConfig`
+                 found enum `std::borrow::Cow<'_, str>`
+note: function defined here
+   --> src\ui\property_selection.rs:77:15
+    |
+ 77 | pub(crate) fn show_collapsible_property_section<R>(
+    |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ 78 |     ui: &mut egui::Ui,
+ 79 |     config: PropertySectionConfig,
+    |     -----------------------------
+help: remove the extra argument
+    |
+117 ~                     /* PropertySectionConfig */,
+118 ~                     PropertySectionConfig::new("m0").default_open(true),
+    |
+
+error[E0277]: expected a `FnOnce(&mut Ui)` closure, found `PropertySectionConfig`
+   --> src\ui\app\table_view.rs:160:21
+    |
+157 |                 show_collapsible_property_section(
+    |                 --------------------------------- required by a bound introduced by this call
+...
+160 |                     PropertySectionConfig::new("mo").default_open(true),
+    |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ expected an `FnOnce(&mut Ui)` closure, found `PropertySectionConfig`
+    |
+help: the trait `for<'a> FnOnce(&'a mut Ui)` is not implemented for `PropertySectionConfig`
+   --> src\ui\property_selection.rs:9:1
+    |
+  9 | pub(crate) struct PropertySectionConfig {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+note: required by a bound in `show_collapsible_property_section`
+   --> src\ui\property_selection.rs:80:24
+    |
+ 77 | pub(crate) fn show_collapsible_property_section<R>(
+    |               --------------------------------- required by a bound in this function
+...
+ 80 |     add_contents: impl FnOnce(&mut egui::Ui) -> R,
+    |                        ^^^^^^^^^^^^^^^^^^^^^^^^^^ required by this bound in `show_collapsible_property_section`
+
+error[E0599]: no function or associated item named `scroll_area_rows` found for struct `app::PetriApp` in the current scope
+   --> src\ui\app\table_view.rs:164:31
+    |
+164 |                         Self::scroll_area_rows(
+    |                               ^^^^^^^^^^^^^^^^ function or associated item not found in `app::PetriApp`
+    |
+   ::: src\ui\app.rs:344:1
+    |
+344 | pub struct PetriApp {
+    | ------------------- function or associated item `scroll_area_rows` not found for this struct
+    |
+note: if you're trying to build a new `app::PetriApp`, consider using `new::<impl app::PetriApp>::new` which returns `app::PetriApp`
+   --> src\ui\app\petri_app\file_ops\new.rs:4:5
+    |
+  4 |     pub fn new(_cc: &eframe::CreationContext<'_>) -> Self {
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error[E0061]: this function takes 3 arguments but 4 arguments were supplied
+   --> src\ui\app\table_view.rs:157:17
+    |
+157 |                   show_collapsible_property_section(
+    |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+161 | /                     |ui: &mut egui::Ui| {
+162 | |                         let avail_height = ui.available_height();
+163 | |                         let dynamic_height = (avail_height * 0.6).min(vector_scroll_height);
+164 | |                         Self::scroll_area_rows(
+...   |
+196 | |                         );
+197 | |                     },
+    | |_____________________- unexpected argument #4 of type `{closure@src\ui\app\table_view.rs:161:21: 161:40}`
+    |
+note: expected `PropertySectionConfig`, found `Cow<'_, str>`
+   --> src\ui\app\table_view.rs:159:21
+    |
+159 |                     label_mo.clone(),
+    |                     ^^^^^^^^^^^^^^^^
+    = note: expected struct `PropertySectionConfig`
+                 found enum `std::borrow::Cow<'_, str>`
+note: function defined here
+   --> src\ui\property_selection.rs:77:15
+    |
+ 77 | pub(crate) fn show_collapsible_property_section<R>(
+    |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ 78 |     ui: &mut egui::Ui,
+ 79 |     config: PropertySectionConfig,
+    |     -----------------------------
+help: remove the extra argument
+    |
+159 ~                     /* PropertySectionConfig */,
+160 ~                     PropertySectionConfig::new("mo").default_open(true),
+    |
+
+error[E0277]: expected a `FnOnce(&mut Ui)` closure, found `PropertySectionConfig`
+   --> src\ui\app\table_view.rs:206:21
+    |
+203 |                 show_collapsible_property_section(
+    |                 --------------------------------- required by a bound introduced by this call
+...
+206 |                     PropertySectionConfig::new("mz").default_open(true),
+    |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ expected an `FnOnce(&mut Ui)` closure, found `PropertySectionConfig`
+    |
+help: the trait `for<'a> FnOnce(&'a mut Ui)` is not implemented for `PropertySectionConfig`
+   --> src\ui\property_selection.rs:9:1
+    |
+  9 | pub(crate) struct PropertySectionConfig {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+note: required by a bound in `show_collapsible_property_section`
+   --> src\ui\property_selection.rs:80:24
+    |
+ 77 | pub(crate) fn show_collapsible_property_section<R>(
+    |               --------------------------------- required by a bound in this function
+...
+ 80 |     add_contents: impl FnOnce(&mut egui::Ui) -> R,
+    |                        ^^^^^^^^^^^^^^^^^^^^^^^^^^ required by this bound in `show_collapsible_property_section`
+
+error[E0599]: no function or associated item named `scroll_area_rows` found for struct `app::PetriApp` in the current scope
+   --> src\ui\app\table_view.rs:210:31
+    |
+210 |                         Self::scroll_area_rows(
+    |                               ^^^^^^^^^^^^^^^^ function or associated item not found in `app::PetriApp`
+    |
+   ::: src\ui\app.rs:344:1
+    |
+344 | pub struct PetriApp {
+    | ------------------- function or associated item `scroll_area_rows` not found for this struct
+    |
+note: if you're trying to build a new `app::PetriApp`, consider using `new::<impl app::PetriApp>::new` which returns `app::PetriApp`
+   --> src\ui\app\petri_app\file_ops\new.rs:4:5
+    |
+  4 |     pub fn new(_cc: &eframe::CreationContext<'_>) -> Self {
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error[E0061]: this function takes 3 arguments but 4 arguments were supplied
+   --> src\ui\app\table_view.rs:203:17
+    |
+203 |                   show_collapsible_property_section(
+    |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+207 | /                     |ui: &mut egui::Ui| {
+208 | |                         let avail_height = ui.available_height();
+209 | |                         let dynamic_height = (avail_height * 0.6).min(vector_scroll_height);
+210 | |                         Self::scroll_area_rows(
+...   |
+238 | |                         );
+239 | |                     },
+    | |_____________________- unexpected argument #4 of type `{closure@src\ui\app\table_view.rs:207:21: 207:40}`
+    |
+note: expected `PropertySectionConfig`, found `Cow<'_, str>`
+   --> src\ui\app\table_view.rs:205:21
+    |
+205 |                     label_mz.clone(),
+    |                     ^^^^^^^^^^^^^^^^
+    = note: expected struct `PropertySectionConfig`
+                 found enum `std::borrow::Cow<'_, str>`
+note: function defined here
+   --> src\ui\property_selection.rs:77:15
+    |
+ 77 | pub(crate) fn show_collapsible_property_section<R>(
+    |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ 78 |     ui: &mut egui::Ui,
+ 79 |     config: PropertySectionConfig,
+    |     -----------------------------
+help: remove the extra argument
+    |
+205 ~                     /* PropertySectionConfig */,
+206 ~                     PropertySectionConfig::new("mz").default_open(true),
+    |
+
+error[E0277]: expected a `FnOnce(&mut Ui)` closure, found `PropertySectionConfig`
+   --> src\ui\app\table_view.rs:248:21
+    |
+245 |                 show_collapsible_property_section(
+    |                 --------------------------------- required by a bound introduced by this call
+...
+248 |                     PropertySectionConfig::new("mpr").default_open(true),
+    |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ expected an `FnOnce(&mut Ui)` closure, found `PropertySectionConfig`
+    |
+help: the trait `for<'a> FnOnce(&'a mut Ui)` is not implemented for `PropertySectionConfig`
+   --> src\ui\property_selection.rs:9:1
+    |
+  9 | pub(crate) struct PropertySectionConfig {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+note: required by a bound in `show_collapsible_property_section`
+   --> src\ui\property_selection.rs:80:24
+    |
+ 77 | pub(crate) fn show_collapsible_property_section<R>(
+    |               --------------------------------- required by a bound in this function
+...
+ 80 |     add_contents: impl FnOnce(&mut egui::Ui) -> R,
+    |                        ^^^^^^^^^^^^^^^^^^^^^^^^^^ required by this bound in `show_collapsible_property_section`
+
+error[E0599]: no function or associated item named `scroll_area_rows` found for struct `app::PetriApp` in the current scope
+   --> src\ui\app\table_view.rs:252:31
+    |
+252 |                         Self::scroll_area_rows(
+    |                               ^^^^^^^^^^^^^^^^ function or associated item not found in `app::PetriApp`
+    |
+   ::: src\ui\app.rs:344:1
+    |
+344 | pub struct PetriApp {
+    | ------------------- function or associated item `scroll_area_rows` not found for this struct
+    |
+note: if you're trying to build a new `app::PetriApp`, consider using `new::<impl app::PetriApp>::new` which returns `app::PetriApp`
+   --> src\ui\app\petri_app\file_ops\new.rs:4:5
+    |
+  4 |     pub fn new(_cc: &eframe::CreationContext<'_>) -> Self {
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error[E0061]: this function takes 3 arguments but 4 arguments were supplied
+   --> src\ui\app\table_view.rs:245:17
+    |
+245 |                   show_collapsible_property_section(
+    |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+249 | /                     |ui: &mut egui::Ui| {
+250 | |                         let avail_height = ui.available_height();
+251 | |                         let dynamic_height = (avail_height * 0.6).min(vector_scroll_height);
+252 | |                         Self::scroll_area_rows(
+...   |
+279 | |                         );
+280 | |                     },
+    | |_____________________- unexpected argument #4 of type `{closure@src\ui\app\table_view.rs:249:21: 249:40}`
+    |
+note: expected `PropertySectionConfig`, found `Cow<'_, str>`
+   --> src\ui\app\table_view.rs:247:21
+    |
+247 |                     label_mpr.clone(),
+    |                     ^^^^^^^^^^^^^^^^^
+    = note: expected struct `PropertySectionConfig`
+                 found enum `std::borrow::Cow<'_, str>`
+note: function defined here
+   --> src\ui\property_selection.rs:77:15
+    |
+ 77 | pub(crate) fn show_collapsible_property_section<R>(
+    |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ 78 |     ui: &mut egui::Ui,
+ 79 |     config: PropertySectionConfig,
+    |     -----------------------------
+help: remove the extra argument
+    |
+247 ~                     /* PropertySectionConfig */,
+248 ~                     PropertySectionConfig::new("mpr").default_open(true),
+    |
+
+error[E0277]: expected a `FnOnce(&mut Ui)` closure, found `PropertySectionConfig`
+   --> src\ui\app\table_view.rs:294:21
+    |
+291 |                 show_collapsible_property_section(
+    |                 --------------------------------- required by a bound introduced by this call
+...
+294 |                     PropertySectionConfig::new("pre_matrix").default_open(false),
+    |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ expected an `FnOnce(&mut Ui)` closure, found `PropertySectionConfig`
+    |
+help: the trait `for<'a> FnOnce(&'a mut Ui)` is not implemented for `PropertySectionConfig`
+   --> src\ui\property_selection.rs:9:1
+    |
+  9 | pub(crate) struct PropertySectionConfig {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+note: required by a bound in `show_collapsible_property_section`
+   --> src\ui\property_selection.rs:80:24
+    |
+ 77 | pub(crate) fn show_collapsible_property_section<R>(
+    |               --------------------------------- required by a bound in this function
+...
+ 80 |     add_contents: impl FnOnce(&mut egui::Ui) -> R,
+    |                        ^^^^^^^^^^^^^^^^^^^^^^^^^^ required by this bound in `show_collapsible_property_section`
+
+error[E0599]: no function or associated item named `scroll_area_rows` found for struct `app::PetriApp` in the current scope
+   --> src\ui\app\table_view.rs:305:31
+    |
+305 |                         Self::scroll_area_rows(
+    |                               ^^^^^^^^^^^^^^^^ function or associated item not found in `app::PetriApp`
+    |
+   ::: src\ui\app.rs:344:1
+    |
+344 | pub struct PetriApp {
+    | ------------------- function or associated item `scroll_area_rows` not found for this struct
+    |
+note: if you're trying to build a new `app::PetriApp`, consider using `new::<impl app::PetriApp>::new` which returns `app::PetriApp`
+   --> src\ui\app\petri_app\file_ops\new.rs:4:5
+    |
+  4 |     pub fn new(_cc: &eframe::CreationContext<'_>) -> Self {
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error[E0061]: this function takes 3 arguments but 4 arguments were supplied
+   --> src\ui\app\table_view.rs:291:17
+    |
+291 |                   show_collapsible_property_section(
+    |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+295 | /                     |ui: &mut egui::Ui| {
+296 | |                         // Import button
+297 | |                         ui.horizontal(|ui| {
+298 | |                             if ui.small_button(label_import_csv.clone()).clicked() {
+...   |
+351 | |                         );
+352 | |                     },
+    | |_____________________- unexpected argument #4 of type `{closure@src\ui\app\table_view.rs:295:21: 295:40}`
+    |
+note: expected `PropertySectionConfig`, found `Cow<'_, str>`
+   --> src\ui\app\table_view.rs:293:21
+    |
+293 |                     label_pre.clone(),
+    |                     ^^^^^^^^^^^^^^^^^
+    = note: expected struct `PropertySectionConfig`
+                 found enum `std::borrow::Cow<'_, str>`
+note: function defined here
+   --> src\ui\property_selection.rs:77:15
+    |
+ 77 | pub(crate) fn show_collapsible_property_section<R>(
+    |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ 78 |     ui: &mut egui::Ui,
+ 79 |     config: PropertySectionConfig,
+    |     -----------------------------
+help: remove the extra argument
+    |
+293 ~                     /* PropertySectionConfig */,
+294 ~                     PropertySectionConfig::new("pre_matrix").default_open(false),
+    |
+
+error[E0277]: expected a `FnOnce(&mut Ui)` closure, found `PropertySectionConfig`
+   --> src\ui\app\table_view.rs:365:21
+    |
+362 |                 show_collapsible_property_section(
+    |                 --------------------------------- required by a bound introduced by this call
+...
+365 |                     PropertySectionConfig::new("post_matrix").default_open(false),
+    |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ expected an `FnOnce(&mut Ui)` closure, found `PropertySectionConfig`
+    |
+help: the trait `for<'a> FnOnce(&'a mut Ui)` is not implemented for `PropertySectionConfig`
+   --> src\ui\property_selection.rs:9:1
+    |
+  9 | pub(crate) struct PropertySectionConfig {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+note: required by a bound in `show_collapsible_property_section`
+   --> src\ui\property_selection.rs:80:24
+    |
+ 77 | pub(crate) fn show_collapsible_property_section<R>(
+    |               --------------------------------- required by a bound in this function
+...
+ 80 |     add_contents: impl FnOnce(&mut egui::Ui) -> R,
+    |                        ^^^^^^^^^^^^^^^^^^^^^^^^^^ required by this bound in `show_collapsible_property_section`
+
+error[E0599]: no function or associated item named `scroll_area_rows` found for struct `app::PetriApp` in the current scope
+   --> src\ui\app\table_view.rs:374:31
+    |
+374 |                         Self::scroll_area_rows(
+    |                               ^^^^^^^^^^^^^^^^ function or associated item not found in `app::PetriApp`
+    |
+   ::: src\ui\app.rs:344:1
+    |
+344 | pub struct PetriApp {
+    | ------------------- function or associated item `scroll_area_rows` not found for this struct
+    |
+note: if you're trying to build a new `app::PetriApp`, consider using `new::<impl app::PetriApp>::new` which returns `app::PetriApp`
+   --> src\ui\app\petri_app\file_ops\new.rs:4:5
+    |
+  4 |     pub fn new(_cc: &eframe::CreationContext<'_>) -> Self {
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error[E0061]: this function takes 3 arguments but 4 arguments were supplied
+   --> src\ui\app\table_view.rs:362:17
+    |
+362 |                   show_collapsible_property_section(
+    |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+366 | /                     |ui: &mut egui::Ui| {
+367 | |                         ui.horizontal(|ui| {
+368 | |                             if ui.small_button(label_import_csv.clone()).clicked() {
+369 | |                                 self.import_matrix_csv(MatrixCsvTarget::Post);
+...   |
+420 | |                         );
+421 | |                     },
+    | |_____________________- unexpected argument #4 of type `{closure@src\ui\app\table_view.rs:366:21: 366:40}`
+    |
+note: expected `PropertySectionConfig`, found `Cow<'_, str>`
+   --> src\ui\app\table_view.rs:364:21
+    |
+364 |                     label_post.clone(),
+    |                     ^^^^^^^^^^^^^^^^^^
+    = note: expected struct `PropertySectionConfig`
+                 found enum `std::borrow::Cow<'_, str>`
+note: function defined here
+   --> src\ui\property_selection.rs:77:15
+    |
+ 77 | pub(crate) fn show_collapsible_property_section<R>(
+    |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ 78 |     ui: &mut egui::Ui,
+ 79 |     config: PropertySectionConfig,
+    |     -----------------------------
+help: remove the extra argument
+    |
+364 ~                     /* PropertySectionConfig */,
+365 ~                     PropertySectionConfig::new("post_matrix").default_open(false),
+    |
+
+error[E0277]: expected a `FnOnce(&mut Ui)` closure, found `PropertySectionConfig`
+   --> src\ui\app\table_view.rs:434:21
+    |
+431 |                 show_collapsible_property_section(
+    |                 --------------------------------- required by a bound introduced by this call
+...
+434 |                     PropertySectionConfig::new("inh_matrix").default_open(false),
+    |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ expected an `FnOnce(&mut Ui)` closure, found `PropertySectionConfig`
+    |
+help: the trait `for<'a> FnOnce(&'a mut Ui)` is not implemented for `PropertySectionConfig`
+   --> src\ui\property_selection.rs:9:1
+    |
+  9 | pub(crate) struct PropertySectionConfig {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+note: required by a bound in `show_collapsible_property_section`
+   --> src\ui\property_selection.rs:80:24
+    |
+ 77 | pub(crate) fn show_collapsible_property_section<R>(
+    |               --------------------------------- required by a bound in this function
+...
+ 80 |     add_contents: impl FnOnce(&mut egui::Ui) -> R,
+    |                        ^^^^^^^^^^^^^^^^^^^^^^^^^^ required by this bound in `show_collapsible_property_section`
+
+error[E0599]: no function or associated item named `scroll_area_rows` found for struct `app::PetriApp` in the current scope
+   --> src\ui\app\table_view.rs:443:31
+    |
+443 |                         Self::scroll_area_rows(
+    |                               ^^^^^^^^^^^^^^^^ function or associated item not found in `app::PetriApp`
+    |
+   ::: src\ui\app.rs:344:1
+    |
+344 | pub struct PetriApp {
+    | ------------------- function or associated item `scroll_area_rows` not found for this struct
+    |
+note: if you're trying to build a new `app::PetriApp`, consider using `new::<impl app::PetriApp>::new` which returns `app::PetriApp`
+   --> src\ui\app\petri_app\file_ops\new.rs:4:5
+    |
+  4 |     pub fn new(_cc: &eframe::CreationContext<'_>) -> Self {
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error[E0061]: this function takes 3 arguments but 4 arguments were supplied
+   --> src\ui\app\table_view.rs:431:17
+    |
+431 |                   show_collapsible_property_section(
+    |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+435 | /                     |ui: &mut egui::Ui| {
+436 | |                         ui.horizontal(|ui| {
+437 | |                             if ui.small_button(label_import_csv.clone()).clicked() {
+438 | |                                 self.import_matrix_csv(MatrixCsvTarget::Inhibitor);
+...   |
+489 | |                         );
+490 | |                     },
+    | |_____________________- unexpected argument #4 of type `{closure@src\ui\app\table_view.rs:435:21: 435:40}`
+    |
+note: expected `PropertySectionConfig`, found `Cow<'_, str>`
+   --> src\ui\app\table_view.rs:433:21
+    |
+433 |                     label_inh.clone(),
+    |                     ^^^^^^^^^^^^^^^^^
+    = note: expected struct `PropertySectionConfig`
+                 found enum `std::borrow::Cow<'_, str>`
+note: function defined here
+   --> src\ui\property_selection.rs:77:15
+    |
+ 77 | pub(crate) fn show_collapsible_property_section<R>(
+    |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ 78 |     ui: &mut egui::Ui,
+ 79 |     config: PropertySectionConfig,
+    |     -----------------------------
+help: remove the extra argument
+    |
+433 ~                     /* PropertySectionConfig */,
+434 ~                     PropertySectionConfig::new("inh_matrix").default_open(false),
+    |
+
+error[E0308]: mismatched types
+   --> src\ui\app\table_view.rs:679:44
+    |
+679 | ...                   label: self.tr("Р–СѓСЂРЅР°Р» (С‚Р°Р±Р»РёС†Р°)", "Log (table)"),
+    |                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ expected `WidgetText`, found `Cow<'_, str>`
+    |
+    = note: expected enum `WidgetText`
+               found enum `std::borrow::Cow<'_, str>`
+help: call `Into::into` on this expression to convert `std::borrow::Cow<'_, str>` into `WidgetText`
+    |
+679 |                                     label: self.tr("Р–СѓСЂРЅР°Р» (С‚Р°Р±Р»РёС†Р°)", "Log (table)").into(),
+    |                                                                                      +++++++
+
+error[E0063]: missing field `top_spacing` in initializer of `PropertySectionConfig`
+   --> src\ui\app\table_view.rs:677:33
+    |
+677 | ...                   PropertySectionConfig {
+    |                       ^^^^^^^^^^^^^^^^^^^^^ missing `top_spacing`
+
+error[E0308]: mismatched types
+   --> src\ui\app\table_view.rs:806:52
+    |
+806 |   ...                   label: self.tr(
+    |  ______________________________^
+807 | | ...                       "РЎС‚Р°С‚РёСЃС‚РёРєР° РјР°СЂРєРµСЂРѕРІ (min/max/avg)",
+808 | | ...                       "Token statistics (min/max/avg)",
+809 | | ...                   ),
+    | |_______________________^ expected `WidgetText`, found `Cow<'_, str>`
+    |
+    = note: expected enum `WidgetText`
+               found enum `std::borrow::Cow<'_, str>`
+help: call `Into::into` on this expression to convert `std::borrow::Cow<'_, str>` into `WidgetText`
+    |
+809 |                                             ).into(),
+    |                                              +++++++
+
+error[E0063]: missing field `top_spacing` in initializer of `PropertySectionConfig`
+   --> src\ui\app\table_view.rs:804:41
+    |
+804 | ...                   PropertySectionConfig {
+    |                       ^^^^^^^^^^^^^^^^^^^^^ missing `top_spacing`
+
+error[E0308]: mismatched types
+   --> src\ui\app\table_view.rs:880:52
+    |
+880 | ...                   label: self.tr("РџРѕС‚РѕРєРё (РІС…РѕРґ/РІС‹С…РѕРґ)", "Flows (in/out)"),
+    |                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ expected `WidgetText`, found `Cow<'_, str>`
+    |
+    = note: expected enum `WidgetText`
+               found enum `std::borrow::Cow<'_, str>`
+help: call `Into::into` on this expression to convert `std::borrow::Cow<'_, str>` into `WidgetText`
+    |
+880 |                                             label: self.tr("РџРѕС‚РѕРєРё (РІС…РѕРґ/РІС‹С…РѕРґ)", "Flows (in/out)").into(),
+    |                                                                                                    +++++++
+
+error[E0063]: missing field `top_spacing` in initializer of `PropertySectionConfig`
+   --> src\ui\app\table_view.rs:878:41
+    |
+878 | ...                   PropertySectionConfig {
+    |                       ^^^^^^^^^^^^^^^^^^^^^ missing `top_spacing`
+
+error[E0308]: mismatched types
+   --> src\ui\app\table_view.rs:947:52
+    |
+947 | ...                   label: self.tr("Р—Р°РіСЂСѓР¶РµРЅРЅРѕСЃС‚СЊ", "Load"),
+    |                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ expected `WidgetText`, found `Cow<'_, str>`
+    |
+    = note: expected enum `WidgetText`
+               found enum `std::borrow::Cow<'_, str>`
+help: call `Into::into` on this expression to convert `std::borrow::Cow<'_, str>` into `WidgetText`
+    |
+947 |                                             label: self.tr("Р—Р°РіСЂСѓР¶РµРЅРЅРѕСЃС‚СЊ", "Load").into(),
+    |                                                                                    +++++++
+
+error[E0063]: missing field `top_spacing` in initializer of `PropertySectionConfig`
+   --> src\ui\app\table_view.rs:945:41
+    |
+945 | ...                   PropertySectionConfig {
+    |                       ^^^^^^^^^^^^^^^^^^^^^ missing `top_spacing`
+
+error[E0599]: no method named `draw_place_statistics_window` found for mutable reference `&mut app::PetriApp` in the current scope
+   --> src\ui\app.rs:742:14
+    |
+742 |         self.draw_place_statistics_window(ctx);
+    |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+help: there is a method `draw_place_props_window` with a similar name, but with different arguments
+   --> src\ui\app\petri_app\drawing\draw_place_props_window.rs:12:5
+    |
+ 12 | /     pub(in crate::ui::app) fn draw_place_props_window(
+ 13 | |         &mut self,
+ 14 | |         ctx: &egui::Context,
+ 15 | |         place_id: u64,
+ 16 | |         title: String,
+ 17 | |     ) -> bool {
+    | |_____________^
+
+Some errors have detailed explanations: E0061, E0063, E0277, E0308, E0425, E0599.
+For more information about an error, try `rustc --explain E0061`.
+warning: `petri_net_legacy_editor` (lib) generated 1 warning
+error: could not compile `petri_net_legacy_editor` (lib) due to 33 previous errors; 1 warning emitted
+warning: build failed, waiting for other jobs to finish...

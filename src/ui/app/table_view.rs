@@ -39,9 +39,11 @@ impl PetriApp {
         }
         // Row height used for virtualized grids.
         let row_h = ui.text_style_height(&egui::TextStyle::Body) + 4.0;
-        // Default heights for vector and matrix sections.  These constants limit the
-        // maximum height of each scroll area, preventing a single section from consuming
-        // the entire viewport.  The user can scroll within each table to view more data.
+        // Predefined maximum heights for vector and matrix sections.  Actual height
+        // is computed dynamically based on the available vertical space.  Each
+        // section will use up to these values but can be smaller if the window is
+        // short.  This provides a responsive layout while avoiding sections
+        // consuming the entire viewport.
         let vector_scroll_height = 220.0;
         let matrix_scroll_height = 320.0;
 
@@ -72,257 +74,423 @@ impl PetriApp {
             }
         });
 
-        // Helper closure to build a vector section.  Each vector is wrapped in a collapsible
-        // property section.  The body uses row virtualization to render only the visible
-        // portion of the vector.  A unique id is passed to the section and grid to ensure
-        // consistent state across frames.
-        let mut make_vector_section = |ui: &mut egui::Ui,
-                                       id_str: &str,
-                                       label_ru: &str,
-                                       label_en: &str,
-                                       row_count: usize,
-                                       f: &mut dyn FnMut(&mut egui::Ui, std::ops::Range<usize>)| {
-            let config = PropertySectionConfig {
-                id: egui::Id::new(id_str),
-                label: self.tr(label_ru, label_en),
-                // Default all vector sections to open; users can collapse them if needed.
-                default_open: true,
-            };
-            // Use the collapse helper to render the section.
-            show_collapsible_property_section(ui, config, |ui| {
-                // Within the body, render a virtualized grid of rows.  We limit the
-                // maximum height to the vector_scroll_height constant; additional rows
-                // can be viewed via scrolling.
-                Self::scroll_area_rows(
-                    ui,
-                    egui::Id::new(format!("{}_grid_scroll", id_str)),
-                    row_count,
-                    row_h,
-                    vector_scroll_height,
-                    |ui, rows| {
-                        // Reset minimum width so the grid spans the available width.
-                        ui.set_min_width(0.0);
-                        f(ui, rows);
-                    },
-                );
-            });
-        };
-
-        // Helper closure to build a matrix section.  Each matrix is wrapped in a collapsible
-        // property section.  The body shows an optional import CSV button and a virtualized
-        // grid.  The closure returns a boolean indicating whether any cell was changed.
-        let mut make_matrix_section = |ui: &mut egui::Ui,
-                                       id_str: &str,
-                                       label_ru: &str,
-                                       label_en: &str,
-                                       row_count: usize,
-                                       import_target: Option<MatrixCsvTarget>,
-                                       mut grid_fn: Box<dyn FnMut(&mut egui::Ui, std::ops::Range<usize>) -> bool>| {
-            let config = PropertySectionConfig {
-                id: egui::Id::new(id_str),
-                label: self.tr(label_ru, label_en),
-                default_open: false,
-            };
-            show_collapsible_property_section(ui, config, |ui| {
-                let mut changed = false;
-                // Optional import button.
-                if let Some(target) = import_target {
-                    ui.horizontal(|ui| {
-                        if ui
-                            .small_button(self.tr("Импорт CSV", "Import CSV"))
-                            .clicked()
-                        {
-                            self.import_matrix_csv(target);
-                        }
-                    });
-                }
-                // Render the matrix grid with virtualization.  Limit height to
-                // matrix_scroll_height to prevent the section from consuming the entire
-                // viewport.  A hidden scroll bar within the section allows scrolling.
-                Self::scroll_area_rows(
-                    ui,
-                    egui::Id::new(format!("{}_grid_scroll", id_str)),
-                    row_count,
-                    row_h,
-                    matrix_scroll_height,
-                    |ui, rows| {
-                        ui.set_min_width(0.0);
-                        // Delegate rendering to the provided grid function which returns
-                        // whether any cell was modified.
-                        changed = grid_fn(ui, rows) || changed;
-                    },
-                );
-                changed
-            })
-        };
+        // Pre-compute translation strings for vector and matrix section labels.  We call
+        // `self.tr` here to avoid capturing `self` inside the UI closures below, which
+        // would lead to borrow checker conflicts.  These strings will be moved into
+        // the collapsible section definitions.
+        let label_m0 = self.tr(
+            "Вектор начальной маркировки (M0)",
+            "Initial marking vector (M0)",
+        );
+        let label_mo = self.tr(
+            "Вектор максимальных емкостей (Mo)",
+            "Max capacities vector (Mo)",
+        );
+        let label_mz = self.tr(
+            "Вектор временных задержек в позициях (Mz)",
+            "Delay vector (Mz)",
+        );
+        let label_mpr = self.tr(
+            "Вектор приоритетов переходов (Mpr)",
+            "Transition priority vector (Mpr)",
+        );
+        let label_pre = self.tr(
+            "Матрица инцидентности Pre",
+            "Incidence matrix Pre",
+        );
+        let label_post = self.tr(
+            "Матрица инцидентности Post",
+            "Incidence matrix Post",
+        );
+        let label_inh = self.tr(
+            "Матрица ингибиторных дуг",
+            "Inhibitor matrix",
+        );
 
         // Render vector sections if enabled.
         if self.show_struct_vectors {
             // Initial marking vector (M0)
-            make_vector_section(ui, "m0", "Вектор начальной маркировки (M0)", "Initial marking vector (M0)", self.net.places.len(), &mut |ui, rows| {
-                egui::Grid::new("m0_grid").striped(true).show(ui, |ui| {
-                    for i in rows {
-                        ui.add_sized([46.0, 0.0], egui::Label::new(format!("P{}", i + 1)));
-                        ui.add_sized([
-                            42.0 * 1.4,
-                            0.0,
-                        ], egui::DragValue::new(&mut self.net.tables.m0[i]).range(0..=u32::MAX));
-                        ui.end_row();
-                    }
-                });
-            });
+            {
+                let count = self.net.places.len();
+                show_collapsible_property_section(
+                    ui,
+                    label_m0.clone(),
+                    PropertySectionConfig::new("m0").default_open(true),
+                    |ui: &mut egui::Ui| {
+                        // Compute dynamic height relative to available space (max 60% up to predefined vector height).
+                        let avail_height = ui.available_height();
+                        let dynamic_height = (avail_height * 0.6).min(vector_scroll_height);
+                        Self::scroll_area_rows(
+                            ui,
+                            egui::Id::new("m0_grid_scroll"),
+                            count,
+                            row_h,
+                            dynamic_height,
+                            |ui: &mut egui::Ui, rows: std::ops::Range<usize>| {
+                                ui.set_min_width(0.0);
+                                egui::Grid::new("m0_grid")
+                                    .striped(true)
+                                    .show(ui, |ui| {
+                                        for i in rows {
+                                            ui.add_sized(
+                                                [46.0, 0.0],
+                                                egui::Label::new(format!("P{}", i + 1)),
+                                            );
+                                            ui.add_sized(
+                                                [42.0 * 1.4, 0.0],
+                                                egui::DragValue::new(
+                                                    &mut self.net.tables.m0[i],
+                                                )
+                                                .range(0..=u32::MAX),
+                                            );
+                                            ui.end_row();
+                                        }
+                                    });
+                            },
+                        );
+                    },
+                );
+            }
             // Maximum capacity vector (Mo)
-            make_vector_section(ui, "mo", "Вектор максимальных емкостей (Mo)", "Max capacities vector (Mo)", self.net.places.len(), &mut |ui, rows| {
-                egui::Grid::new("mo_grid").striped(true).show(ui, |ui| {
-                    for i in rows {
-                        let mut cap = self.net.tables.mo[i].unwrap_or(0);
-                        ui.add_sized([46.0, 0.0], egui::Label::new(format!("P{}", i + 1)));
-                        if ui
-                            .add_sized([
-                                42.0 * 1.4,
-                                0.0,
-                            ], egui::DragValue::new(&mut cap).range(0..=u32::MAX))
-                            .changed()
-                        {
-                            self.net.tables.mo[i] = if cap == 0 { None } else { Some(cap) };
-                        }
-                        ui.end_row();
-                    }
-                });
-            });
+            {
+                let count = self.net.places.len();
+                show_collapsible_property_section(
+                    ui,
+                    label_mo.clone(),
+                    PropertySectionConfig::new("mo").default_open(true),
+                    |ui: &mut egui::Ui| {
+                        let avail_height = ui.available_height();
+                        let dynamic_height = (avail_height * 0.6).min(vector_scroll_height);
+                        Self::scroll_area_rows(
+                            ui,
+                            egui::Id::new("mo_grid_scroll"),
+                            count,
+                            row_h,
+                            dynamic_height,
+                            |ui: &mut egui::Ui, rows: std::ops::Range<usize>| {
+                                ui.set_min_width(0.0);
+                                egui::Grid::new("mo_grid")
+                                    .striped(true)
+                                    .show(ui, |ui| {
+                                        for i in rows {
+                                            let mut cap = self.net.tables.mo[i].unwrap_or(0);
+                                            ui.add_sized(
+                                                [46.0, 0.0],
+                                                egui::Label::new(format!("P{}", i + 1)),
+                                            );
+                                            if ui
+                                                .add_sized(
+                                                    [42.0 * 1.4, 0.0],
+                                                    egui::DragValue::new(&mut cap)
+                                                        .range(0..=u32::MAX),
+                                                )
+                                                .changed()
+                                            {
+                                                self.net.tables.mo[i] =
+                                                    if cap == 0 { None } else { Some(cap) };
+                                            }
+                                            ui.end_row();
+                                        }
+                                    });
+                            },
+                        );
+                    },
+                );
+            }
             // Delay vector in places (Mz)
-            make_vector_section(ui, "mz", "Вектор временных задержек в позициях (Mz)", "Delay vector (Mz)", self.net.places.len(), &mut |ui, rows| {
-                egui::Grid::new("mz_grid").striped(true).show(ui, |ui| {
-                    for i in rows {
-                        ui.add_sized([46.0, 0.0], egui::Label::new(format!("P{}", i + 1)));
-                        ui.add_sized([
-                            42.0 * 1.8,
-                            0.0,
-                        ], egui::DragValue::new(&mut self.net.tables.mz[i]).speed(0.1).range(0.0..=10_000.0));
-                        ui.end_row();
-                    }
-                });
-            });
+            {
+                let count = self.net.places.len();
+                show_collapsible_property_section(
+                    ui,
+                    label_mz.clone(),
+                    PropertySectionConfig::new("mz").default_open(true),
+                    |ui: &mut egui::Ui| {
+                        let avail_height = ui.available_height();
+                        let dynamic_height = (avail_height * 0.6).min(vector_scroll_height);
+                        Self::scroll_area_rows(
+                            ui,
+                            egui::Id::new("mz_grid_scroll"),
+                            count,
+                            row_h,
+                            dynamic_height,
+                            |ui: &mut egui::Ui, rows: std::ops::Range<usize>| {
+                                ui.set_min_width(0.0);
+                                egui::Grid::new("mz_grid")
+                                    .striped(true)
+                                    .show(ui, |ui| {
+                                        for i in rows {
+                                            ui.add_sized(
+                                                [46.0, 0.0],
+                                                egui::Label::new(format!("P{}", i + 1)),
+                                            );
+                                            ui.add_sized(
+                                                [42.0 * 1.8, 0.0],
+                                                egui::DragValue::new(
+                                                    &mut self.net.tables.mz[i],
+                                                )
+                                                .speed(0.1)
+                                                .range(0.0..=10_000.0),
+                                            );
+                                            ui.end_row();
+                                        }
+                                    });
+                            },
+                        );
+                    },
+                );
+            }
             // Priority vector for transitions (Mpr)
-            make_vector_section(ui, "mpr", "Вектор приоритетов переходов (Mpr)", "Transition priority vector (Mpr)", self.net.transitions.len(), &mut |ui, rows| {
-                egui::Grid::new("mpr_grid").striped(true).show(ui, |ui| {
-                    for t in rows {
-                        ui.add_sized([46.0, 0.0], egui::Label::new(format!("T{}", t + 1)));
-                        ui.add_sized([
-                            42.0 * 1.8,
-                            0.0,
-                        ], egui::DragValue::new(&mut self.net.tables.mpr[t]).speed(1));
-                        ui.end_row();
-                    }
-                });
-            });
+            {
+                let count = self.net.transitions.len();
+                show_collapsible_property_section(
+                    ui,
+                    label_mpr.clone(),
+                    PropertySectionConfig::new("mpr").default_open(true),
+                    |ui: &mut egui::Ui| {
+                        let avail_height = ui.available_height();
+                        let dynamic_height = (avail_height * 0.6).min(vector_scroll_height);
+                        Self::scroll_area_rows(
+                            ui,
+                            egui::Id::new("mpr_grid_scroll"),
+                            count,
+                            row_h,
+                            dynamic_height,
+                            |ui: &mut egui::Ui, rows: std::ops::Range<usize>| {
+                                ui.set_min_width(0.0);
+                                egui::Grid::new("mpr_grid")
+                                    .striped(true)
+                                    .show(ui, |ui| {
+                                        for t in rows {
+                                            ui.add_sized(
+                                                [46.0, 0.0],
+                                                egui::Label::new(format!("T{}", t + 1)),
+                                            );
+                                            ui.add_sized(
+                                                [42.0 * 1.8, 0.0],
+                                                egui::DragValue::new(
+                                                    &mut self.net.tables.mpr[t],
+                                                )
+                                                .speed(1),
+                                            );
+                                            ui.end_row();
+                                        }
+                                    });
+                            },
+                        );
+                    },
+                );
+            }
         }
         // Track whether any of the matrices were modified during drawing.
         let mut matrices_changed = false;
         // Pre matrix section
         if self.show_struct_pre {
-            let pre_changed = make_matrix_section(
-                ui,
-                "pre_matrix",
-                "Матрица инцидентности Pre",
-                "Incidence matrix Pre",
-                self.net.places.len(),
-                Some(MatrixCsvTarget::Pre),
-                Box::new(|ui: &mut egui::Ui, rows: std::ops::Range<usize>| {
-                    let mut changed = false;
-                    egui::Grid::new("pre_grid").striped(true).show(ui, |ui| {
-                        ui.add_sized([46.0, 0.0], egui::Label::new(""));
-                        for t in 0..self.net.transitions.len() {
-                            ui.add_sized([42.0, 0.0], egui::Label::new(format!("T{}", t + 1)));
-                        }
-                        ui.end_row();
-                        for p in rows {
-                            ui.add_sized([46.0, 0.0], egui::Label::new(format!("P{}", p + 1)));
-                            for t in 0..self.net.transitions.len() {
-                                changed |= ui
-                                    .add_sized([
-                                        42.0,
-                                        0.0,
-                                    ], egui::DragValue::new(&mut self.net.tables.pre[p][t]).range(0..=u32::MAX).speed(1))
-                                    .changed();
+            {
+                let count = self.net.places.len();
+                let mut pre_changed_local = false;
+                show_collapsible_property_section(
+                    ui,
+                    label_pre.clone(),
+                    PropertySectionConfig::new("pre_matrix").default_open(false),
+                    |ui: &mut egui::Ui| {
+                        // Import button
+                        ui.horizontal(|ui| {
+                            if ui.small_button(label_import_csv.clone()).clicked() {
+                                self.import_matrix_csv(MatrixCsvTarget::Pre);
                             }
-                            ui.end_row();
-                        }
-                    });
-                    changed
-                }),
-            );
-            matrices_changed |= pre_changed;
+                        });
+                        // Dynamic height (60% of avail height, capped by matrix_scroll_height)
+                        let avail_height = ui.available_height();
+                        let dynamic_height = (avail_height * 0.6).min(matrix_scroll_height);
+                        Self::scroll_area_rows(
+                            ui,
+                            egui::Id::new("pre_matrix_grid_scroll"),
+                            count,
+                            row_h,
+                            dynamic_height,
+                            |ui: &mut egui::Ui, rows: std::ops::Range<usize>| {
+                                ui.set_min_width(0.0);
+                                egui::Grid::new("pre_grid")
+                                    .striped(true)
+                                    .show(ui, |ui| {
+                                        ui.add_sized(
+                                            [46.0, 0.0],
+                                            egui::Label::new(""),
+                                        );
+                                        for t in 0..self.net.transitions.len() {
+                                            ui.add_sized(
+                                                [42.0, 0.0],
+                                                egui::Label::new(format!("T{}", t + 1)),
+                                            );
+                                        }
+                                        ui.end_row();
+                                        for p in rows.clone() {
+                                            ui.add_sized(
+                                                [46.0, 0.0],
+                                                egui::Label::new(format!("P{}", p + 1)),
+                                            );
+                                            for t in 0..self.net.transitions.len() {
+                                                let cell_changed = ui
+                                                    .add_sized(
+                                                        [42.0, 0.0],
+                                                        egui::DragValue::new(
+                                                            &mut self.net.tables.pre[p][t],
+                                                        )
+                                                        .range(0..=u32::MAX)
+                                                        .speed(1),
+                                                    )
+                                                    .changed();
+                                                if cell_changed {
+                                                    pre_changed_local = true;
+                                                }
+                                            }
+                                            ui.end_row();
+                                        }
+                                    });
+                            },
+                        );
+                    },
+                );
+                matrices_changed |= pre_changed_local;
+            }
         }
         // Post matrix section
         if self.show_struct_post {
-            let post_changed = make_matrix_section(
-                ui,
-                "post_matrix",
-                "Матрица инцидентности Post",
-                "Incidence matrix Post",
-                self.net.places.len(),
-                Some(MatrixCsvTarget::Post),
-                Box::new(|ui: &mut egui::Ui, rows: std::ops::Range<usize>| {
-                    let mut changed = false;
-                    egui::Grid::new("post_grid").striped(true).show(ui, |ui| {
-                        ui.add_sized([46.0, 0.0], egui::Label::new(""));
-                        for t in 0..self.net.transitions.len() {
-                            ui.add_sized([42.0, 0.0], egui::Label::new(format!("T{}", t + 1)));
-                        }
-                        ui.end_row();
-                        for p in rows {
-                            ui.add_sized([46.0, 0.0], egui::Label::new(format!("P{}", p + 1)));
-                            for t in 0..self.net.transitions.len() {
-                                changed |= ui
-                                    .add_sized([
-                                        42.0,
-                                        0.0,
-                                    ], egui::DragValue::new(&mut self.net.tables.post[p][t]).range(0..=u32::MAX).speed(1))
-                                    .changed();
+            {
+                let count = self.net.places.len();
+                let mut post_changed_local = false;
+                show_collapsible_property_section(
+                    ui,
+                    label_post.clone(),
+                    PropertySectionConfig::new("post_matrix").default_open(false),
+                    |ui: &mut egui::Ui| {
+                        ui.horizontal(|ui| {
+                            if ui.small_button(label_import_csv.clone()).clicked() {
+                                self.import_matrix_csv(MatrixCsvTarget::Post);
                             }
-                            ui.end_row();
-                        }
-                    });
-                    changed
-                }),
-            );
-            matrices_changed |= post_changed;
+                        });
+                        let avail_height = ui.available_height();
+                        let dynamic_height = (avail_height * 0.6).min(matrix_scroll_height);
+                        Self::scroll_area_rows(
+                            ui,
+                            egui::Id::new("post_matrix_grid_scroll"),
+                            count,
+                            row_h,
+                            dynamic_height,
+                            |ui: &mut egui::Ui, rows: std::ops::Range<usize>| {
+                                ui.set_min_width(0.0);
+                                egui::Grid::new("post_grid")
+                                    .striped(true)
+                                    .show(ui, |ui| {
+                                        ui.add_sized(
+                                            [46.0, 0.0],
+                                            egui::Label::new(""),
+                                        );
+                                        for t in 0..self.net.transitions.len() {
+                                            ui.add_sized(
+                                                [42.0, 0.0],
+                                                egui::Label::new(format!("T{}", t + 1)),
+                                            );
+                                        }
+                                        ui.end_row();
+                                        for p in rows.clone() {
+                                            ui.add_sized(
+                                                [46.0, 0.0],
+                                                egui::Label::new(format!("P{}", p + 1)),
+                                            );
+                                            for t in 0..self.net.transitions.len() {
+                                                let cell_changed = ui
+                                                    .add_sized(
+                                                        [42.0, 0.0],
+                                                        egui::DragValue::new(
+                                                            &mut self.net.tables.post[p][t],
+                                                        )
+                                                        .range(0..=u32::MAX)
+                                                        .speed(1),
+                                                    )
+                                                    .changed();
+                                                if cell_changed {
+                                                    post_changed_local = true;
+                                                }
+                                            }
+                                            ui.end_row();
+                                        }
+                                    });
+                            },
+                        );
+                    },
+                );
+                matrices_changed |= post_changed_local;
+            }
         }
         // Inhibitor matrix section
         if self.show_struct_inhibitor {
-            let inh_changed = make_matrix_section(
-                ui,
-                "inh_matrix",
-                "Матрица ингибиторных дуг",
-                "Inhibitor matrix",
-                self.net.places.len(),
-                Some(MatrixCsvTarget::Inhibitor),
-                Box::new(|ui: &mut egui::Ui, rows: std::ops::Range<usize>| {
-                    let mut changed = false;
-                    egui::Grid::new("inh_grid").striped(true).show(ui, |ui| {
-                        ui.add_sized([46.0, 0.0], egui::Label::new(""));
-                        for t in 0..self.net.transitions.len() {
-                            ui.add_sized([42.0, 0.0], egui::Label::new(format!("T{}", t + 1)));
-                        }
-                        ui.end_row();
-                        for p in rows {
-                            ui.add_sized([46.0, 0.0], egui::Label::new(format!("P{}", p + 1)));
-                            for t in 0..self.net.transitions.len() {
-                                changed |= ui
-                                    .add_sized([
-                                        42.0,
-                                        0.0,
-                                    ], egui::DragValue::new(&mut self.net.tables.inhibitor[p][t]).range(0..=u32::MAX).speed(1))
-                                    .changed();
+            {
+                let count = self.net.places.len();
+                let mut inh_changed_local = false;
+                show_collapsible_property_section(
+                    ui,
+                    label_inh.clone(),
+                    PropertySectionConfig::new("inh_matrix").default_open(false),
+                    |ui: &mut egui::Ui| {
+                        ui.horizontal(|ui| {
+                            if ui.small_button(label_import_csv.clone()).clicked() {
+                                self.import_matrix_csv(MatrixCsvTarget::Inhibitor);
                             }
-                            ui.end_row();
-                        }
-                    });
-                    changed
-                }),
-            );
-            matrices_changed |= inh_changed;
+                        });
+                        let avail_height = ui.available_height();
+                        let dynamic_height = (avail_height * 0.6).min(matrix_scroll_height);
+                        Self::scroll_area_rows(
+                            ui,
+                            egui::Id::new("inh_matrix_grid_scroll"),
+                            count,
+                            row_h,
+                            dynamic_height,
+                            |ui: &mut egui::Ui, rows: std::ops::Range<usize>| {
+                                ui.set_min_width(0.0);
+                                egui::Grid::new("inh_grid")
+                                    .striped(true)
+                                    .show(ui, |ui| {
+                                        ui.add_sized(
+                                            [46.0, 0.0],
+                                            egui::Label::new(""),
+                                        );
+                                        for t in 0..self.net.transitions.len() {
+                                            ui.add_sized(
+                                                [42.0, 0.0],
+                                                egui::Label::new(format!("T{}", t + 1)),
+                                            );
+                                        }
+                                        ui.end_row();
+                                        for p in rows.clone() {
+                                            ui.add_sized(
+                                                [46.0, 0.0],
+                                                egui::Label::new(format!("P{}", p + 1)),
+                                            );
+                                            for t in 0..self.net.transitions.len() {
+                                                let cell_changed = ui
+                                                    .add_sized(
+                                                        [42.0, 0.0],
+                                                        egui::DragValue::new(
+                                                            &mut self.net.tables.inhibitor[p][t],
+                                                        )
+                                                        .range(0..=u32::MAX)
+                                                        .speed(1),
+                                                    )
+                                                    .changed();
+                                                if cell_changed {
+                                                    inh_changed_local = true;
+                                                }
+                                            }
+                                            ui.end_row();
+                                        }
+                                    });
+                            },
+                        );
+                    },
+                );
+                matrices_changed |= inh_changed_local;
+            }
         }
         // Rebuild arcs if any matrix changed.
         if matrices_changed {
@@ -422,7 +590,9 @@ impl PetriApp {
     /// the application, each major section (log table, marker statistics, flows and load)
     /// is now wrapped in a collapsible property section.  Within each section the
     /// original virtualization logic is preserved to ensure good performance on large
-    /// datasets.
+    /// datasets.  Heights of the scrollable areas are computed dynamically based on
+    /// the available space so that sections can grow on larger windows while still
+    /// respecting a predefined maximum.
     pub(super) fn draw_results(&mut self, ctx: &egui::Context) {
         if let Some(result) = self.sim_result.clone() {
             let mut open = self.show_results;
@@ -573,14 +743,16 @@ impl PetriApp {
                                             });
                                         // Visible log indices for virtualization (precomputed)
                                         let visible_log_indices = Self::debug_visible_log_indices(&result);
-                                        // Use our scroll utility to virtualize the log rows.  The scroll bar
-                                        // becomes visible on hover, matching other lists.  The height is
-                                        // limited to 320 px to prevent the log from consuming the entire
-                                        // window.
+                                        // Dynamically compute the maximum height for the log table.  Allow the
+                                        // table to occupy up to 60% of the available height but never exceed
+                                        // 320 px.  This provides a responsive layout while preventing a
+                                        // single section from consuming the entire window.
+                                        let avail_height = ui.available_height();
+                                        let dynamic_height = (avail_height * 0.6).min(320.0);
                                         scroll_utils::show_virtualized_rows(
                                             ui,
                                             "sim_log_grid_scroll",
-                                            320.0,
+                                            dynamic_height,
                                             row_h,
                                             visible_log_indices.len(),
                                             |ui, row_idx| {
@@ -649,14 +821,15 @@ impl PetriApp {
                                                     ui.end_row();
                                                 });
                                             let row_h = ui.text_style_height(&egui::TextStyle::Body) + 4.0;
+                                            // Dynamically compute height: up to 40% of available height but at most 180 px.
+                                            let avail_height = ui.available_height();
+                                            let dynamic_height = (avail_height * 0.4).min(180.0);
                                             // Virtualize the rows using our scroll utility.  The scroll bar
-                                            // appears on hover and the height is limited to 180 px, matching
-                                            // previous behaviour.  Each row is rendered with a horizontal
-                                            // layout to align the four columns.
+                                            // appears on hover and the height adapts to the available space.
                                             scroll_utils::show_virtualized_rows(
                                                 ui,
                                                 "stats_grid_scroll",
-                                                180.0,
+                                                dynamic_height,
                                                 row_h,
                                                 rows.len(),
                                                 |ui, row_idx| {
@@ -717,14 +890,14 @@ impl PetriApp {
                                                     ui.end_row();
                                                 });
                                             let row_h = ui.text_style_height(&egui::TextStyle::Body) + 4.0;
-                                            // Virtualize the rows using our scroll utility.  Height
-                                            // limited to 180 px and scroll bar appears on hover.  Each
-                                            // row uses a horizontal layout for three columns: place,
-                                            // input and output.
+                                            // Dynamically compute height: up to 40% of available height but at most 180 px.
+                                            let avail_height = ui.available_height();
+                                            let dynamic_height = (avail_height * 0.4).min(180.0);
+                                            // Virtualize the rows using our scroll utility.  Height adapts to available space.
                                             scroll_utils::show_virtualized_rows(
                                                 ui,
                                                 "flow_grid_scroll",
-                                                180.0,
+                                                dynamic_height,
                                                 row_h,
                                                 rows.len(),
                                                 |ui, row_idx| {
@@ -785,13 +958,14 @@ impl PetriApp {
                                                     ui.end_row();
                                                 });
                                             let row_h = ui.text_style_height(&egui::TextStyle::Body) + 4.0;
-                                            // Virtualize the rows using our scroll utility.  Height is
-                                            // limited to 180 px and scroll bar appears on hover.  Each row
-                                            // is rendered horizontally with four columns.
+                                            // Dynamically compute height: up to 40% of available height but at most 180 px.
+                                            let avail_height = ui.available_height();
+                                            let dynamic_height = (avail_height * 0.4).min(180.0);
+                                            // Virtualize the rows using our scroll utility.  Height adapts to available space.
                                             scroll_utils::show_virtualized_rows(
                                                 ui,
                                                 "load_grid_scroll",
-                                                180.0,
+                                                dynamic_height,
                                                 row_h,
                                                 rows.len(),
                                                 |ui, row_idx| {
