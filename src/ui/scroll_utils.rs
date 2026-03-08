@@ -49,6 +49,12 @@ pub fn show_list_with_scroll<R>(
     egui::ScrollArea::vertical()
         .id_source(id_source)
         .max_height(max_height)
+        // Prevent the scroll area from shrinking to fit content.  Without
+        // disabling auto-shrink, the scroll area may take on the minimum
+        // width of its contents, causing it to be narrower than the
+        // surrounding UI.  This ensures the scroll area fills the
+        // available width while still providing a scroll bar as needed.
+        .auto_shrink([false, false])
         .scroll_bar_visibility(ScrollBarVisibility::VisibleWhenNeeded)
         .show(ui, |ui| add_contents(ui))
         .inner
@@ -72,6 +78,10 @@ pub fn show_virtualized_rows(
     egui::ScrollArea::vertical()
         .id_source(id_source)
         .max_height(max_height)
+        // Prevent horizontal shrink so that the scroll area fills the
+        // available width.  Without this, the scroll area may only be as
+        // wide as its contents, leaving unused space on the right.
+        .auto_shrink([false, false])
         .scroll_bar_visibility(ScrollBarVisibility::VisibleWhenNeeded)
         .show_rows(ui, row_height, total_rows, |ui, range| {
             for idx in range {
