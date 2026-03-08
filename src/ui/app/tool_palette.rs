@@ -3,417 +3,90 @@ use crate::ui::property_selection::{show_collapsible_property_section, PropertyS
 
 impl PetriApp {
     pub(super) fn draw_tool_palette(&mut self, ctx: &egui::Context) {
+        // When leaving run mode, fall back to placing new elements rather than editing.
         if self.tool == Tool::Run {
-            self.tool = Tool::Edit;
+            self.tool = Tool::Place;
         }
 
-        let panel =
-            egui::SidePanel::left("tools")
-                .resizable(true)
-                .show(ctx, |ui: &mut egui::Ui| {
-                    ui.heading("Инструменты");
-                    ui.separator();
+        let panel = egui::SidePanel::left("tools")
+            .resizable(true)
+            .show(ctx, |ui: &mut egui::Ui| {
+                ui.heading("Инструменты");
+                ui.separator();
 
-                    for (tool_variant, icon, label) in [
-                        (Tool::Place, "O", "Позиция"),
-                        (Tool::Transition, "II", "Переход"),
-                        (Tool::Arc, "↗", "Дуга"),
-                        (Tool::Text, "A", "Текст"),
-                        (Tool::Frame, "[]", "Рамка"),
-                        (Tool::Edit, "✥", "Редактировать"),
-                        (Tool::Delete, "✖", "Удалить"),
-                    ] {
-                        let selected = self.tool == tool_variant;
-                        let text = format!("{} {}", icon, label);
-                        if ui.add(egui::SelectableLabel::new(selected, text)).clicked() {
-                            self.tool = tool_variant;
-                        }
+                // List of tools available from the palette.  The Edit tool has been removed
+                // entirely in response to user feedback.  Users can no longer switch to
+                // editing mode from the palette.
+                for (tool_variant, icon, label) in [
+                    (Tool::Place, "O", "Позиция"),
+                    (Tool::Transition, "II", "Переход"),
+                    (Tool::Arc, "↗", "Дуга"),
+                    (Tool::Text, "A", "Текст"),
+                    (Tool::Frame, "[]", "Рамка"),
+                    (Tool::Delete, "✖", "Удалить"),
+                ] {
+                    let selected = self.tool == tool_variant;
+                    let text = format!("{} {}", icon, label);
+                    if ui.add(egui::SelectableLabel::new(selected, text)).clicked() {
+                        self.tool = tool_variant;
                     }
+                }
 
-                    if ui.button("СТАРТ").clicked() {
-                        self.reset_sim_stop_controls();
-                        self.show_sim_params = true;
-                    }
+                if ui.button("СТАРТ").clicked() {
+                    self.reset_sim_stop_controls();
+                    self.show_sim_params = true;
+                }
 
-                    ui.separator();
-                    ui.label(self.tr("Отображение связей", "Link visibility"));
-                    let is_ru = matches!(self.net.ui.language, Language::Ru);
-                    egui::ComboBox::from_label(self.tr("Режим", "Mode"))
-                        .selected_text(Self::arc_display_mode_text(self.arc_display_mode, is_ru))
+                ui.separator();
+                ui.label(self.tr("Отображение связей", "Link visibility"));
+                let is_ru = matches!(self.net.ui.language, Language::Ru);
+                egui::ComboBox::from_label(self.tr("Режим", "Mode"))
+                    .selected_text(Self::arc_display_mode_text(self.arc_display_mode, is_ru))
+                    .show_ui(ui, |ui: &mut egui::Ui| {
+                        ui.selectable_value(
+                            &mut self.arc_display_mode,
+                            ArcDisplayMode::All,
+                            Self::arc_display_mode_text(ArcDisplayMode::All, is_ru),
+                        );
+                        ui.selectable_value(
+                            &mut self.arc_display_mode,
+                            ArcDisplayMode::OnlyColor,
+                            Self::arc_display_mode_text(ArcDisplayMode::OnlyColor, is_ru),
+                        );
+                        ui.selectable_value(
+                            &mut self.arc_display_mode,
+                            ArcDisplayMode::Hidden,
+                            Self::arc_display_mode_text(ArcDisplayMode::Hidden, is_ru),
+                        );
+                    });
+
+                if self.arc_display_mode == ArcDisplayMode::OnlyColor {
+                    let color_label = if is_ru { "Цвет" } else { "Color" };
+                    let c_default = if is_ru { "По умолчанию" } else { "Default" };
+                    let c_blue = if is_ru { "Синий" } else { "Blue" };
+                    let c_red = if is_ru { "Красный" } else { "Red" };
+                    let c_green = if is_ru { "Зеленый" } else { "Green" };
+                    let c_yellow = if is_ru { "Желтый" } else { "Yellow" };
+
+                    egui::ComboBox::from_label(color_label)
+                        .selected_text(Self::node_color_text(self.arc_display_color, is_ru))
                         .show_ui(ui, |ui: &mut egui::Ui| {
                             ui.selectable_value(
-                                &mut self.arc_display_mode,
-                                ArcDisplayMode::All,
-                                Self::arc_display_mode_text(ArcDisplayMode::All, is_ru),
+                                &mut self.arc_display_color,
+                                NodeColor::Default,
+                                c_default,
                             );
-                            ui.selectable_value(
-                                &mut self.arc_display_mode,
-                                ArcDisplayMode::OnlyColor,
-                                Self::arc_display_mode_text(ArcDisplayMode::OnlyColor, is_ru),
-                            );
-                            ui.selectable_value(
-                                &mut self.arc_display_mode,
-                                ArcDisplayMode::Hidden,
-                                Self::arc_display_mode_text(ArcDisplayMode::Hidden, is_ru),
-                            );
+                            ui.selectable_value(&mut self.arc_display_color, NodeColor::Blue, c_blue);
+                            ui.selectable_value(&mut self.arc_display_color, NodeColor::Red, c_red);
+                            ui.selectable_value(&mut self.arc_display_color, NodeColor::Green, c_green);
+                            ui.selectable_value(&mut self.arc_display_color, NodeColor::Yellow, c_yellow);
                         });
+                }
 
-                    if self.arc_display_mode == ArcDisplayMode::OnlyColor {
-                        let color_label = if is_ru { "Цвет" } else { "Color" };
-                        let c_default = if is_ru {
-                            "По умолчанию"
-                        } else {
-                            "Default"
-                        };
-                        let c_blue = if is_ru { "Синий" } else { "Blue" };
-                        let c_red = if is_ru { "Красный" } else { "Red" };
-                        let c_green = if is_ru { "Зеленый" } else { "Green" };
-                        let c_yellow = if is_ru { "Желтый" } else { "Yellow" };
+                // The former Editor and Selection sections have been removed entirely.
+            });
 
-                        egui::ComboBox::from_label(color_label)
-                            .selected_text(Self::node_color_text(self.arc_display_color, is_ru))
-                            .show_ui(ui, |ui: &mut egui::Ui| {
-                                ui.selectable_value(
-                                    &mut self.arc_display_color,
-                                    NodeColor::Default,
-                                    c_default,
-                                );
-                                ui.selectable_value(
-                                    &mut self.arc_display_color,
-                                    NodeColor::Blue,
-                                    c_blue,
-                                );
-                                ui.selectable_value(
-                                    &mut self.arc_display_color,
-                                    NodeColor::Red,
-                                    c_red,
-                                );
-                                ui.selectable_value(
-                                    &mut self.arc_display_color,
-                                    NodeColor::Green,
-                                    c_green,
-                                );
-                                ui.selectable_value(
-                                    &mut self.arc_display_color,
-                                    NodeColor::Yellow,
-                                    c_yellow,
-                                );
-                            });
-                    }
-
-                    ui.separator();
-                    ui.label(self.tr("Редактор", "Editor"));
-                    let title = self.tr("Показать сетку", "Show grid");
-                    let mut show_grid = !self.net.ui.hide_grid;
-                    if ui.checkbox(&mut show_grid, title).changed() {
-                        self.net.ui.hide_grid = !show_grid;
-                    }
-                    let snap_label = self.tr("Привязка к сетке", "Snap to grid");
-                    ui.checkbox(&mut self.net.ui.snap_to_grid, snap_label);
-
-                    ui.separator();
-                    ui.label(self.tr("Выделение", "Selection"));
-
-                    let places_selected = !self.canvas.selected_places.is_empty();
-                    let transitions_selected = !self.canvas.selected_transitions.is_empty();
-                    let arcs_selected =
-                        self.canvas.selected_arc.is_some() || !self.canvas.selected_arcs.is_empty();
-
-                    if places_selected {
-                        let selected_place_ids = if self.canvas.selected_places.is_empty() {
-                            self.canvas.selected_place.into_iter().collect::<Vec<_>>()
-                        } else {
-                            self.canvas.selected_places.clone()
-                        };
-
-                        if !selected_place_ids.is_empty() {
-                            let mut bulk_place_size = self
-                                .net
-                                .places
-                                .iter()
-                                .find(|p| p.id == selected_place_ids[0])
-                                .map(|p| p.size)
-                                .unwrap_or(VisualSize::Medium);
-
-                            ui.label(self.tr("Размер выбранных позиций", "Selected place size"));
-                            ui.horizontal(|ui: &mut egui::Ui| {
-                                ui.radio_value(
-                                    &mut bulk_place_size,
-                                    VisualSize::Small,
-                                    self.tr("Малый", "Small"),
-                                );
-                                ui.radio_value(
-                                    &mut bulk_place_size,
-                                    VisualSize::Medium,
-                                    self.tr("Средний", "Medium"),
-                                );
-                                ui.radio_value(
-                                    &mut bulk_place_size,
-                                    VisualSize::Large,
-                                    self.tr("Большой", "Large"),
-                                );
-                            });
-
-                            if bulk_place_size
-                                != self
-                                    .net
-                                    .places
-                                    .iter()
-                                    .find(|p| p.id == selected_place_ids[0])
-                                    .map(|p| p.size)
-                                    .unwrap_or(VisualSize::Medium)
-                            {
-                                self.push_undo_snapshot();
-                                let ids: HashSet<u64> =
-                                    selected_place_ids.iter().copied().collect();
-                                for place in &mut self.net.places {
-                                    if ids.contains(&place.id) {
-                                        place.size = bulk_place_size;
-                                    }
-                                }
-                            }
-
-                            let mut bulk_color = self
-                                .net
-                                .places
-                                .iter()
-                                .find(|p| p.id == selected_place_ids[0])
-                                .map(|p| p.color)
-                                .unwrap_or(NodeColor::Default);
-                            let previous_color = bulk_color;
-
-                            ui.label(self.tr("Цвет выбранных позиций", "Selected place color"));
-                            egui::ComboBox::from_id_source("bulk_place_color_combo")
-                                .selected_text(Self::node_color_text(bulk_color, is_ru))
-                                .show_ui(ui, |ui: &mut egui::Ui| {
-                                    ui.selectable_value(
-                                        &mut bulk_color,
-                                        NodeColor::Default,
-                                        Self::node_color_text(NodeColor::Default, is_ru),
-                                    );
-                                    ui.selectable_value(
-                                        &mut bulk_color,
-                                        NodeColor::Blue,
-                                        Self::node_color_text(NodeColor::Blue, is_ru),
-                                    );
-                                    ui.selectable_value(
-                                        &mut bulk_color,
-                                        NodeColor::Red,
-                                        Self::node_color_text(NodeColor::Red, is_ru),
-                                    );
-                                    ui.selectable_value(
-                                        &mut bulk_color,
-                                        NodeColor::Green,
-                                        Self::node_color_text(NodeColor::Green, is_ru),
-                                    );
-                                    ui.selectable_value(
-                                        &mut bulk_color,
-                                        NodeColor::Yellow,
-                                        Self::node_color_text(NodeColor::Yellow, is_ru),
-                                    );
-                                });
-
-                            if bulk_color != previous_color {
-                                self.push_undo_snapshot();
-                                let ids: HashSet<u64> =
-                                    selected_place_ids.iter().copied().collect();
-                                for place in &mut self.net.places {
-                                    if ids.contains(&place.id) {
-                                        place.color = bulk_color;
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    if transitions_selected {
-                        let selected_transition_ids = if self.canvas.selected_transitions.is_empty()
-                        {
-                            self.canvas
-                                .selected_transition
-                                .into_iter()
-                                .collect::<Vec<_>>()
-                        } else {
-                            self.canvas.selected_transitions.clone()
-                        };
-
-                        if !selected_transition_ids.is_empty() {
-                            let mut bulk_transition_size = self
-                                .net
-                                .transitions
-                                .iter()
-                                .find(|t| t.id == selected_transition_ids[0])
-                                .map(|t| t.size)
-                                .unwrap_or(VisualSize::Medium);
-
-                            ui.label(
-                                self.tr("Размер выбранных переходов", "Selected transition size"),
-                            );
-                            ui.horizontal(|ui: &mut egui::Ui| {
-                                ui.radio_value(
-                                    &mut bulk_transition_size,
-                                    VisualSize::Small,
-                                    self.tr("Малый", "Small"),
-                                );
-                                ui.radio_value(
-                                    &mut bulk_transition_size,
-                                    VisualSize::Medium,
-                                    self.tr("Средний", "Medium"),
-                                );
-                                ui.radio_value(
-                                    &mut bulk_transition_size,
-                                    VisualSize::Large,
-                                    self.tr("Большой", "Large"),
-                                );
-                            });
-
-                            if bulk_transition_size
-                                != self
-                                    .net
-                                    .transitions
-                                    .iter()
-                                    .find(|t| t.id == selected_transition_ids[0])
-                                    .map(|t| t.size)
-                                    .unwrap_or(VisualSize::Medium)
-                            {
-                                self.push_undo_snapshot();
-                                let ids: HashSet<u64> =
-                                    selected_transition_ids.iter().copied().collect();
-                                for transition in &mut self.net.transitions {
-                                    if ids.contains(&transition.id) {
-                                        transition.size = bulk_transition_size;
-                                    }
-                                }
-                            }
-
-                            let mut bulk_color = self
-                                .net
-                                .transitions
-                                .iter()
-                                .find(|t| t.id == selected_transition_ids[0])
-                                .map(|t| t.color)
-                                .unwrap_or(NodeColor::Default);
-                            let previous_color = bulk_color;
-
-                            ui.label(
-                                self.tr("Цвет выбранных переходов", "Selected transition color"),
-                            );
-                            egui::ComboBox::from_id_source("bulk_transition_color_combo")
-                                .selected_text(Self::node_color_text(bulk_color, is_ru))
-                                .show_ui(ui, |ui: &mut egui::Ui| {
-                                    ui.selectable_value(
-                                        &mut bulk_color,
-                                        NodeColor::Default,
-                                        Self::node_color_text(NodeColor::Default, is_ru),
-                                    );
-                                    ui.selectable_value(
-                                        &mut bulk_color,
-                                        NodeColor::Blue,
-                                        Self::node_color_text(NodeColor::Blue, is_ru),
-                                    );
-                                    ui.selectable_value(
-                                        &mut bulk_color,
-                                        NodeColor::Red,
-                                        Self::node_color_text(NodeColor::Red, is_ru),
-                                    );
-                                    ui.selectable_value(
-                                        &mut bulk_color,
-                                        NodeColor::Green,
-                                        Self::node_color_text(NodeColor::Green, is_ru),
-                                    );
-                                    ui.selectable_value(
-                                        &mut bulk_color,
-                                        NodeColor::Yellow,
-                                        Self::node_color_text(NodeColor::Yellow, is_ru),
-                                    );
-                                });
-
-                            if bulk_color != previous_color {
-                                self.push_undo_snapshot();
-                                let ids: HashSet<u64> =
-                                    selected_transition_ids.iter().copied().collect();
-                                for transition in &mut self.net.transitions {
-                                    if ids.contains(&transition.id) {
-                                        transition.color = bulk_color;
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    if arcs_selected {
-                        let selected_arc_ids = if self.canvas.selected_arcs.is_empty() {
-                            self.canvas.selected_arc.into_iter().collect::<Vec<_>>()
-                        } else {
-                            self.canvas.selected_arcs.clone()
-                        };
-
-                        if !selected_arc_ids.is_empty() {
-                            let mut bulk_color = self
-                                .net
-                                .arcs
-                                .iter()
-                                .find(|a| a.id == selected_arc_ids[0])
-                                .map(|a| a.color)
-                                .or_else(|| {
-                                    self.net
-                                        .inhibitor_arcs
-                                        .iter()
-                                        .find(|a| a.id == selected_arc_ids[0])
-                                        .map(|a| a.color)
-                                })
-                                .unwrap_or(NodeColor::Default);
-                            let previous_color = bulk_color;
-
-                            ui.label(self.tr("Цвет выбранных дуг", "Selected arc color"));
-                            egui::ComboBox::from_id_source("bulk_arc_color_combo")
-                                .selected_text(Self::node_color_text(bulk_color, is_ru))
-                                .show_ui(ui, |ui: &mut egui::Ui| {
-                                    ui.selectable_value(
-                                        &mut bulk_color,
-                                        NodeColor::Default,
-                                        Self::node_color_text(NodeColor::Default, is_ru),
-                                    );
-                                    ui.selectable_value(
-                                        &mut bulk_color,
-                                        NodeColor::Blue,
-                                        Self::node_color_text(NodeColor::Blue, is_ru),
-                                    );
-                                    ui.selectable_value(
-                                        &mut bulk_color,
-                                        NodeColor::Red,
-                                        Self::node_color_text(NodeColor::Red, is_ru),
-                                    );
-                                    ui.selectable_value(
-                                        &mut bulk_color,
-                                        NodeColor::Green,
-                                        Self::node_color_text(NodeColor::Green, is_ru),
-                                    );
-                                    ui.selectable_value(
-                                        &mut bulk_color,
-                                        NodeColor::Yellow,
-                                        Self::node_color_text(NodeColor::Yellow, is_ru),
-                                    );
-                                });
-
-                            if bulk_color != previous_color {
-                                self.push_undo_snapshot();
-                                let ids: HashSet<u64> = selected_arc_ids.iter().copied().collect();
-                                for arc in &mut self.net.arcs {
-                                    if ids.contains(&arc.id) {
-                                        arc.color = bulk_color;
-                                    }
-                                }
-                                for inh in &mut self.net.inhibitor_arcs {
-                                    if ids.contains(&inh.id) {
-                                        inh.color = bulk_color;
-                                    }
-                                }
-                            }
-                        }
-                    }
-                });
-
+        // Open the "New Element Properties" window when right‑clicking on the palette.
         let open_props_by_rclick = ctx.input(|i| {
             if !i.pointer.button_clicked(egui::PointerButton::Secondary) {
                 return false;
@@ -530,10 +203,7 @@ impl PetriApp {
                             corrected_inputs |= sanitize_u32(&mut marking, 0, u32::MAX);
                             ui.horizontal(|ui: &mut egui::Ui| {
                                 ui.label(t("Маркеры", "Tokens"));
-                                if ui
-                                    .add(egui::DragValue::new(&mut marking).range(0..=u32::MAX))
-                                    .changed()
-                                {
+                                if ui.add(egui::DragValue::new(&mut marking).range(0..=u32::MAX)).changed() {
                                     corrected_inputs |= sanitize_u32(&mut marking, 0, u32::MAX);
                                 }
                             });
@@ -546,10 +216,7 @@ impl PetriApp {
                                     "Макс. емкость (0 = без ограничений)",
                                     "Capacity (0 = unlimited)",
                                 ));
-                                if ui
-                                    .add(egui::DragValue::new(&mut cap).range(0..=u32::MAX))
-                                    .changed()
-                                {
+                                if ui.add(egui::DragValue::new(&mut cap).range(0..=u32::MAX)).changed() {
                                     corrected_inputs |= sanitize_u32(&mut cap, 0, u32::MAX);
                                 }
                             });
@@ -590,22 +257,11 @@ impl PetriApp {
                             });
 
                             let mut transition_priority = self.new_transition_priority;
-                            corrected_inputs |=
-                                sanitize_i32(&mut transition_priority, -1_000_000, 1_000_000);
+                            corrected_inputs |= sanitize_i32(&mut transition_priority, -1_000_000, 1_000_000);
                             ui.horizontal(|ui: &mut egui::Ui| {
                                 ui.label(t("Приоритет", "Priority"));
-                                if ui
-                                    .add(
-                                        egui::DragValue::new(&mut transition_priority)
-                                            .range(-1_000_000..=1_000_000),
-                                    )
-                                    .changed()
-                                {
-                                    corrected_inputs |= sanitize_i32(
-                                        &mut transition_priority,
-                                        -1_000_000,
-                                        1_000_000,
-                                    );
+                                if ui.add(egui::DragValue::new(&mut transition_priority).range(-1_000_000..=1_000_000)).changed() {
+                                    corrected_inputs |= sanitize_i32(&mut transition_priority, -1_000_000, 1_000_000);
                                 }
                             });
                             self.new_transition_priority = transition_priority;
@@ -623,10 +279,7 @@ impl PetriApp {
                             corrected_inputs |= sanitize_u32(&mut arc_weight, 1, u32::MAX);
                             ui.horizontal(|ui: &mut egui::Ui| {
                                 ui.label(t("Кратность (вес)", "Weight"));
-                                if ui
-                                    .add(egui::DragValue::new(&mut arc_weight).range(1..=u32::MAX))
-                                    .changed()
-                                {
+                                if ui.add(egui::DragValue::new(&mut arc_weight).range(1..=u32::MAX)).changed() {
                                     corrected_inputs |= sanitize_u32(&mut arc_weight, 1, u32::MAX);
                                 }
                             });
@@ -644,15 +297,8 @@ impl PetriApp {
                                     ui.label(t("Порог", "Threshold"));
                                     let mut threshold = self.new_arc_inhibitor_threshold;
                                     corrected_inputs |= sanitize_u32(&mut threshold, 1, u32::MAX);
-                                    if ui
-                                        .add(
-                                            egui::DragValue::new(&mut threshold)
-                                                .range(1..=u32::MAX),
-                                        )
-                                        .changed()
-                                    {
-                                        corrected_inputs |=
-                                            sanitize_u32(&mut threshold, 1, u32::MAX);
+                                    if ui.add(egui::DragValue::new(&mut threshold).range(1..=u32::MAX)).changed() {
+                                        corrected_inputs |= sanitize_u32(&mut threshold, 1, u32::MAX);
                                     }
                                     self.new_arc_inhibitor_threshold = threshold;
                                 });

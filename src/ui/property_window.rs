@@ -1,5 +1,14 @@
 use eframe::egui;
 
+/// Property window configuration and helpers.
+///
+/// This file defines a helper for creating property windows within the GUI.
+/// The original implementation constrained the window's maximum size to the
+/// viewport size.  To provide a bit of breathing room around the edges of
+/// the application, we subtract a small margin from the viewport before
+/// computing the maximum size.  This prevents property windows from
+/// occupying the entire viewport, as requested by the user.
+
 #[derive(Debug)]
 pub(crate) struct PropertyWindowConfig<'a> {
     pub id: egui::Id,
@@ -57,6 +66,13 @@ pub(crate) fn viewport_rect(ctx: &egui::Context) -> egui::Rect {
     }
 }
 
+/// Show a property window.
+///
+/// The window is constrained to the current viewport and its maximum size is
+/// reduced by a small margin (20×20 points) so that it never completely
+/// covers the application window.  This change preserves the overall
+/// behaviour of the original implementation while satisfying the new
+/// requirement that property windows leave a bit of space around the edges.
 pub(crate) fn show_property_window<R>(
     ctx: &egui::Context,
     title: impl Into<egui::WidgetText>,
@@ -65,7 +81,18 @@ pub(crate) fn show_property_window<R>(
     add_contents: impl FnOnce(&mut egui::Ui) -> R,
 ) {
     let viewport = viewport_rect(ctx);
-    let max_size = viewport.size();
+    // Introduce a small margin so that the max size is slightly smaller than the
+    // viewport.  Without this adjustment, windows could be as large as the
+    // viewport itself.
+    let margin = egui::vec2(20.0, 20.0);
+    let mut max_size = viewport.size() - margin;
+    // Clamp to zero in case the viewport is smaller than the margin.
+    if max_size.x < 0.0 {
+        max_size.x = 0.0;
+    }
+    if max_size.y < 0.0 {
+        max_size.y = 0.0;
+    }
     let default_size = config.default_size.min(max_size);
     let min_size = config.min_size.min(max_size);
 
@@ -93,9 +120,7 @@ pub(crate) fn show_property_window<R>(
     });
 
     if *open {
-        if let (Some(size), Some(response)) =
-            (config.remember_size.as_deref_mut(), response.as_ref())
-        {
+        if let (Some(size), Some(response)) = (config.remember_size.as_deref_mut(), response.as_ref()) {
             let actual_size = response.response.rect.size();
             if actual_size.x > 0.0 && actual_size.y > 0.0 {
                 *size = actual_size;
