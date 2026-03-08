@@ -31,6 +31,14 @@ impl PetriApp {
                 .default_size(default_size)
                 .min_size(min_size),
             |ui: &mut egui::Ui| {
+                // Ensure the inner content uses the full available width.  Without
+                // setting the minimum width, the proof window can end up with
+                // narrower margins than other property windows.  This matches
+                // the behaviour in `show_property_window` where both min and max
+                // widths are set on the scroll area contents.
+                ui.set_min_width(0.0);
+                ui.set_max_width(ui.available_width());
+
                 // If there is no simulation result, ask the user to run the
                 // simulation first.
                 let Some(result) = self.sim_result.as_ref() else {
