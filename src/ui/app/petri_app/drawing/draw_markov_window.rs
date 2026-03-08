@@ -1,5 +1,5 @@
 use super::*;
-use egui::{scroll_area, Color32, RichText, Vec2};
+use egui::{Color32, RichText, Vec2};
 // Import the property section helpers to unify collapsible sections across the UI.
 use crate::ui::property_selection::{show_collapsible_property_section, PropertySectionConfig};
 use crate::ui::scroll_utils;
