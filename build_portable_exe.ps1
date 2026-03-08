@@ -4,6 +4,7 @@ param(
     [switch]$KeepTarget
 )
 
+
 $ErrorActionPreference = "Stop"
 Set-Location $ProjectDir
 
