@@ -963,8 +963,8 @@ impl PetriApp {
         self.draw_markov_place_arcs(rect, &painter, ui);
 
         let use_debug_colors = self.debug_animation_enabled;
-        let debug_state_active = self.sim_result.is_some()
-            && (self.show_debug || self.debug_animation_enabled);
+        let debug_state_active =
+            self.sim_result.is_some() && (self.show_debug || self.debug_animation_enabled);
         let debug_marking = if debug_state_active {
             self.sim_result
                 .as_ref()
@@ -1047,9 +1047,7 @@ impl PetriApp {
                     debug_marking
                         .get(place_idx)
                         .copied()
-                        .unwrap_or_else(|| {
-                            self.net.tables.m0.get(place_idx).copied().unwrap_or(0)
-                        }),
+                        .unwrap_or_else(|| self.net.tables.m0.get(place_idx).copied().unwrap_or(0)),
                     Vec::new(),
                 )
             } else {

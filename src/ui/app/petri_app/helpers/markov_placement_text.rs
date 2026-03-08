@@ -6,8 +6,8 @@ impl PetriApp {
         is_ru: bool,
     ) -> &'static str {
         match (placement, is_ru) {
-            (MarkovPlacement::Bottom, true) => "Р’РЅРёР·Сѓ",
-            (MarkovPlacement::Top, true) => "Р’РІРµСЂС…Сѓ",
+            (MarkovPlacement::Bottom, true) => "Вверху",
+            (MarkovPlacement::Top, true) => "Внизу",
             (MarkovPlacement::Bottom, false) => "Bottom",
             (MarkovPlacement::Top, false) => "Top",
         }
