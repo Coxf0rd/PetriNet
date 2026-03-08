@@ -89,7 +89,13 @@ pub(crate) fn show_property_window<R>(
     // visible gap between the window and each edge, even when the user
     // resizes it to the maximum allowed dimensions.  We shrink the viewport
     // rectangle by `margin` on all sides before calculating the max size.
-    let margin = egui::vec2(20.0, 20.0);
+    // Horizontal margin is set to 0.0 so that property windows can slide up to the
+    // same right boundary as the results/statistics window.  We retain a
+    // vertical margin (20.0) to keep a bit of space above and below the
+    // window.  Previously a 20×20 margin was applied on both axes, which
+    // limited how far the window could be dragged to the right.  Removing the
+    // horizontal component unifies the drag boundary with other panels.
+    let margin = egui::vec2(0.0, 20.0);
     // Shrink the viewport by the margin so that constraints are applied inside
     // the shrunken area.  `shrink()` returns a new rectangle reduced on all
     // sides.

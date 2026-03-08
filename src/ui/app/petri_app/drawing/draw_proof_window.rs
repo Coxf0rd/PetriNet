@@ -71,6 +71,11 @@ impl PetriApp {
                 // width here restricts the content width and forces the horizontal
                 // scroll area to activate instead of enlarging the window.
                 ui.set_max_width(ui.available_width());
+                // Capture the remaining available height now.  We'll use this value
+                // when configuring the vertical scroll area inside the horizontal
+                // scroll context.  Capturing it outside avoids using `ui.available_height()`
+                // inside the nested layout, which can return zero in some cases.
+                let avail_height_for_list = ui.available_height();
 
                 // Wrap the grid and its rows in a horizontal scroll area.  This allows
                 // the Marking column to extend beyond the window width while
@@ -98,8 +103,11 @@ impl PetriApp {
                         // window to grow vertically together with other property
                         // windows.  We still ensure a reasonable minimum height to
                         // prevent the list from collapsing when space is limited.
-                        let available_h = ui.available_height();
-                        let max_height = available_h.max(360.0);
+                        // Compute the maximum height for the vertical list using the
+                        // previously captured available height.  We still enforce a
+                        // reasonable minimum (360px) so the list doesn't collapse on
+                        // very small windows.
+                        let max_height = avail_height_for_list.max(360.0);
                         egui::ScrollArea::vertical()
                             .id_source("proof_grid_scroll")
                             .max_height(max_height)
