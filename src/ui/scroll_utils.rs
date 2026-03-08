@@ -19,7 +19,7 @@ use egui::{self, scroll_area::ScrollBarVisibility, Id, Ui};
 /// should not display a scroll bar on the right.
 pub fn show_hidden_vertical_scroll<R>(
     ui: &mut Ui,
-    id_source: impl Into<Id>,
+    id_source: impl std::hash::Hash
     max_height: f32,
     add_contents: impl FnOnce(&mut Ui) -> R,
 ) -> R {
