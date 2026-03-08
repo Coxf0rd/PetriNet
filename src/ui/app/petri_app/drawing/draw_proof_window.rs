@@ -55,10 +55,7 @@ impl PetriApp {
                 let visible_steps = Self::debug_visible_log_indices(result);
                 if visible_steps.is_empty() {
                     // Fix the previously garbled Russian message for an empty trace.
-                    ui.label(self.tr(
-                        "Трасса пуста.",
-                        "Trace is empty.",
-                    ));
+                    ui.label(self.tr("Трасса пуста.", "Trace is empty."));
                     return;
                 }
                 // Height of each row in the grid depends on the body font.
@@ -84,7 +81,9 @@ impl PetriApp {
                 // clutter the UI.
                 egui::ScrollArea::horizontal()
                     .id_source("proof_grid_horizontal")
-                    .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::VisibleWhenNeeded)
+                    .scroll_bar_visibility(
+                        egui::scroll_area::ScrollBarVisibility::VisibleWhenNeeded,
+                    )
                     .show(ui, |ui| {
                         // Draw the header of the grid.  We place it inside the horizontal
                         // scroll area so that it scrolls together with the row contents.
@@ -111,7 +110,9 @@ impl PetriApp {
                         egui::ScrollArea::vertical()
                             .id_source("proof_grid_scroll")
                             .max_height(max_height)
-                            .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::VisibleWhenNeeded)
+                            .scroll_bar_visibility(
+                                egui::scroll_area::ScrollBarVisibility::VisibleWhenNeeded,
+                            )
                             .show_rows(ui, row_h, visible_steps.len(), |ui, range| {
                                 egui::Grid::new("proof_grid_rows")
                                     .striped(true)

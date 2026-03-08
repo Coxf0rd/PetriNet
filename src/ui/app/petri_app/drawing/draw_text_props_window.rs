@@ -34,7 +34,11 @@ impl PetriApp {
                         .selected_text(text.font_name.clone())
                         .show_ui(ui, |ui: &mut egui::Ui| {
                             for name in Self::text_font_candidates() {
-                                ui.selectable_value(&mut text.font_name, (*name).to_string(), *name);
+                                ui.selectable_value(
+                                    &mut text.font_name,
+                                    (*name).to_string(),
+                                    *name,
+                                );
                             }
                         });
                     ui.label(t("Размер", "Size"));

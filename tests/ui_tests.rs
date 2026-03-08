@@ -7,7 +7,7 @@
 
 #[cfg(test)]
 mod tests {
-    use egui::{Rect, Pos2, vec2};
+    use egui::{vec2, Pos2, Rect};
 
     /// Verify that `shrink2` reduces a rectangle's width and height by the
     /// specified margin.  This test compiles against the patched
@@ -29,7 +29,9 @@ mod tests {
     /// functions are available and can be invoked without errors.
     #[test]
     fn test_scroll_utils_access() {
-        use crate::ui::scroll_utils::{show_hidden_vertical_scroll, show_list_with_scroll, show_virtualized_rows};
+        use crate::ui::scroll_utils::{
+            show_hidden_vertical_scroll, show_list_with_scroll, show_virtualized_rows,
+        };
         // Due to egui's requirements for running UI, we can't construct a full
         // `egui::Ui` here.  Instead, we simply ensure that the functions can
         // be referenced.  This test will fail to compile if the paths are

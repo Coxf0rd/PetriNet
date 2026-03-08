@@ -56,7 +56,11 @@ impl PetriApp {
                         self.sync_debug_animation_for_step();
                     }
                     if ui
-                        .button(if self.debug_playing { t("Пауза", "Pause") } else { t("Пуск", "Play") })
+                        .button(if self.debug_playing {
+                            t("Пауза", "Pause")
+                        } else {
+                            t("Пуск", "Play")
+                        })
                         .clicked()
                     {
                         if self.debug_playing {

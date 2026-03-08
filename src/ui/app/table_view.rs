@@ -4,6 +4,22 @@ use crate::ui::property_selection::{show_collapsible_property_section, PropertyS
 use crate::ui::scroll_utils;
 
 impl PetriApp {
+    fn scroll_area_rows(
+        ui: &mut egui::Ui,
+        id: egui::Id,
+        row_count: usize,
+        row_height: f32,
+        max_height: f32,
+        mut add_rows: impl FnMut(&mut egui::Ui, std::ops::Range<usize>),
+    ) {
+        egui::ScrollArea::vertical()
+            .id_source(id)
+            .max_height(max_height)
+            .auto_shrink([false, false])
+            .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::VisibleWhenNeeded)
+            .show_rows(ui, row_height, row_count, |ui, rows| add_rows(ui, rows));
+    }
+
     /// Draw the network structure editor (vectors and matrices).
     ///
     /// This view was previously built with a series of separators and labels followed by
@@ -68,8 +84,7 @@ impl PetriApp {
             ui.label("Переходы:");
             ui.add(egui::DragValue::new(&mut t_count).range(0..=200));
             if ui.button("Применить количество").clicked() {
-                self
-                    .net
+                self.net
                     .set_counts(p_count.max(0) as usize, t_count.max(0) as usize);
             }
         });
@@ -94,18 +109,10 @@ impl PetriApp {
             "Вектор приоритетов переходов (Mpr)",
             "Transition priority vector (Mpr)",
         );
-        let label_pre = self.tr(
-            "Матрица инцидентности Pre",
-            "Incidence matrix Pre",
-        );
-        let label_post = self.tr(
-            "Матрица инцидентности Post",
-            "Incidence matrix Post",
-        );
-        let label_inh = self.tr(
-            "Матрица ингибиторных дуг",
-            "Inhibitor matrix",
-        );
+        let label_pre = self.tr("Матрица инцидентности Pre", "Incidence matrix Pre");
+        let label_post = self.tr("Матрица инцидентности Post", "Incidence matrix Post");
+        let label_inh = self.tr("Матрица ингибиторных дуг", "Inhibitor matrix");
+        let label_import_csv = self.tr("Импорт CSV", "Import CSV");
 
         // Render vector sections if enabled.
         if self.show_struct_vectors {
@@ -114,8 +121,9 @@ impl PetriApp {
                 let count = self.net.places.len();
                 show_collapsible_property_section(
                     ui,
-                    label_m0.clone(),
-                    PropertySectionConfig::new("m0").default_open(true),
+                    PropertySectionConfig::new("m0")
+                        .default_open(true)
+                        .label(label_m0.clone()),
                     |ui: &mut egui::Ui| {
                         // Compute dynamic height relative to available space (max 60% up to predefined vector height).
                         let avail_height = ui.available_height();
@@ -128,24 +136,20 @@ impl PetriApp {
                             dynamic_height,
                             |ui: &mut egui::Ui, rows: std::ops::Range<usize>| {
                                 ui.set_min_width(0.0);
-                                egui::Grid::new("m0_grid")
-                                    .striped(true)
-                                    .show(ui, |ui| {
-                                        for i in rows {
-                                            ui.add_sized(
-                                                [46.0, 0.0],
-                                                egui::Label::new(format!("P{}", i + 1)),
-                                            );
-                                            ui.add_sized(
-                                                [42.0 * 1.4, 0.0],
-                                                egui::DragValue::new(
-                                                    &mut self.net.tables.m0[i],
-                                                )
+                                egui::Grid::new("m0_grid").striped(true).show(ui, |ui| {
+                                    for i in rows {
+                                        ui.add_sized(
+                                            [46.0, 0.0],
+                                            egui::Label::new(format!("P{}", i + 1)),
+                                        );
+                                        ui.add_sized(
+                                            [42.0 * 1.4, 0.0],
+                                            egui::DragValue::new(&mut self.net.tables.m0[i])
                                                 .range(0..=u32::MAX),
-                                            );
-                                            ui.end_row();
-                                        }
-                                    });
+                                        );
+                                        ui.end_row();
+                                    }
+                                });
                             },
                         );
                     },
@@ -156,8 +160,9 @@ impl PetriApp {
                 let count = self.net.places.len();
                 show_collapsible_property_section(
                     ui,
-                    label_mo.clone(),
-                    PropertySectionConfig::new("mo").default_open(true),
+                    PropertySectionConfig::new("mo")
+                        .default_open(true)
+                        .label(label_mo.clone()),
                     |ui: &mut egui::Ui| {
                         let avail_height = ui.available_height();
                         let dynamic_height = (avail_height * 0.6).min(vector_scroll_height);
@@ -169,29 +174,26 @@ impl PetriApp {
                             dynamic_height,
                             |ui: &mut egui::Ui, rows: std::ops::Range<usize>| {
                                 ui.set_min_width(0.0);
-                                egui::Grid::new("mo_grid")
-                                    .striped(true)
-                                    .show(ui, |ui| {
-                                        for i in rows {
-                                            let mut cap = self.net.tables.mo[i].unwrap_or(0);
-                                            ui.add_sized(
-                                                [46.0, 0.0],
-                                                egui::Label::new(format!("P{}", i + 1)),
-                                            );
-                                            if ui
-                                                .add_sized(
-                                                    [42.0 * 1.4, 0.0],
-                                                    egui::DragValue::new(&mut cap)
-                                                        .range(0..=u32::MAX),
-                                                )
-                                                .changed()
-                                            {
-                                                self.net.tables.mo[i] =
-                                                    if cap == 0 { None } else { Some(cap) };
-                                            }
-                                            ui.end_row();
+                                egui::Grid::new("mo_grid").striped(true).show(ui, |ui| {
+                                    for i in rows {
+                                        let mut cap = self.net.tables.mo[i].unwrap_or(0);
+                                        ui.add_sized(
+                                            [46.0, 0.0],
+                                            egui::Label::new(format!("P{}", i + 1)),
+                                        );
+                                        if ui
+                                            .add_sized(
+                                                [42.0 * 1.4, 0.0],
+                                                egui::DragValue::new(&mut cap).range(0..=u32::MAX),
+                                            )
+                                            .changed()
+                                        {
+                                            self.net.tables.mo[i] =
+                                                if cap == 0 { None } else { Some(cap) };
                                         }
-                                    });
+                                        ui.end_row();
+                                    }
+                                });
                             },
                         );
                     },
@@ -202,8 +204,9 @@ impl PetriApp {
                 let count = self.net.places.len();
                 show_collapsible_property_section(
                     ui,
-                    label_mz.clone(),
-                    PropertySectionConfig::new("mz").default_open(true),
+                    PropertySectionConfig::new("mz")
+                        .default_open(true)
+                        .label(label_mz.clone()),
                     |ui: &mut egui::Ui| {
                         let avail_height = ui.available_height();
                         let dynamic_height = (avail_height * 0.6).min(vector_scroll_height);
@@ -215,25 +218,21 @@ impl PetriApp {
                             dynamic_height,
                             |ui: &mut egui::Ui, rows: std::ops::Range<usize>| {
                                 ui.set_min_width(0.0);
-                                egui::Grid::new("mz_grid")
-                                    .striped(true)
-                                    .show(ui, |ui| {
-                                        for i in rows {
-                                            ui.add_sized(
-                                                [46.0, 0.0],
-                                                egui::Label::new(format!("P{}", i + 1)),
-                                            );
-                                            ui.add_sized(
-                                                [42.0 * 1.8, 0.0],
-                                                egui::DragValue::new(
-                                                    &mut self.net.tables.mz[i],
-                                                )
+                                egui::Grid::new("mz_grid").striped(true).show(ui, |ui| {
+                                    for i in rows {
+                                        ui.add_sized(
+                                            [46.0, 0.0],
+                                            egui::Label::new(format!("P{}", i + 1)),
+                                        );
+                                        ui.add_sized(
+                                            [42.0 * 1.8, 0.0],
+                                            egui::DragValue::new(&mut self.net.tables.mz[i])
                                                 .speed(0.1)
                                                 .range(0.0..=10_000.0),
-                                            );
-                                            ui.end_row();
-                                        }
-                                    });
+                                        );
+                                        ui.end_row();
+                                    }
+                                });
                             },
                         );
                     },
@@ -244,8 +243,9 @@ impl PetriApp {
                 let count = self.net.transitions.len();
                 show_collapsible_property_section(
                     ui,
-                    label_mpr.clone(),
-                    PropertySectionConfig::new("mpr").default_open(true),
+                    PropertySectionConfig::new("mpr")
+                        .default_open(true)
+                        .label(label_mpr.clone()),
                     |ui: &mut egui::Ui| {
                         let avail_height = ui.available_height();
                         let dynamic_height = (avail_height * 0.6).min(vector_scroll_height);
@@ -257,24 +257,20 @@ impl PetriApp {
                             dynamic_height,
                             |ui: &mut egui::Ui, rows: std::ops::Range<usize>| {
                                 ui.set_min_width(0.0);
-                                egui::Grid::new("mpr_grid")
-                                    .striped(true)
-                                    .show(ui, |ui| {
-                                        for t in rows {
-                                            ui.add_sized(
-                                                [46.0, 0.0],
-                                                egui::Label::new(format!("T{}", t + 1)),
-                                            );
-                                            ui.add_sized(
-                                                [42.0 * 1.8, 0.0],
-                                                egui::DragValue::new(
-                                                    &mut self.net.tables.mpr[t],
-                                                )
+                                egui::Grid::new("mpr_grid").striped(true).show(ui, |ui| {
+                                    for t in rows {
+                                        ui.add_sized(
+                                            [46.0, 0.0],
+                                            egui::Label::new(format!("T{}", t + 1)),
+                                        );
+                                        ui.add_sized(
+                                            [42.0 * 1.8, 0.0],
+                                            egui::DragValue::new(&mut self.net.tables.mpr[t])
                                                 .speed(1),
-                                            );
-                                            ui.end_row();
-                                        }
-                                    });
+                                        );
+                                        ui.end_row();
+                                    }
+                                });
                             },
                         );
                     },
@@ -290,8 +286,9 @@ impl PetriApp {
                 let mut pre_changed_local = false;
                 show_collapsible_property_section(
                     ui,
-                    label_pre.clone(),
-                    PropertySectionConfig::new("pre_matrix").default_open(false),
+                    PropertySectionConfig::new("pre_matrix")
+                        .default_open(false)
+                        .label(label_pre.clone()),
                     |ui: &mut egui::Ui| {
                         // Import button
                         ui.horizontal(|ui| {
@@ -310,43 +307,38 @@ impl PetriApp {
                             dynamic_height,
                             |ui: &mut egui::Ui, rows: std::ops::Range<usize>| {
                                 ui.set_min_width(0.0);
-                                egui::Grid::new("pre_grid")
-                                    .striped(true)
-                                    .show(ui, |ui| {
+                                egui::Grid::new("pre_grid").striped(true).show(ui, |ui| {
+                                    ui.add_sized([46.0, 0.0], egui::Label::new(""));
+                                    for t in 0..self.net.transitions.len() {
+                                        ui.add_sized(
+                                            [42.0, 0.0],
+                                            egui::Label::new(format!("T{}", t + 1)),
+                                        );
+                                    }
+                                    ui.end_row();
+                                    for p in rows.clone() {
                                         ui.add_sized(
                                             [46.0, 0.0],
-                                            egui::Label::new(""),
+                                            egui::Label::new(format!("P{}", p + 1)),
                                         );
                                         for t in 0..self.net.transitions.len() {
-                                            ui.add_sized(
-                                                [42.0, 0.0],
-                                                egui::Label::new(format!("T{}", t + 1)),
-                                            );
+                                            let cell_changed = ui
+                                                .add_sized(
+                                                    [42.0, 0.0],
+                                                    egui::DragValue::new(
+                                                        &mut self.net.tables.pre[p][t],
+                                                    )
+                                                    .range(0..=u32::MAX)
+                                                    .speed(1),
+                                                )
+                                                .changed();
+                                            if cell_changed {
+                                                pre_changed_local = true;
+                                            }
                                         }
                                         ui.end_row();
-                                        for p in rows.clone() {
-                                            ui.add_sized(
-                                                [46.0, 0.0],
-                                                egui::Label::new(format!("P{}", p + 1)),
-                                            );
-                                            for t in 0..self.net.transitions.len() {
-                                                let cell_changed = ui
-                                                    .add_sized(
-                                                        [42.0, 0.0],
-                                                        egui::DragValue::new(
-                                                            &mut self.net.tables.pre[p][t],
-                                                        )
-                                                        .range(0..=u32::MAX)
-                                                        .speed(1),
-                                                    )
-                                                    .changed();
-                                                if cell_changed {
-                                                    pre_changed_local = true;
-                                                }
-                                            }
-                                            ui.end_row();
-                                        }
-                                    });
+                                    }
+                                });
                             },
                         );
                     },
@@ -361,8 +353,9 @@ impl PetriApp {
                 let mut post_changed_local = false;
                 show_collapsible_property_section(
                     ui,
-                    label_post.clone(),
-                    PropertySectionConfig::new("post_matrix").default_open(false),
+                    PropertySectionConfig::new("post_matrix")
+                        .default_open(false)
+                        .label(label_post.clone()),
                     |ui: &mut egui::Ui| {
                         ui.horizontal(|ui| {
                             if ui.small_button(label_import_csv.clone()).clicked() {
@@ -379,43 +372,38 @@ impl PetriApp {
                             dynamic_height,
                             |ui: &mut egui::Ui, rows: std::ops::Range<usize>| {
                                 ui.set_min_width(0.0);
-                                egui::Grid::new("post_grid")
-                                    .striped(true)
-                                    .show(ui, |ui| {
+                                egui::Grid::new("post_grid").striped(true).show(ui, |ui| {
+                                    ui.add_sized([46.0, 0.0], egui::Label::new(""));
+                                    for t in 0..self.net.transitions.len() {
+                                        ui.add_sized(
+                                            [42.0, 0.0],
+                                            egui::Label::new(format!("T{}", t + 1)),
+                                        );
+                                    }
+                                    ui.end_row();
+                                    for p in rows.clone() {
                                         ui.add_sized(
                                             [46.0, 0.0],
-                                            egui::Label::new(""),
+                                            egui::Label::new(format!("P{}", p + 1)),
                                         );
                                         for t in 0..self.net.transitions.len() {
-                                            ui.add_sized(
-                                                [42.0, 0.0],
-                                                egui::Label::new(format!("T{}", t + 1)),
-                                            );
+                                            let cell_changed = ui
+                                                .add_sized(
+                                                    [42.0, 0.0],
+                                                    egui::DragValue::new(
+                                                        &mut self.net.tables.post[p][t],
+                                                    )
+                                                    .range(0..=u32::MAX)
+                                                    .speed(1),
+                                                )
+                                                .changed();
+                                            if cell_changed {
+                                                post_changed_local = true;
+                                            }
                                         }
                                         ui.end_row();
-                                        for p in rows.clone() {
-                                            ui.add_sized(
-                                                [46.0, 0.0],
-                                                egui::Label::new(format!("P{}", p + 1)),
-                                            );
-                                            for t in 0..self.net.transitions.len() {
-                                                let cell_changed = ui
-                                                    .add_sized(
-                                                        [42.0, 0.0],
-                                                        egui::DragValue::new(
-                                                            &mut self.net.tables.post[p][t],
-                                                        )
-                                                        .range(0..=u32::MAX)
-                                                        .speed(1),
-                                                    )
-                                                    .changed();
-                                                if cell_changed {
-                                                    post_changed_local = true;
-                                                }
-                                            }
-                                            ui.end_row();
-                                        }
-                                    });
+                                    }
+                                });
                             },
                         );
                     },
@@ -430,8 +418,9 @@ impl PetriApp {
                 let mut inh_changed_local = false;
                 show_collapsible_property_section(
                     ui,
-                    label_inh.clone(),
-                    PropertySectionConfig::new("inh_matrix").default_open(false),
+                    PropertySectionConfig::new("inh_matrix")
+                        .default_open(false)
+                        .label(label_inh.clone()),
                     |ui: &mut egui::Ui| {
                         ui.horizontal(|ui| {
                             if ui.small_button(label_import_csv.clone()).clicked() {
@@ -448,43 +437,38 @@ impl PetriApp {
                             dynamic_height,
                             |ui: &mut egui::Ui, rows: std::ops::Range<usize>| {
                                 ui.set_min_width(0.0);
-                                egui::Grid::new("inh_grid")
-                                    .striped(true)
-                                    .show(ui, |ui| {
+                                egui::Grid::new("inh_grid").striped(true).show(ui, |ui| {
+                                    ui.add_sized([46.0, 0.0], egui::Label::new(""));
+                                    for t in 0..self.net.transitions.len() {
+                                        ui.add_sized(
+                                            [42.0, 0.0],
+                                            egui::Label::new(format!("T{}", t + 1)),
+                                        );
+                                    }
+                                    ui.end_row();
+                                    for p in rows.clone() {
                                         ui.add_sized(
                                             [46.0, 0.0],
-                                            egui::Label::new(""),
+                                            egui::Label::new(format!("P{}", p + 1)),
                                         );
                                         for t in 0..self.net.transitions.len() {
-                                            ui.add_sized(
-                                                [42.0, 0.0],
-                                                egui::Label::new(format!("T{}", t + 1)),
-                                            );
+                                            let cell_changed = ui
+                                                .add_sized(
+                                                    [42.0, 0.0],
+                                                    egui::DragValue::new(
+                                                        &mut self.net.tables.inhibitor[p][t],
+                                                    )
+                                                    .range(0..=u32::MAX)
+                                                    .speed(1),
+                                                )
+                                                .changed();
+                                            if cell_changed {
+                                                inh_changed_local = true;
+                                            }
                                         }
                                         ui.end_row();
-                                        for p in rows.clone() {
-                                            ui.add_sized(
-                                                [46.0, 0.0],
-                                                egui::Label::new(format!("P{}", p + 1)),
-                                            );
-                                            for t in 0..self.net.transitions.len() {
-                                                let cell_changed = ui
-                                                    .add_sized(
-                                                        [42.0, 0.0],
-                                                        egui::DragValue::new(
-                                                            &mut self.net.tables.inhibitor[p][t],
-                                                        )
-                                                        .range(0..=u32::MAX)
-                                                        .speed(1),
-                                                    )
-                                                    .changed();
-                                                if cell_changed {
-                                                    inh_changed_local = true;
-                                                }
-                                            }
-                                            ui.end_row();
-                                        }
-                                    });
+                                    }
+                                });
                             },
                         );
                     },
@@ -661,7 +645,8 @@ impl PetriApp {
                                         "Детальная статистика по позициям доступна",
                                         "Detailed per-place statistics available",
                                     ));
-                                    if ui.button(self.tr("Статистика", "Statistics")).clicked() {
+                                    if ui.button(self.tr("Статистика", "Statistics")).clicked()
+                                    {
                                         let selected = stats_places
                                             .iter()
                                             .position(|&p| p == self.place_stats_view_place)
@@ -674,11 +659,9 @@ impl PetriApp {
                             // Log (table) section
                             show_collapsible_property_section(
                                 ui,
-                                PropertySectionConfig {
-                                    id: egui::Id::new("results_log_section"),
-                                    label: self.tr("Журнал (таблица)", "Log (table)"),
-                                    default_open: true,
-                                },
+                                PropertySectionConfig::new("results_log_section")
+                                    .default_open(true)
+                                    .label(self.tr("Журнал (таблица)", "Log (table)")),
                                 |ui| {
                                     // Export CSV button
                                     ui.horizontal(|ui| {
@@ -708,7 +691,10 @@ impl PetriApp {
                                                     Ok(_) => {
                                                         self.status_hint = Some(format!(
                                                             "{}: {}",
-                                                            self.tr("Журнал экспортирован", "Log exported"),
+                                                            self.tr(
+                                                                "Журнал экспортирован",
+                                                                "Log exported"
+                                                            ),
                                                             path.display()
                                                         ));
                                                         self.last_error = None;
@@ -730,19 +716,22 @@ impl PetriApp {
                                     // Horizontal scroll for the log header and rows.
                                     egui::ScrollArea::horizontal().show(ui, |ui| {
                                         // Determine the height of each row based on the current text style.
-                                        let row_h = ui.text_style_height(&egui::TextStyle::Body) + 4.0;
+                                        let row_h =
+                                            ui.text_style_height(&egui::TextStyle::Body) + 4.0;
                                         // Render the header row once outside of virtualization.
-                                        egui::Grid::new("sim_log_grid_header")
-                                            .striped(true)
-                                            .show(ui, |ui| {
+                                        egui::Grid::new("sim_log_grid_header").striped(true).show(
+                                            ui,
+                                            |ui| {
                                                 ui.label(self.tr("Время", "Time"));
                                                 for (p, _) in self.net.places.iter().enumerate() {
                                                     ui.label(format!("P{}", p + 1));
                                                 }
                                                 ui.end_row();
-                                            });
+                                            },
+                                        );
                                         // Visible log indices for virtualization (precomputed)
-                                        let visible_log_indices = Self::debug_visible_log_indices(&result);
+                                        let visible_log_indices =
+                                            Self::debug_visible_log_indices(&result);
                                         // Dynamically compute the maximum height for the log table.  Allow the
                                         // table to occupy up to 60% of the available height but never exceed
                                         // 320 px.  This provides a responsive layout while preventing a
@@ -756,7 +745,8 @@ impl PetriApp {
                                             row_h,
                                             visible_log_indices.len(),
                                             |ui, row_idx| {
-                                                let entry = &result.logs[visible_log_indices[row_idx]];
+                                                let entry =
+                                                    &result.logs[visible_log_indices[row_idx]];
                                                 // Render a single row.  We use a horizontal layout instead
                                                 // of a Grid here because each row is drawn independently by
                                                 // the virtualization helper.  This maintains alignment
@@ -775,11 +765,8 @@ impl PetriApp {
                             // Marker statistics section
                             if let Some(stats) = &result.place_stats {
                                 // Determine rows to display based on whether per-place stats are enabled.
-                                let any_place_stats_selected = self
-                                    .net
-                                    .places
-                                    .iter()
-                                    .any(|p| p.stats.any_enabled());
+                                let any_place_stats_selected =
+                                    self.net.places.iter().any(|p| p.stats.any_enabled());
                                 let show_all_places_in_stats = !any_place_stats_selected;
                                 let rows: Vec<usize> = stats
                                     .iter()
@@ -801,14 +788,12 @@ impl PetriApp {
                                 if !rows.is_empty() {
                                     show_collapsible_property_section(
                                         ui,
-                                        PropertySectionConfig {
-                                            id: egui::Id::new("results_marker_stats_section"),
-                                            label: self.tr(
+                                        PropertySectionConfig::new("results_marker_stats_section")
+                                            .default_open(true)
+                                            .label(self.tr(
                                                 "Статистика маркеров (min/max/avg)",
                                                 "Token statistics (min/max/avg)",
-                                            ),
-                                            default_open: true,
-                                        },
+                                            )),
                                         |ui| {
                                             // Header
                                             egui::Grid::new("stats_grid_header")
@@ -820,7 +805,8 @@ impl PetriApp {
                                                     ui.label("Avg");
                                                     ui.end_row();
                                                 });
-                                            let row_h = ui.text_style_height(&egui::TextStyle::Body) + 4.0;
+                                            let row_h =
+                                                ui.text_style_height(&egui::TextStyle::Body) + 4.0;
                                             // Dynamically compute height: up to 40% of available height but at most 180 px.
                                             let avail_height = ui.available_height();
                                             let dynamic_height = (avail_height * 0.4).min(180.0);
@@ -863,7 +849,9 @@ impl PetriApp {
                                             .net
                                             .places
                                             .get(p)
-                                            .map(|pl| pl.stats.markers_input || pl.stats.markers_output)
+                                            .map(|pl| {
+                                                pl.stats.markers_input || pl.stats.markers_output
+                                            })
                                             .unwrap_or(false);
                                         if show_all_places_in_stats || selected {
                                             Some(p)
@@ -875,21 +863,23 @@ impl PetriApp {
                                 if !rows.is_empty() {
                                     show_collapsible_property_section(
                                         ui,
-                                        PropertySectionConfig {
-                                            id: egui::Id::new("results_flow_section"),
-                                            label: self.tr("Потоки (вход/выход)", "Flows (in/out)"),
-                                            default_open: true,
-                                        },
+                                        PropertySectionConfig::new("results_flow_section")
+                                            .default_open(true)
+                                            .label(
+                                                self.tr("Потоки (вход/выход)", "Flows (in/out)"),
+                                            ),
                                         |ui| {
-                                            egui::Grid::new("flow_grid_header")
-                                                .striped(true)
-                                                .show(ui, |ui| {
+                                            egui::Grid::new("flow_grid_header").striped(true).show(
+                                                ui,
+                                                |ui| {
                                                     ui.label(self.tr("Позиция", "Place"));
                                                     ui.label(self.tr("Вход", "In"));
                                                     ui.label(self.tr("Выход", "Out"));
                                                     ui.end_row();
-                                                });
-                                            let row_h = ui.text_style_height(&egui::TextStyle::Body) + 4.0;
+                                                },
+                                            );
+                                            let row_h =
+                                                ui.text_style_height(&egui::TextStyle::Body) + 4.0;
                                             // Dynamically compute height: up to 40% of available height but at most 180 px.
                                             let avail_height = ui.available_height();
                                             let dynamic_height = (avail_height * 0.4).min(180.0);
@@ -916,11 +906,9 @@ impl PetriApp {
                             }
                             // Load section
                             if let Some(load) = &result.place_load {
-                                let any_place_stats_selected = self
-                                    .net
-                                    .places
-                                    .iter()
-                                    .any(|p| p.stats.load_total || p.stats.load_input || p.stats.load_output);
+                                let any_place_stats_selected = self.net.places.iter().any(|p| {
+                                    p.stats.load_total || p.stats.load_input || p.stats.load_output
+                                });
                                 let show_all_places_in_stats = !any_place_stats_selected;
                                 let rows: Vec<usize> = load
                                     .iter()
@@ -930,7 +918,11 @@ impl PetriApp {
                                             .net
                                             .places
                                             .get(p)
-                                            .map(|pl| pl.stats.load_total || pl.stats.load_input || pl.stats.load_output)
+                                            .map(|pl| {
+                                                pl.stats.load_total
+                                                    || pl.stats.load_input
+                                                    || pl.stats.load_output
+                                            })
                                             .unwrap_or(false);
                                         if show_all_places_in_stats || selected {
                                             Some(p)
@@ -942,22 +934,22 @@ impl PetriApp {
                                 if !rows.is_empty() {
                                     show_collapsible_property_section(
                                         ui,
-                                        PropertySectionConfig {
-                                            id: egui::Id::new("results_load_section"),
-                                            label: self.tr("Загруженность", "Load"),
-                                            default_open: true,
-                                        },
+                                        PropertySectionConfig::new("results_load_section")
+                                            .default_open(true)
+                                            .label(self.tr("Загруженность", "Load")),
                                         |ui| {
-                                            egui::Grid::new("load_grid_header")
-                                                .striped(true)
-                                                .show(ui, |ui| {
+                                            egui::Grid::new("load_grid_header").striped(true).show(
+                                                ui,
+                                                |ui| {
                                                     ui.label(self.tr("Позиция", "Place"));
                                                     ui.label(self.tr("Общая", "Total"));
                                                     ui.label(self.tr("Вход", "Input"));
                                                     ui.label(self.tr("Выход", "Output"));
                                                     ui.end_row();
-                                                });
-                                            let row_h = ui.text_style_height(&egui::TextStyle::Body) + 4.0;
+                                                },
+                                            );
+                                            let row_h =
+                                                ui.text_style_height(&egui::TextStyle::Body) + 4.0;
                                             // Dynamically compute height: up to 40% of available height but at most 180 px.
                                             let avail_height = ui.available_height();
                                             let dynamic_height = (avail_height * 0.4).min(180.0);
@@ -996,5 +988,58 @@ impl PetriApp {
                 });
             self.show_results = open;
         }
+    }
+
+    pub(in crate::ui::app) fn draw_place_statistics_window(&mut self, ctx: &egui::Context) {
+        if !self.show_place_stats_window || self.net.places.is_empty() {
+            self.show_place_stats_window = false;
+            return;
+        }
+        let title = self
+            .tr("Статистика по месту", "Place statistics")
+            .to_string();
+        let close_label = self.tr("Закрыть", "Close").to_string();
+        let place_index = self
+            .place_stats_view_place
+            .min(self.net.places.len().saturating_sub(1));
+        let place_name = format!("P{}", place_index + 1);
+        let current_tokens = self.net.tables.m0.get(place_index).copied().unwrap_or(0);
+        let sim_result = self.sim_result.clone();
+        let position_label = self.tr("Позиция", "Place").to_string();
+        let tokens_label = self.tr("Маркеры", "Tokens").to_string();
+        let latest_time_label = self.tr("Последнее время", "Latest time").to_string();
+        let final_marking_label = self.tr("Итоговые маркеры", "Final marking").to_string();
+        let no_data_label = self
+            .tr(
+                "Данные симуляции отсутствуют",
+                "Simulation data unavailable",
+            )
+            .to_string();
+        let mut open = self.show_place_stats_window;
+        let mut close_requested = false;
+        egui::Window::new(title)
+            .open(&mut open)
+            .resizable(true)
+            .default_size(egui::vec2(320.0, 200.0))
+            .show(ctx, |ui| {
+                ui.label(format!("{}: {}", position_label, place_name));
+                ui.label(format!("{}: {}", tokens_label, current_tokens));
+                ui.separator();
+                if let Some(result) = sim_result.as_ref() {
+                    let latest_marking =
+                        result.final_marking.get(place_index).copied().unwrap_or(0);
+                    ui.label(format!("{}: {:.3}", latest_time_label, result.sim_time));
+                    ui.label(format!("{}: {}", final_marking_label, latest_marking));
+                } else {
+                    ui.label(no_data_label);
+                }
+                if ui.button(&close_label).clicked() {
+                    close_requested = true;
+                }
+            });
+        if close_requested {
+            open = false;
+        }
+        self.show_place_stats_window = open;
     }
 }

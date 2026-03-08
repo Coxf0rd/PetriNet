@@ -106,7 +106,11 @@ try {
         }
 
         if (Test-Path $outputExePath) {
-            Remove-Item $outputExePath -Force
+            try {
+                Remove-Item $outputExePath -Force -ErrorAction Stop
+            } catch {
+                Write-Warning "Failed to delete existing executable `"$outputExePath`" ($($_.Exception.Message)); will attempt to overwrite."
+            }
         }
         Copy-Item $releaseExe $outputExePath -Force
         Write-Host "Executable ready: $outputExePath"

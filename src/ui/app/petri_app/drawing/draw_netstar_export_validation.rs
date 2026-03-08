@@ -10,10 +10,7 @@ impl PetriApp {
     /// virtualizing it avoids performance issues when there are many
     /// messages.  The scroll bar appears only on hover, matching the
     /// behaviour of other list-based UI components.
-    pub(in crate::ui::app) fn draw_netstar_export_validation(
-        &mut self,
-        ctx: &egui::Context,
-    ) {
+    pub(in crate::ui::app) fn draw_netstar_export_validation(&mut self, ctx: &egui::Context) {
         // If the window is not supposed to be shown, exit early.
         if !self.show_netstar_export_validation {
             return;
@@ -85,10 +82,8 @@ impl PetriApp {
                                 let issue = &report.errors[idx];
                                 let line = format!("[{}] {}", self.tr("Ошибка", "Error"), issue);
                                 let response = ui.add(
-                                    egui::Label::new(
-                                        egui::RichText::new(line).color(Color32::RED),
-                                    )
-                                    .sense(egui::Sense::click()),
+                                    egui::Label::new(egui::RichText::new(line).color(Color32::RED))
+                                        .sense(egui::Sense::click()),
                                 );
                                 if response.clicked() && !self.select_export_issue_target(issue) {
                                     self.status_hint = Some(
@@ -102,11 +97,8 @@ impl PetriApp {
                             } else {
                                 let warn_idx = idx - report.errors.len();
                                 let issue = &report.warnings[warn_idx];
-                                let line = format!(
-                                    "[{}] {}",
-                                    self.tr("Предупреждение", "Warning"),
-                                    issue
-                                );
+                                let line =
+                                    format!("[{}] {}", self.tr("Предупреждение", "Warning"), issue);
                                 let response = ui.add(
                                     egui::Label::new(
                                         egui::RichText::new(line)

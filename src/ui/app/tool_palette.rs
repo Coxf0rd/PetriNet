@@ -8,83 +8,104 @@ impl PetriApp {
             self.tool = Tool::Place;
         }
 
-        let panel = egui::SidePanel::left("tools")
-            .resizable(true)
-            .show(ctx, |ui: &mut egui::Ui| {
-                ui.heading("Инструменты");
-                ui.separator();
+        let panel =
+            egui::SidePanel::left("tools")
+                .resizable(true)
+                .show(ctx, |ui: &mut egui::Ui| {
+                    ui.heading("Инструменты");
+                    ui.separator();
 
-                // List of tools available from the palette.  The Edit tool has been removed
-                // entirely in response to user feedback.  Users can no longer switch to
-                // editing mode from the palette.
-                for (tool_variant, icon, label) in [
-                    (Tool::Place, "O", "Позиция"),
-                    (Tool::Transition, "II", "Переход"),
-                    (Tool::Arc, "↗", "Дуга"),
-                    (Tool::Text, "A", "Текст"),
-                    (Tool::Frame, "[]", "Рамка"),
-                    (Tool::Delete, "✖", "Удалить"),
-                ] {
-                    let selected = self.tool == tool_variant;
-                    let text = format!("{} {}", icon, label);
-                    if ui.add(egui::SelectableLabel::new(selected, text)).clicked() {
-                        self.tool = tool_variant;
+                    // List of tools available from the palette.  The Edit tool has been removed
+                    // entirely in response to user feedback.  Users can no longer switch to
+                    // editing mode from the palette.
+                    for (tool_variant, icon, label) in [
+                        (Tool::Place, "O", "Позиция"),
+                        (Tool::Transition, "II", "Переход"),
+                        (Tool::Arc, "↗", "Дуга"),
+                        (Tool::Text, "A", "Текст"),
+                        (Tool::Frame, "[]", "Рамка"),
+                        (Tool::Delete, "✖", "Удалить"),
+                    ] {
+                        let selected = self.tool == tool_variant;
+                        let text = format!("{} {}", icon, label);
+                        if ui.add(egui::SelectableLabel::new(selected, text)).clicked() {
+                            self.tool = tool_variant;
+                        }
                     }
-                }
 
-                if ui.button("СТАРТ").clicked() {
-                    self.reset_sim_stop_controls();
-                    self.show_sim_params = true;
-                }
+                    if ui.button("СТАРТ").clicked() {
+                        self.reset_sim_stop_controls();
+                        self.show_sim_params = true;
+                    }
 
-                ui.separator();
-                ui.label(self.tr("Отображение связей", "Link visibility"));
-                let is_ru = matches!(self.net.ui.language, Language::Ru);
-                egui::ComboBox::from_label(self.tr("Режим", "Mode"))
-                    .selected_text(Self::arc_display_mode_text(self.arc_display_mode, is_ru))
-                    .show_ui(ui, |ui: &mut egui::Ui| {
-                        ui.selectable_value(
-                            &mut self.arc_display_mode,
-                            ArcDisplayMode::All,
-                            Self::arc_display_mode_text(ArcDisplayMode::All, is_ru),
-                        );
-                        ui.selectable_value(
-                            &mut self.arc_display_mode,
-                            ArcDisplayMode::OnlyColor,
-                            Self::arc_display_mode_text(ArcDisplayMode::OnlyColor, is_ru),
-                        );
-                        ui.selectable_value(
-                            &mut self.arc_display_mode,
-                            ArcDisplayMode::Hidden,
-                            Self::arc_display_mode_text(ArcDisplayMode::Hidden, is_ru),
-                        );
-                    });
-
-                if self.arc_display_mode == ArcDisplayMode::OnlyColor {
-                    let color_label = if is_ru { "Цвет" } else { "Color" };
-                    let c_default = if is_ru { "По умолчанию" } else { "Default" };
-                    let c_blue = if is_ru { "Синий" } else { "Blue" };
-                    let c_red = if is_ru { "Красный" } else { "Red" };
-                    let c_green = if is_ru { "Зеленый" } else { "Green" };
-                    let c_yellow = if is_ru { "Желтый" } else { "Yellow" };
-
-                    egui::ComboBox::from_label(color_label)
-                        .selected_text(Self::node_color_text(self.arc_display_color, is_ru))
+                    ui.separator();
+                    ui.label(self.tr("Отображение связей", "Link visibility"));
+                    let is_ru = matches!(self.net.ui.language, Language::Ru);
+                    egui::ComboBox::from_label(self.tr("Режим", "Mode"))
+                        .selected_text(Self::arc_display_mode_text(self.arc_display_mode, is_ru))
                         .show_ui(ui, |ui: &mut egui::Ui| {
                             ui.selectable_value(
-                                &mut self.arc_display_color,
-                                NodeColor::Default,
-                                c_default,
+                                &mut self.arc_display_mode,
+                                ArcDisplayMode::All,
+                                Self::arc_display_mode_text(ArcDisplayMode::All, is_ru),
                             );
-                            ui.selectable_value(&mut self.arc_display_color, NodeColor::Blue, c_blue);
-                            ui.selectable_value(&mut self.arc_display_color, NodeColor::Red, c_red);
-                            ui.selectable_value(&mut self.arc_display_color, NodeColor::Green, c_green);
-                            ui.selectable_value(&mut self.arc_display_color, NodeColor::Yellow, c_yellow);
+                            ui.selectable_value(
+                                &mut self.arc_display_mode,
+                                ArcDisplayMode::OnlyColor,
+                                Self::arc_display_mode_text(ArcDisplayMode::OnlyColor, is_ru),
+                            );
+                            ui.selectable_value(
+                                &mut self.arc_display_mode,
+                                ArcDisplayMode::Hidden,
+                                Self::arc_display_mode_text(ArcDisplayMode::Hidden, is_ru),
+                            );
                         });
-                }
 
-                // The former Editor and Selection sections have been removed entirely.
-            });
+                    if self.arc_display_mode == ArcDisplayMode::OnlyColor {
+                        let color_label = if is_ru { "Цвет" } else { "Color" };
+                        let c_default = if is_ru {
+                            "По умолчанию"
+                        } else {
+                            "Default"
+                        };
+                        let c_blue = if is_ru { "Синий" } else { "Blue" };
+                        let c_red = if is_ru { "Красный" } else { "Red" };
+                        let c_green = if is_ru { "Зеленый" } else { "Green" };
+                        let c_yellow = if is_ru { "Желтый" } else { "Yellow" };
+
+                        egui::ComboBox::from_label(color_label)
+                            .selected_text(Self::node_color_text(self.arc_display_color, is_ru))
+                            .show_ui(ui, |ui: &mut egui::Ui| {
+                                ui.selectable_value(
+                                    &mut self.arc_display_color,
+                                    NodeColor::Default,
+                                    c_default,
+                                );
+                                ui.selectable_value(
+                                    &mut self.arc_display_color,
+                                    NodeColor::Blue,
+                                    c_blue,
+                                );
+                                ui.selectable_value(
+                                    &mut self.arc_display_color,
+                                    NodeColor::Red,
+                                    c_red,
+                                );
+                                ui.selectable_value(
+                                    &mut self.arc_display_color,
+                                    NodeColor::Green,
+                                    c_green,
+                                );
+                                ui.selectable_value(
+                                    &mut self.arc_display_color,
+                                    NodeColor::Yellow,
+                                    c_yellow,
+                                );
+                            });
+                    }
+
+                    // The former Editor and Selection sections have been removed entirely.
+                });
 
         // Open the "New Element Properties" window when right‑clicking on the palette.
         let open_props_by_rclick = ctx.input(|i| {
@@ -203,7 +224,10 @@ impl PetriApp {
                             corrected_inputs |= sanitize_u32(&mut marking, 0, u32::MAX);
                             ui.horizontal(|ui: &mut egui::Ui| {
                                 ui.label(t("Маркеры", "Tokens"));
-                                if ui.add(egui::DragValue::new(&mut marking).range(0..=u32::MAX)).changed() {
+                                if ui
+                                    .add(egui::DragValue::new(&mut marking).range(0..=u32::MAX))
+                                    .changed()
+                                {
                                     corrected_inputs |= sanitize_u32(&mut marking, 0, u32::MAX);
                                 }
                             });
@@ -216,7 +240,10 @@ impl PetriApp {
                                     "Макс. емкость (0 = без ограничений)",
                                     "Capacity (0 = unlimited)",
                                 ));
-                                if ui.add(egui::DragValue::new(&mut cap).range(0..=u32::MAX)).changed() {
+                                if ui
+                                    .add(egui::DragValue::new(&mut cap).range(0..=u32::MAX))
+                                    .changed()
+                                {
                                     corrected_inputs |= sanitize_u32(&mut cap, 0, u32::MAX);
                                 }
                             });
@@ -257,11 +284,22 @@ impl PetriApp {
                             });
 
                             let mut transition_priority = self.new_transition_priority;
-                            corrected_inputs |= sanitize_i32(&mut transition_priority, -1_000_000, 1_000_000);
+                            corrected_inputs |=
+                                sanitize_i32(&mut transition_priority, -1_000_000, 1_000_000);
                             ui.horizontal(|ui: &mut egui::Ui| {
                                 ui.label(t("Приоритет", "Priority"));
-                                if ui.add(egui::DragValue::new(&mut transition_priority).range(-1_000_000..=1_000_000)).changed() {
-                                    corrected_inputs |= sanitize_i32(&mut transition_priority, -1_000_000, 1_000_000);
+                                if ui
+                                    .add(
+                                        egui::DragValue::new(&mut transition_priority)
+                                            .range(-1_000_000..=1_000_000),
+                                    )
+                                    .changed()
+                                {
+                                    corrected_inputs |= sanitize_i32(
+                                        &mut transition_priority,
+                                        -1_000_000,
+                                        1_000_000,
+                                    );
                                 }
                             });
                             self.new_transition_priority = transition_priority;
@@ -279,7 +317,10 @@ impl PetriApp {
                             corrected_inputs |= sanitize_u32(&mut arc_weight, 1, u32::MAX);
                             ui.horizontal(|ui: &mut egui::Ui| {
                                 ui.label(t("Кратность (вес)", "Weight"));
-                                if ui.add(egui::DragValue::new(&mut arc_weight).range(1..=u32::MAX)).changed() {
+                                if ui
+                                    .add(egui::DragValue::new(&mut arc_weight).range(1..=u32::MAX))
+                                    .changed()
+                                {
                                     corrected_inputs |= sanitize_u32(&mut arc_weight, 1, u32::MAX);
                                 }
                             });
@@ -297,8 +338,15 @@ impl PetriApp {
                                     ui.label(t("Порог", "Threshold"));
                                     let mut threshold = self.new_arc_inhibitor_threshold;
                                     corrected_inputs |= sanitize_u32(&mut threshold, 1, u32::MAX);
-                                    if ui.add(egui::DragValue::new(&mut threshold).range(1..=u32::MAX)).changed() {
-                                        corrected_inputs |= sanitize_u32(&mut threshold, 1, u32::MAX);
+                                    if ui
+                                        .add(
+                                            egui::DragValue::new(&mut threshold)
+                                                .range(1..=u32::MAX),
+                                        )
+                                        .changed()
+                                    {
+                                        corrected_inputs |=
+                                            sanitize_u32(&mut threshold, 1, u32::MAX);
                                     }
                                     self.new_arc_inhibitor_threshold = threshold;
                                 });

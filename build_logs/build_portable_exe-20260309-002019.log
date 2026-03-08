@@ -1,0 +1,241 @@
+build_portable_exe.ps1 failed: 20260309-002019
+ProjectDir: C:\Users\KDFX Modes\Desktop\PetriNet_Project\PetriNet
+Cargo: C:\Users\KDFX Modes\.cargo\bin\cargo.exe
+CargoExitCode: 0
+
+ERROR:
+System.IO.IOException: The process cannot access the file 'C:\Users\KDFX Modes\Desktop\PetriNet_Project\PetriNet\PetriNet-0.7.112.exe' because it is being used by another process.
+   at System.IO.__Error.WinIOError(Int32 errorCode, String maybeFullPath)
+   at System.IO.File.InternalCopy(String sourceFileName, String destFileName, Boolean overwrite, Boolean checkHost)
+   at System.IO.FileInfo.CopyTo(String destFileName, Boolean overwrite)
+   at Microsoft.PowerShell.Commands.FileSystemProvider.CopyFileInfoItem(FileInfo file, String destinationPath, Boolean force, PowerShell ps)
+   at Microsoft.PowerShell.Commands.FileSystemProvider.CopyItemLocalOrToSession(String path, String destinationPath, Boolean recurse, Boolean Force, PowerShell ps)
+   at Microsoft.PowerShell.Commands.FileSystemProvider.CopyItem(String path, String destinationPath, Boolean recurse)
+   at System.Management.Automation.SessionStateInternal.CopyItem(CmdletProvider providerInstance, String path, String copyPath, Boolean recurse, CmdletProviderContext context)
+
+CARGO STDERR:
+   Compiling proc-macro2 v1.0.106
+   Compiling quote v1.0.44
+   Compiling unicode-ident v1.0.24
+   Compiling serde_core v1.0.228
+   Compiling cfg-if v1.0.4
+   Compiling stable_deref_trait v1.2.1
+   Compiling autocfg v1.5.0
+   Compiling windows_x86_64_msvc v0.48.5
+   Compiling khronos_api v3.1.0
+   Compiling zerocopy v0.8.40
+   Compiling smallvec v1.15.1
+   Compiling serde v1.0.228
+   Compiling cfg_aliases v0.1.1
+   Compiling writeable v0.6.2
+   Compiling windows-link v0.2.1
+   Compiling libm v0.2.16
+   Compiling log v0.4.29
+   Compiling xml-rs v0.8.28
+   Compiling litemap v0.8.1
+   Compiling icu_normalizer_data v2.1.1
+   Compiling icu_properties_data v2.1.2
+   Compiling once_cell v1.21.3
+   Compiling parking_lot_core v0.9.12
+   Compiling simd-adler32 v0.3.8
+   Compiling version_check v0.9.5
+   Compiling crc32fast v1.5.0
+   Compiling scopeguard v1.2.0
+   Compiling ttf-parser v0.25.1
+   Compiling windows_x86_64_msvc v0.53.1
+   Compiling adler2 v2.0.1
+   Compiling ab_glyph_rasterizer v0.1.10
+   Compiling raw-window-handle v0.5.2
+   Compiling winit v0.29.15
+   Compiling nohash-hasher v0.2.0
+   Compiling lock_api v0.4.14
+   Compiling miniz_oxide v0.8.9
+   Compiling fdeflate v0.3.7
+   Compiling percent-encoding v2.3.2
+   Compiling utf8_iter v1.0.4
+   Compiling base64 v0.21.7
+   Compiling raw-window-handle v0.6.2
+   Compiling glutin v0.31.3
+   Compiling getrandom v0.2.17
+   Compiling smol_str v0.2.2
+   Compiling unicode-segmentation v1.12.0
+   Compiling ahash v0.8.12
+   Compiling form_urlencoded v1.2.2
+   Compiling byteorder-lite v0.1.0
+   Compiling error-code v3.3.2
+   Compiling cursor-icon v1.2.0
+   Compiling rand_core v0.6.4
+   Compiling num-traits v0.2.19
+   Compiling memoffset v0.9.1
+   Compiling glutin-winit v0.4.2
+   Compiling libloading v0.8.9
+   Compiling winapi v0.3.9
+   Compiling windows-targets v0.48.5
+   Compiling option-ext v0.2.0
+   Compiling zmij v1.0.21
+   Compiling glow v0.13.1
+   Compiling serde_json v1.0.149
+   Compiling rfd v0.14.1
+   Compiling windows-targets v0.53.5
+   Compiling clipboard-win v5.4.1
+   Compiling anyhow v1.0.102
+   Compiling litrs v1.0.0
+   Compiling windows-sys v0.48.0
+   Compiling gl_generator v0.14.0
+   Compiling windows-sys v0.60.2
+   Compiling web-time v0.2.4
+   Compiling flate2 v1.1.9
+   Compiling itoa v1.0.17
+   Compiling parking_lot v0.12.5
+   Compiling static_assertions v1.1.0
+   Compiling memchr v2.8.0
+   Compiling encoding_rs v0.8.35
+   Compiling document-features v0.2.12
+   Compiling glutin_egl_sys v0.6.0
+   Compiling glutin_wgl_sys v0.5.0
+   Compiling syn v2.0.117
+   Compiling pxfm v0.1.27
+   Compiling owned_ttf_parser v0.25.1
+   Compiling ab_glyph v0.2.32
+   Compiling bitflags v2.11.0
+   Compiling png v0.18.1
+   Compiling toml v0.5.11
+   Compiling synstructure v0.13.2
+   Compiling zerovec-derive v0.11.2
+   Compiling displaydoc v0.2.5
+   Compiling serde_derive v1.0.228
+   Compiling bytemuck_derive v1.10.2
+   Compiling zerofrom-derive v0.1.6
+   Compiling yoke-derive v0.8.1
+   Compiling winres v0.1.12
+   Compiling zerofrom v0.1.6
+   Compiling yoke v0.8.1
+   Compiling petri_net_legacy_editor v0.7.112 (C:\Users\KDFX Modes\Desktop\PetriNet_Project\PetriNet)
+   Compiling zerotrie v0.2.3
+   Compiling zerovec v0.11.5
+   Compiling bytemuck v1.25.0
+   Compiling ppv-lite86 v0.2.21
+   Compiling moxcms v0.7.11
+   Compiling rand_chacha v0.3.1
+   Compiling tinystr v0.8.2
+   Compiling potential_utf v0.1.4
+   Compiling dirs-sys v0.4.1
+   Compiling rand v0.8.5
+   Compiling icu_collections v2.1.1
+   Compiling directories v5.0.1
+   Compiling icu_locale_core v2.1.1
+   Compiling rand_distr v0.4.3
+   Compiling icu_provider v2.1.1
+   Compiling icu_properties v2.1.2
+   Compiling icu_normalizer v2.1.1
+   Compiling emath v0.28.1
+   Compiling ron v0.8.1
+   Compiling ecolor v0.28.1
+   Compiling epaint v0.28.1
+   Compiling idna_adapter v1.2.1
+   Compiling idna v1.1.0
+   Compiling url v2.5.8
+   Compiling webbrowser v1.1.0
+   Compiling image v0.25.9
+   Compiling egui v0.28.1
+   Compiling arboard v3.6.1
+   Compiling egui-winit v0.28.1
+   Compiling egui_glow v0.28.1
+   Compiling eframe v0.28.1
+warning: unused import: `Id`
+  --> src\ui\scroll_utils.rs:10:52
+   |
+10 | use egui::{self, scroll_area::ScrollBarVisibility, Id, Ui};
+   |                                                    ^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: variant `Cascade` is never constructed
+  --> src\ui\app.rs:35:5
+   |
+34 | enum LayoutMode {
+   |      ---------- variant in this enum
+35 |     Cascade,
+   |     ^^^^^^^
+   |
+   = note: `LayoutMode` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: variants `Input` and `Output` are never constructed
+  --> src\ui\app.rs:51:5
+   |
+49 | pub(super) enum PlaceStatsSeries {
+   |                 ---------------- variants in this enum
+50 |     Total,
+51 |     Input,
+   |     ^^^^^
+52 |     Output,
+   |     ^^^^^^
+   |
+   = note: `PlaceStatsSeries` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+
+warning: fields `place_stats_series`, `place_stats_zoom_x`, `place_stats_pan_x`, and `place_stats_show_grid` are never read
+   --> src\ui\app.rs:402:5
+    |
+344 | pub struct PetriApp {
+    |            -------- fields in this struct
+...
+402 |     place_stats_series: PlaceStatsSeries,
+    |     ^^^^^^^^^^^^^^^^^^
+403 |     place_stats_zoom_x: f32,
+    |     ^^^^^^^^^^^^^^^^^^
+404 |     place_stats_pan_x: f32,
+    |     ^^^^^^^^^^^^^^^^^
+405 |     place_stats_show_grid: bool,
+    |     ^^^^^^^^^^^^^^^^^^^^^
+
+warning: associated constant `MAX_PLOT_POINTS` is never used
+   --> src\ui\app.rs:447:11
+    |
+441 | impl PetriApp {
+    | ------------- associated constant in this implementation
+...
+447 |     const MAX_PLOT_POINTS: usize = 2_000;
+    |           ^^^^^^^^^^^^^^^
+
+warning: associated function `format_marking` is never used
+ --> src\ui\app\petri_app\helpers\format_marking.rs:4:31
+  |
+3 | impl PetriApp {
+  | ------------- associated function in this implementation
+4 |     pub(in crate::ui::app) fn format_marking(marking: &[u32]) -> String {
+  |                               ^^^^^^^^^^^^^^
+
+warning: associated function `sampled_indices` is never used
+ --> src\ui\app\petri_app\helpers\sampled_indices.rs:4:31
+  |
+3 | impl PetriApp {
+  | ------------- associated function in this implementation
+4 |     pub(in crate::ui::app) fn sampled_indices(total: usize, max_points: usize) -> Vec<usize> {
+  |                               ^^^^^^^^^^^^^^^
+
+warning: method `collect_selected_arc_ids` is never used
+ --> src\ui\app\petri_app\selection\collect_selected_arc_ids.rs:4:31
+  |
+3 | impl PetriApp {
+  | ------------- method in this implementation
+4 |     pub(in crate::ui::app) fn collect_selected_arc_ids(&self) -> Vec<u64> {
+  |                               ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `show_property_section` is never used
+  --> src\ui\property_selection.rs:47:15
+   |
+47 | pub(crate) fn show_property_section<R>(
+   |               ^^^^^^^^^^^^^^^^^^^^^
+
+warning: method `resizable` is never used
+  --> src\ui\property_window.rs:44:12
+   |
+22 | impl<'a> PropertyWindowConfig<'a> {
+   | --------------------------------- method in this implementation
+...
+44 |     pub fn resizable(mut self, value: bool) -> Self {
+   |            ^^^^^^^^^
+
+warning: `petri_net_legacy_editor` (lib) generated 10 warnings (run `cargo fix --lib -p petri_net_legacy_editor` to apply 1 suggestion)
+    Finished `release` profile [optimized] target(s) in 49.57s

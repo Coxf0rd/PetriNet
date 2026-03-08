@@ -32,7 +32,10 @@ impl PetriApp {
                     ui.horizontal(|ui| {
                         ui.add_enabled_ui(simulation_ready, |ui| {
                             if ui
-                                .checkbox(&mut self.markov_model_enabled, markov_checkbox_label.as_ref())
+                                .checkbox(
+                                    &mut self.markov_model_enabled,
+                                    markov_checkbox_label.as_ref(),
+                                )
                                 .changed()
                             {
                                 toggle_changed = true;
@@ -144,10 +147,7 @@ impl PetriApp {
         let _ = show_collapsible_property_section(
             ui,
             PropertySectionConfig::new("markov_highlight_section")
-                .label(self.tr(
-                    "Отображение марковской метки",
-                    "Markov highlight display",
-                ))
+                .label(self.tr("Отображение марковской метки", "Markov highlight display"))
                 .default_open(false),
             |ui| {
                 self.draw_markov_highlight(ui, chain, stationary);
@@ -243,47 +243,52 @@ impl PetriApp {
         // Use a scroll area with a visible scroll bar when needed.  Within the
         // scroll area, recompute the transitions column width based on the
         // current available width to ensure alignment with the header.
-        scroll_utils::show_list_with_scroll(ui, "markov_state_graph", max_height, |ui: &mut egui::Ui| {
-            if chain.transitions.is_empty() {
-                ui.label(self.tr("Переходов не найдено", "No transitions detected"));
-                return;
-            }
+        scroll_utils::show_list_with_scroll(
+            ui,
+            "markov_state_graph",
+            max_height,
+            |ui: &mut egui::Ui| {
+                if chain.transitions.is_empty() {
+                    ui.label(self.tr("Переходов не найдено", "No transitions detected"));
+                    return;
+                }
 
-            for (idx, edges) in chain.transitions.iter().enumerate() {
-                // Determine the width for the transitions column based on the row's width.
-                let row_available = ui.available_width();
-                let transitions_width = Self::markov_transitions_column_width(row_available);
-                ui.horizontal(|ui: &mut egui::Ui| {
-                    ui.label(format!("S{}", idx + 1));
-                    ui.allocate_ui(Vec2::new(transitions_width, 0.0), |ui: &mut egui::Ui| {
-                        if edges.is_empty() {
-                            ui.label(self.tr("Переходов нет", "No transitions"));
-                        } else {
-                            let total_rate: f64 = edges.iter().map(|(_, rate)| *rate).sum();
-                            ui.vertical(|ui: &mut egui::Ui| {
-                                for (dest, rate) in edges {
-                                    let prob = if total_rate > 0.0 {
-                                        (rate / total_rate).clamp(0.0, 1.0)
-                                    } else {
-                                        0.0
-                                    };
-                                    ui.add_sized(
-                                        [transitions_width, 0.0],
-                                        egui::Label::new(format!(
-                                            "→ S{} ({:.2})",
-                                            dest + 1,
-                                            prob
-                                        ))
-                                        .wrap(),
-                                    );
-                                }
-                            });
-                        }
+                for (idx, edges) in chain.transitions.iter().enumerate() {
+                    // Determine the width for the transitions column based on the row's width.
+                    let row_available = ui.available_width();
+                    let transitions_width = Self::markov_transitions_column_width(row_available);
+                    ui.horizontal(|ui: &mut egui::Ui| {
+                        ui.label(format!("S{}", idx + 1));
+                        ui.allocate_ui(Vec2::new(transitions_width, 0.0), |ui: &mut egui::Ui| {
+                            if edges.is_empty() {
+                                ui.label(self.tr("Переходов нет", "No transitions"));
+                            } else {
+                                let total_rate: f64 = edges.iter().map(|(_, rate)| *rate).sum();
+                                ui.vertical(|ui: &mut egui::Ui| {
+                                    for (dest, rate) in edges {
+                                        let prob = if total_rate > 0.0 {
+                                            (rate / total_rate).clamp(0.0, 1.0)
+                                        } else {
+                                            0.0
+                                        };
+                                        ui.add_sized(
+                                            [transitions_width, 0.0],
+                                            egui::Label::new(format!(
+                                                "→ S{} ({:.2})",
+                                                dest + 1,
+                                                prob
+                                            ))
+                                            .wrap(),
+                                        );
+                                    }
+                                });
+                            }
+                        });
                     });
-                });
-                ui.add_space(6.0);
-            }
-        });
+                    ui.add_space(6.0);
+                }
+            },
+        );
     }
 
     fn draw_markov_highlight(
@@ -321,62 +326,67 @@ impl PetriApp {
         // Use a scroll area with a visible scroll bar when needed for the place
         // highlight distribution.  We compute widths inside each row to adapt
         // to the current available width of the scroll area.
-        scroll_utils::show_list_with_scroll(ui, "markov_place_distribution", max_height, |ui: &mut egui::Ui| {
-            for (place_idx, place) in &markov_highlight_places {
-                ui.group(|ui: &mut egui::Ui| {
-                    let place_label = if place.name.is_empty() {
-                        format!("P{}", place.id)
-                    } else {
-                        place.name.clone()
-                    };
+        scroll_utils::show_list_with_scroll(
+            ui,
+            "markov_place_distribution",
+            max_height,
+            |ui: &mut egui::Ui| {
+                for (place_idx, place) in &markov_highlight_places {
+                    ui.group(|ui: &mut egui::Ui| {
+                        let place_label = if place.name.is_empty() {
+                            format!("P{}", place.id)
+                        } else {
+                            place.name.clone()
+                        };
 
-                    ui.label(format!(
-                        "{}: {} (P{})",
-                        self.tr("Позиция", "Place"),
-                        place_label,
-                        place.id
-                    ));
-
-                    if let Some(expected) = expectation
-                        .as_ref()
-                        .and_then(|values| values.get(*place_idx))
-                    {
                         ui.label(format!(
-                            "{}: {:.3}",
-                            self.tr("Ожидаемое число маркеров", "Expected tokens"),
-                            expected
+                            "{}: {} (P{})",
+                            self.tr("Позиция", "Place"),
+                            place_label,
+                            place.id
                         ));
-                    }
 
-                    let distribution = Self::markov_tokens_distribution(chain, *place_idx);
-
-                    if !distribution.is_empty() {
-                        for (count, prob) in distribution.iter() {
-                            ui.horizontal(|ui: &mut egui::Ui| {
-                                ui.label(format!(
-                                    "{} {}",
-                                    count,
-                                    self.tr("маркеров", "tokens")
-                                ));
-                                ui.label(format!("{:.2}%", prob * 100.0));
-                            });
+                        if let Some(expected) = expectation
+                            .as_ref()
+                            .and_then(|values| values.get(*place_idx))
+                        {
+                            ui.label(format!(
+                                "{}: {:.3}",
+                                self.tr("Ожидаемое число маркеров", "Expected tokens"),
+                                expected
+                            ));
                         }
-                    } else if stationary.is_some() {
-                        ui.label(self.tr(
-                            "Для этой позиции состояния не найдены",
-                            "No states found for this place",
-                        ));
-                    } else {
-                        ui.label(self.tr(
-                            "Стационарное распределение недоступно",
-                            "Stationary distribution unavailable",
-                        ));
-                    }
-                });
 
-                ui.add_space(4.0);
-            }
-        });
+                        let distribution = Self::markov_tokens_distribution(chain, *place_idx);
+
+                        if !distribution.is_empty() {
+                            for (count, prob) in distribution.iter() {
+                                ui.horizontal(|ui: &mut egui::Ui| {
+                                    ui.label(format!(
+                                        "{} {}",
+                                        count,
+                                        self.tr("маркеров", "tokens")
+                                    ));
+                                    ui.label(format!("{:.2}%", prob * 100.0));
+                                });
+                            }
+                        } else if stationary.is_some() {
+                            ui.label(self.tr(
+                                "Для этой позиции состояния не найдены",
+                                "No states found for this place",
+                            ));
+                        } else {
+                            ui.label(self.tr(
+                                "Стационарное распределение недоступно",
+                                "Stationary distribution unavailable",
+                            ));
+                        }
+                    });
+
+                    ui.add_space(4.0);
+                }
+            },
+        );
     }
 
     fn draw_state_marking_table(&self, ui: &mut egui::Ui, marking: &[u32], state_idx: usize) {

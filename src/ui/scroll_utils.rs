@@ -97,7 +97,7 @@ pub fn show_virtualized_rows(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use egui::{Rect, Pos2, vec2};
+    use egui::{vec2, Pos2, Rect};
 
     #[test]
     fn test_shrink2_behaviour() {

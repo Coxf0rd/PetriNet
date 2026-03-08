@@ -50,7 +50,10 @@ impl PetriApp {
                 let mut cap = self.net.tables.mo[place_idx].unwrap_or(0);
                 corrected_inputs |= sanitize_u32(&mut cap, 0, u32::MAX);
                 ui.horizontal(|ui: &mut egui::Ui| {
-                    ui.label(t("Макс. емкость (0 = без ограничений)", "Capacity (0 = unlimited)"));
+                    ui.label(t(
+                        "Макс. емкость (0 = без ограничений)",
+                        "Capacity (0 = unlimited)",
+                    ));
                     if ui
                         .add(egui::DragValue::new(&mut cap).range(0..=u32::MAX))
                         .changed()
@@ -240,11 +243,15 @@ impl PetriApp {
                         .clicked()
                     {
                         self.place_stats_dialog_place_id = Some(place_id);
-                        self.place_stats_dialog_backup = Some((place_id, self.net.places[place_idx].stats));
+                        self.place_stats_dialog_backup =
+                            Some((place_id, self.net.places[place_idx].stats));
                     }
                 });
                 egui::ComboBox::from_label(t("Распределение", "Distribution"))
-                    .selected_text(Self::stochastic_text(&self.net.places[place_idx].stochastic, is_ru))
+                    .selected_text(Self::stochastic_text(
+                        &self.net.places[place_idx].stochastic,
+                        is_ru,
+                    ))
                     .show_ui(ui, |ui: &mut egui::Ui| {
                         ui.selectable_value(
                             &mut self.net.places[place_idx].stochastic,
@@ -261,17 +268,29 @@ impl PetriApp {
                         );
                         ui.selectable_value(
                             &mut self.net.places[place_idx].stochastic,
-                            StochasticDistribution::Normal { mean: 1.0, std_dev: 0.2 },
+                            StochasticDistribution::Normal {
+                                mean: 1.0,
+                                std_dev: 0.2,
+                            },
                             Self::stochastic_text(
-                                &StochasticDistribution::Normal { mean: 1.0, std_dev: 0.2 },
+                                &StochasticDistribution::Normal {
+                                    mean: 1.0,
+                                    std_dev: 0.2,
+                                },
                                 is_ru,
                             ),
                         );
                         ui.selectable_value(
                             &mut self.net.places[place_idx].stochastic,
-                            StochasticDistribution::Gamma { shape: 2.0, scale: 1.0 },
+                            StochasticDistribution::Gamma {
+                                shape: 2.0,
+                                scale: 1.0,
+                            },
                             Self::stochastic_text(
-                                &StochasticDistribution::Gamma { shape: 2.0, scale: 1.0 },
+                                &StochasticDistribution::Gamma {
+                                    shape: 2.0,
+                                    scale: 1.0,
+                                },
                                 is_ru,
                             ),
                         );
@@ -313,7 +332,11 @@ impl PetriApp {
                             ui.label(t("mean", "mean"));
                             ui.add(egui::DragValue::new(mean).speed(0.1).range(0.0..=10_000.0));
                             ui.label(t("std", "std"));
-                            ui.add(egui::DragValue::new(std_dev).speed(0.1).range(0.0..=10_000.0));
+                            ui.add(
+                                egui::DragValue::new(std_dev)
+                                    .speed(0.1)
+                                    .range(0.0..=10_000.0),
+                            );
                         });
                         corrected_inputs |= sanitize_f64(mean, 0.0, 10_000.0);
                         corrected_inputs |= sanitize_f64(std_dev, 0.0, 10_000.0);

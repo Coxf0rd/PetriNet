@@ -148,7 +148,9 @@ pub(crate) fn show_property_window<R>(
     });
 
     if *open {
-        if let (Some(size), Some(response)) = (config.remember_size.as_deref_mut(), response.as_ref()) {
+        if let (Some(size), Some(response)) =
+            (config.remember_size.as_deref_mut(), response.as_ref())
+        {
             let actual_size = response.response.rect.size();
             if actual_size.x > 0.0 && actual_size.y > 0.0 {
                 *size = actual_size;
