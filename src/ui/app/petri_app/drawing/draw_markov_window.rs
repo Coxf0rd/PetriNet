@@ -159,38 +159,50 @@ impl PetriApp {
             ui.label(self.tr("Состояний не найдено", "No states found"));
             return;
         }
+        // Calculate the available width for the header before rendering any rows.
+        // This ensures that both the header and the rows share the same width.
+        let header_available = ui.available_width();
+        let header_marking_width = Self::markov_marking_column_width(header_available);
 
-        let available = ui.available_width();
-        let marking_width = Self::markov_marking_column_width(available);
-
+        // Draw the header row of the stationary distribution table.
         ui.horizontal(|ui| {
             ui.label(RichText::new(self.tr("Состояние", "State")).strong());
-            ui.allocate_ui(Vec2::new(marking_width, 0.0), |ui| {
+            ui.allocate_ui(Vec2::new(header_marking_width, 0.0), |ui| {
                 ui.label(RichText::new(self.tr("Маркировка", "Marking")).strong());
             });
             ui.label(RichText::new("π").strong());
         });
 
-        // Virtualize the stationary distribution rows to handle potentially long lists
-        // efficiently.  Use our scroll utility with a hidden scroll bar so that
-        // the bar is not visible inside the collapsible section.  Only the visible
-        // rows are rendered via `show_virtualized_rows`.
+        // Determine a dynamic maximum height for the scroll area.  Use the
+        // remaining available height, but enforce a sensible minimum of 360.0
+        // points to avoid extremely small scroll areas.
+        let mut max_height = ui.available_height();
+        if max_height < 360.0 {
+            max_height = 360.0;
+        }
+
+        // Row height is based on the body text style plus some padding.
         let row_h = ui.text_style_height(&egui::TextStyle::Body) + 4.0;
         let row_count = stationary.len();
-        // Virtualize the rows using an explicitly typed closure.  Without type
-        // annotations the Rust compiler cannot infer the types of `ui` and `idx`.
+
+        // Virtualize the stationary distribution rows.  For each row, compute
+        // the marking column width based on the row's available width.  This
+        // ensures that the row contents align with the header even when the
+        // scroll area's width changes due to scroll bars or margins.
         scroll_utils::show_virtualized_rows(
             ui,
             "markov_stationary_distribution",
-            360.0,
+            max_height,
             row_h,
             row_count,
             |ui: &mut egui::Ui, idx: usize| {
                 let value = stationary[idx];
+                // Determine current row width and compute marking column width.
+                let row_available = ui.available_width();
+                let marking_width = Self::markov_marking_column_width(row_available);
                 ui.horizontal(|ui: &mut egui::Ui| {
                     ui.label(format!("S{}", idx + 1));
                     ui.allocate_ui(Vec2::new(marking_width, 0.0), |ui: &mut egui::Ui| {
-                        // Pass the state as a slice rather than a Vec to match the function signature.
                         self.draw_state_marking_table(ui, &chain.states[idx][..], idx);
                     });
                     ui.label(format!("{:.6}", value));
@@ -203,27 +215,38 @@ impl PetriApp {
     fn draw_markov_state_graph(&self, ui: &mut egui::Ui, chain: &MarkovChain) {
         ui.label(self.tr("Граф состояний", "State graph"));
 
-        let available = ui.available_width();
-        let transitions_width = Self::markov_transitions_column_width(available);
+        // Compute the available width and derive the transitions column width for the
+        // header.  This width will be recomputed for each row to adapt to the
+        // scroll area's width.
+        let header_available = ui.available_width();
+        let header_transitions_width = Self::markov_transitions_column_width(header_available);
 
         ui.horizontal(|ui| {
             ui.label(RichText::new(self.tr("Состояние", "State")).strong());
-            ui.allocate_ui(Vec2::new(transitions_width, 0.0), |ui| {
+            ui.allocate_ui(Vec2::new(header_transitions_width, 0.0), |ui| {
                 ui.label(RichText::new(self.tr("Переходы", "Transitions")).strong());
             });
         });
 
-        // Use a scroll area with a visible scroll bar when needed for the state graph.
-        // This allows the scroll bar to appear on hover, matching the desired behaviour
-        // for lists and tables.  We re-use the existing rendering logic inside the
-        // scroll area.
-        scroll_utils::show_list_with_scroll(ui, "markov_state_graph", 320.0, |ui: &mut egui::Ui| {
+        // Determine a dynamic maximum height for the state graph scroll area.
+        let mut max_height = ui.available_height();
+        if max_height < 320.0 {
+            max_height = 320.0;
+        }
+
+        // Use a scroll area with a visible scroll bar when needed.  Within the
+        // scroll area, recompute the transitions column width based on the
+        // current available width to ensure alignment with the header.
+        scroll_utils::show_list_with_scroll(ui, "markov_state_graph", max_height, |ui: &mut egui::Ui| {
             if chain.transitions.is_empty() {
                 ui.label(self.tr("Переходов не найдено", "No transitions detected"));
                 return;
             }
 
             for (idx, edges) in chain.transitions.iter().enumerate() {
+                // Determine the width for the transitions column based on the row's width.
+                let row_available = ui.available_width();
+                let transitions_width = Self::markov_transitions_column_width(row_available);
                 ui.horizontal(|ui: &mut egui::Ui| {
                     ui.label(format!("S{}", idx + 1));
                     ui.allocate_ui(Vec2::new(transitions_width, 0.0), |ui: &mut egui::Ui| {
@@ -231,7 +254,6 @@ impl PetriApp {
                             ui.label(self.tr("Переходов нет", "No transitions"));
                         } else {
                             let total_rate: f64 = edges.iter().map(|(_, rate)| *rate).sum();
-
                             ui.vertical(|ui: &mut egui::Ui| {
                                 for (dest, rate) in edges {
                                     let prob = if total_rate > 0.0 {
@@ -239,7 +261,6 @@ impl PetriApp {
                                     } else {
                                         0.0
                                     };
-
                                     ui.add_sized(
                                         [transitions_width, 0.0],
                                         egui::Label::new(format!(
@@ -285,9 +306,16 @@ impl PetriApp {
 
         let expectation = Self::markov_expected_tokens(chain, self.net.places.len());
 
+        // Compute a dynamic maximum height for the place distribution scroll area.
+        let mut max_height = ui.available_height();
+        if max_height < 320.0 {
+            max_height = 320.0;
+        }
+
         // Use a scroll area with a visible scroll bar when needed for the place
-        // highlight distribution.  This matches the desired behaviour for lists.
-        scroll_utils::show_list_with_scroll(ui, "markov_place_distribution", 320.0, |ui: &mut egui::Ui| {
+        // highlight distribution.  We compute widths inside each row to adapt
+        // to the current available width of the scroll area.
+        scroll_utils::show_list_with_scroll(ui, "markov_place_distribution", max_height, |ui: &mut egui::Ui| {
             for (place_idx, place) in &markov_highlight_places {
                 ui.group(|ui: &mut egui::Ui| {
                     let place_label = if place.name.is_empty() {
