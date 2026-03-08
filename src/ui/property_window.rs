@@ -126,8 +126,14 @@ pub(crate) fn show_property_window<R>(
 
     let response = window.show(ctx, |ui: &mut egui::Ui| {
         ui.set_max_width(ui.available_width());
+        // Use a scroll area with hidden scrollbars for property windows.  We still
+        // enable vertical scrolling but never display the scroll bar, even when the
+        // content exceeds the available height.  This matches the requirement
+        // that collapsible sections should scroll without showing a visible
+        // scrollbar.
         egui::ScrollArea::vertical()
             .auto_shrink([false, false])
+            .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysHidden)
             .show(ui, |ui: &mut egui::Ui| {
                 ui.set_min_width(0.0);
                 ui.set_max_width(ui.available_width());

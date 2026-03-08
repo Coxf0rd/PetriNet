@@ -1,6 +1,19 @@
 use super::*;
 
+// Import the property window helpers so the debug window can use the same
+// sizing and margin conventions as other property windows.
+use crate::ui::property_window::{show_property_window, PropertyWindowConfig};
+use crate::ui::scroll_utils;
+
 impl PetriApp {
+    /// Draw the debug (trace) window.
+    ///
+    /// The original implementation created an `egui::Window` directly which could grow
+    /// to fill the viewport and prevented resizing when the content was large.
+    /// This implementation uses our `show_property_window` helper to apply
+    /// consistent margins, default/min sizes, and hidden scrollbars.  The
+    /// debugging controls and log display are otherwise identical to the
+    /// original implementation.
     pub(in crate::ui::app) fn draw_debug_window(&mut self, ctx: &egui::Context) {
         if !self.show_debug {
             return;
@@ -9,10 +22,18 @@ impl PetriApp {
         let t = |ru: &'static str, en: &'static str| if is_ru { ru } else { en };
 
         let mut open = self.show_debug;
-        egui::Window::new(t("Режим отладки", "Debug Mode"))
-            .constrained_to_viewport(ctx)
-            .open(&mut open)
-            .show(ctx, |ui| {
+        // Use the property window helper so the window respects margins and has
+        // sensible default/min sizes.  The `debug_window` ID is unique to
+        // preserve open/closed state across frames.
+        show_property_window(
+            ctx,
+            t("Режим отладки", "Debug Mode"),
+            &mut open,
+            PropertyWindowConfig::new("debug_window")
+                .default_size(egui::vec2(600.0, 480.0))
+                .min_size(egui::vec2(400.0, 320.0)),
+            |ui| {
+                // If there is no simulation result, display a hint and exit.
                 let Some(result) = self.sim_result.clone() else {
                     ui.label(t("Сначала запустите имитацию.", "Run simulation first."));
                     return;
@@ -26,7 +47,7 @@ impl PetriApp {
                 if self.debug_step >= steps {
                     self.debug_step = steps - 1;
                 }
-
+                // Controls for stepping through the log and controlling playback
                 ui.horizontal(|ui| {
                     if ui.button("<<").clicked() {
                         self.debug_playing = false;
@@ -35,11 +56,7 @@ impl PetriApp {
                         self.sync_debug_animation_for_step();
                     }
                     if ui
-                        .button(if self.debug_playing {
-                            t("Пауза", "Pause")
-                        } else {
-                            t("Пуск", "Play")
-                        })
+                        .button(if self.debug_playing { t("Пауза", "Pause") } else { t("Пуск", "Play") })
                         .clicked()
                     {
                         if self.debug_playing {
@@ -58,7 +75,7 @@ impl PetriApp {
                     ui.label(t("Скорость (мс сим.сек):", "Speed (ms per sim sec):"));
                     ui.add(egui::DragValue::new(&mut self.debug_interval_ms).range(50..=5_000));
                 });
-
+                // Slider for jumping to a specific step
                 let slider_response = ui.add(
                     egui::Slider::new(&mut self.debug_step, 0..=steps - 1).text(t("Шаг", "Step")),
                 );
@@ -67,9 +84,10 @@ impl PetriApp {
                     self.debug_animation_last_update = None;
                     self.sync_debug_animation_for_step();
                 }
+                // Handle playback timing
                 if self.debug_playing && steps > 1 {
-                    let interval = Duration::from_millis(self.debug_interval_ms.max(1));
-                    let now = Instant::now();
+                    let interval = std::time::Duration::from_millis(self.debug_interval_ms.max(1));
+                    let now = std::time::Instant::now();
                     match self.debug_animation_last_update {
                         Some(last) => {
                             if now.duration_since(last) >= interval {
@@ -88,8 +106,9 @@ impl PetriApp {
                     }
                 }
                 if self.debug_playing {
-                    ctx.request_repaint_after(Duration::from_millis(16));
+                    ctx.request_repaint_after(std::time::Duration::from_millis(16));
                 }
+                // Animation toggle checkbox
                 let animation_response = ui.checkbox(
                     &mut self.debug_animation_enabled,
                     t("Включить анимацию", "Enable animation"),
@@ -112,6 +131,7 @@ impl PetriApp {
                         ));
                     }
                 }
+                // Show the current log entry details
                 if let Some(&log_idx) = visible_steps.get(self.debug_step) {
                     if let Some(entry) = result.logs.get(log_idx) {
                         ui.separator();
@@ -128,18 +148,30 @@ impl PetriApp {
                                 .map(|i| format!("T{}", i + 1))
                                 .unwrap_or_else(|| "-".to_string())
                         ));
-                        egui::Grid::new("debug_marking_grid")
-                            .striped(true)
-                            .show(ui, |ui| {
-                                for (idx, marking) in entry.marking.iter().enumerate() {
-                                    ui.label(format!("P{}", idx + 1));
-                                    ui.label(marking.to_string());
-                                    ui.end_row();
-                                }
-                            });
+                        // Render the marking grid using virtualized rows.  Use the scroll
+                        // utilities to hide the scroll bar while constraining the height.
+                        let row_h = ui.text_style_height(&egui::TextStyle::Body) + 4.0;
+                        let row_count = entry.marking.len();
+                        scroll_utils::show_virtualized_rows(
+                            ui,
+                            "debug_marking_grid",
+                            200.0,
+                            row_h,
+                            row_count,
+                            |ui, idx| {
+                                egui::Grid::new("debug_marking_grid_rows")
+                                    .striped(true)
+                                    .show(ui, |ui| {
+                                        ui.label(format!("P{}", idx + 1));
+                                        ui.label(entry.marking[idx].to_string());
+                                        ui.end_row();
+                                    });
+                            },
+                        );
                     }
                 }
-            });
+            },
+        );
         self.show_debug = open;
     }
 }
