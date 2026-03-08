@@ -15,7 +15,6 @@ impl PropertySectionConfig {
             id: egui::Id::new(id),
             default_open: true,
             top_spacing: 0.0,
-            label: None,
         }
     }
 
@@ -28,12 +27,6 @@ impl PropertySectionConfig {
         self.top_spacing = value;
         self
     }
-
-    pub fn label(mut self, value: impl Into<egui::WidgetText>) -> Self {
-        self.label = Some(value.into());
-        self
-    }
-
 }
 
 pub(crate) fn show_property_section<R>(
@@ -41,7 +34,8 @@ pub(crate) fn show_property_section<R>(
     title: impl Into<egui::WidgetText>,
     add_contents: impl FnOnce(&mut egui::Ui) -> R,
 ) -> R {
-    let title = config.label.unwrap_or_else(|| "".into());
+    let title = title.into();
+
     let frame = egui::Frame::group(ui.style());
 
     frame
@@ -65,6 +59,7 @@ pub(crate) fn show_property_section<R>(
 
 pub(crate) fn show_collapsible_property_section<R>(
     ui: &mut egui::Ui,
+    title: impl Into<egui::WidgetText>,
     config: PropertySectionConfig,
     add_contents: impl FnOnce(&mut egui::Ui) -> R,
 ) -> Option<R> {
@@ -72,7 +67,7 @@ pub(crate) fn show_collapsible_property_section<R>(
         ui.add_space(config.top_spacing);
     }
 
-    let title = config.label.unwrap_or_else(|| "".into());
+    let title = title.into();
     let frame = egui::Frame::group(ui.style());
 
     frame
