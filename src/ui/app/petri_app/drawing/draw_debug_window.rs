@@ -152,16 +152,18 @@ impl PetriApp {
                         // utilities to hide the scroll bar while constraining the height.
                         let row_h = ui.text_style_height(&egui::TextStyle::Body) + 4.0;
                         let row_count = entry.marking.len();
+                        // Virtualized rows require explicit type annotations on the closure
+                        // parameters so that the Rust compiler can infer the types.
                         scroll_utils::show_virtualized_rows(
                             ui,
                             "debug_marking_grid",
                             200.0,
                             row_h,
                             row_count,
-                            |ui, idx| {
+                            |ui: &mut egui::Ui, idx: usize| {
                                 egui::Grid::new("debug_marking_grid_rows")
                                     .striped(true)
-                                    .show(ui, |ui| {
+                                    .show(ui, |ui: &mut egui::Ui| {
                                         ui.label(format!("P{}", idx + 1));
                                         ui.label(entry.marking[idx].to_string());
                                         ui.end_row();

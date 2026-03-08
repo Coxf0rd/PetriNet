@@ -177,18 +177,21 @@ impl PetriApp {
         // rows are rendered via `show_virtualized_rows`.
         let row_h = ui.text_style_height(&egui::TextStyle::Body) + 4.0;
         let row_count = stationary.len();
+        // Virtualize the rows using an explicitly typed closure.  Without type
+        // annotations the Rust compiler cannot infer the types of `ui` and `idx`.
         scroll_utils::show_virtualized_rows(
             ui,
             "markov_stationary_distribution",
             360.0,
             row_h,
             row_count,
-            |ui, idx| {
+            |ui: &mut egui::Ui, idx: usize| {
                 let value = stationary[idx];
-                ui.horizontal(|ui| {
+                ui.horizontal(|ui: &mut egui::Ui| {
                     ui.label(format!("S{}", idx + 1));
-                    ui.allocate_ui(Vec2::new(marking_width, 0.0), |ui| {
-                        self.draw_state_marking_table(ui, &chain.states[idx], idx);
+                    ui.allocate_ui(Vec2::new(marking_width, 0.0), |ui: &mut egui::Ui| {
+                        // Pass the state as a slice rather than a Vec to match the function signature.
+                        self.draw_state_marking_table(ui, &chain.states[idx][..], idx);
                     });
                     ui.label(format!("{:.6}", value));
                 });
@@ -214,22 +217,22 @@ impl PetriApp {
         // This allows the scroll bar to appear on hover, matching the desired behaviour
         // for lists and tables.  We re-use the existing rendering logic inside the
         // scroll area.
-        scroll_utils::show_list_with_scroll(ui, "markov_state_graph", 320.0, |ui| {
+        scroll_utils::show_list_with_scroll(ui, "markov_state_graph", 320.0, |ui: &mut egui::Ui| {
             if chain.transitions.is_empty() {
                 ui.label(self.tr("Переходов не найдено", "No transitions detected"));
                 return;
             }
 
             for (idx, edges) in chain.transitions.iter().enumerate() {
-                ui.horizontal(|ui| {
+                ui.horizontal(|ui: &mut egui::Ui| {
                     ui.label(format!("S{}", idx + 1));
-                    ui.allocate_ui(Vec2::new(transitions_width, 0.0), |ui| {
+                    ui.allocate_ui(Vec2::new(transitions_width, 0.0), |ui: &mut egui::Ui| {
                         if edges.is_empty() {
                             ui.label(self.tr("Переходов нет", "No transitions"));
                         } else {
                             let total_rate: f64 = edges.iter().map(|(_, rate)| *rate).sum();
 
-                            ui.vertical(|ui| {
+                            ui.vertical(|ui: &mut egui::Ui| {
                                 for (dest, rate) in edges {
                                     let prob = if total_rate > 0.0 {
                                         (rate / total_rate).clamp(0.0, 1.0)
@@ -284,9 +287,9 @@ impl PetriApp {
 
         // Use a scroll area with a visible scroll bar when needed for the place
         // highlight distribution.  This matches the desired behaviour for lists.
-        scroll_utils::show_list_with_scroll(ui, "markov_place_distribution", 320.0, |ui| {
+        scroll_utils::show_list_with_scroll(ui, "markov_place_distribution", 320.0, |ui: &mut egui::Ui| {
             for (place_idx, place) in &markov_highlight_places {
-                ui.group(|ui| {
+                ui.group(|ui: &mut egui::Ui| {
                     let place_label = if place.name.is_empty() {
                         format!("P{}", place.id)
                     } else {
@@ -315,7 +318,7 @@ impl PetriApp {
 
                     if !distribution.is_empty() {
                         for (count, prob) in distribution.iter() {
-                            ui.horizontal(|ui| {
+                            ui.horizontal(|ui: &mut egui::Ui| {
                                 ui.label(format!(
                                     "{} {}",
                                     count,

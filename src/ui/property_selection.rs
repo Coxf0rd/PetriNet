@@ -91,7 +91,7 @@ pub(crate) fn show_collapsible_property_section<R>(
                     // our scroll utilities.  The scroll area auto-shrinks both axes and
                     // scroll bars are hidden so that long property sections can scroll
                     // without displaying a visible bar.
-                    scroll_utils::show_hidden_vertical_scroll(ui, config.id.with("collapsible_section"), ui.available_height(), |ui| {
+                    scroll_utils::show_hidden_vertical_scroll(ui, config.id.with("collapsible_section"), ui.available_height(), |ui: &mut egui::Ui| {
                         // Ensure the contents can grow horizontally to fill the available width.
                         ui.set_min_width(0.0);
                         ui.set_max_width(ui.available_width());

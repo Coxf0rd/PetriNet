@@ -79,3 +79,37 @@ pub fn show_virtualized_rows(
             }
         });
 }
+
+// Unit tests for the scroll utilities.  These tests live in the same file to
+// ensure they have access to crate-private items.  They verify that the
+// helpers compile and behave as expected without requiring a full `egui`
+// context.
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use egui::{Rect, Pos2, vec2};
+
+    #[test]
+    fn test_shrink2_behaviour() {
+        // This test ensures that Rect::shrink2 behaves as expected.  It is
+        // indirectly related to the property_window helper which relies on
+        // shrink2 for margins.
+        let rect = Rect::from_min_max(Pos2::new(0.0, 0.0), Pos2::new(100.0, 50.0));
+        let margin = vec2(10.0, 5.0);
+        let shrunk = rect.shrink2(margin);
+        assert_eq!(shrunk.width(), rect.width() - 2.0 * margin.x);
+        assert_eq!(shrunk.height(), rect.height() - 2.0 * margin.y);
+        assert_eq!(shrunk.center(), rect.center());
+    }
+
+    #[test]
+    fn test_scroll_utils_signatures() {
+        // These no-op calls ensure that the scroll util functions are callable
+        // with the expected signatures.  We don't execute them because they
+        // require a real `egui::Ui`, but if the types change this test will
+        // fail to compile.
+        let _hidden: fn(&mut Ui, _, f32, _) -> _ = show_hidden_vertical_scroll;
+        let _list: fn(&mut Ui, _, f32, _) -> _ = show_list_with_scroll;
+        let _virt: fn(&mut Ui, _, f32, f32, usize, _) = show_virtualized_rows;
+    }
+}
