@@ -1,14 +1,9 @@
 use super::*;
 
-use crate::ui::property_selection::{show_collapsible_property_section, PropertySectionConfig};
 impl PetriApp {
     pub(super) fn draw_table_view(&mut self, ui: &mut egui::Ui) {
         ui.heading("Структура сети");
         ui.horizontal(|ui| {
-            if ui.button("Скрыть структуру").clicked() {
-                self.show_table_view = false;
-                self.table_fullscreen = false;
-            }
             if ui
                 .button(if self.table_fullscreen {
                     "Обычный режим"
@@ -28,18 +23,6 @@ impl PetriApp {
         let vector_scroll_height = 220.0;
         let matrix_scroll_height = 320.0;
 
-        ui.horizontal(|ui| {
-            ui.label("Показывать:");
-            let vectors_label = self.tr("Векторы", "Vectors");
-            let pre_label = self.tr("Матрица Pre", "Pre matrix");
-            let post_label = self.tr("Матрица Post", "Post matrix");
-            let inhibitor_label = self.tr("Ингибиторные дуги", "Inhibitor matrix");
-            ui.checkbox(&mut self.show_struct_vectors, vectors_label);
-            ui.checkbox(&mut self.show_struct_pre, pre_label);
-            ui.checkbox(&mut self.show_struct_post, post_label);
-            ui.checkbox(&mut self.show_struct_inhibitor, inhibitor_label);
-        });
-
         let mut p_count = self.net.places.len() as i32;
         let mut t_count = self.net.transitions.len() as i32;
         ui.horizontal(|ui| {
@@ -56,7 +39,7 @@ impl PetriApp {
         let row_label_w = 46.0;
         let cell_w = 42.0;
         egui::ScrollArea::both().show(ui, |ui| {
-            if self.show_struct_vectors {
+            {
                 ui.separator();
                 ui.label("Вектор начальной маркировки (M0)");
                 Self::scroll_area_rows(
@@ -167,7 +150,7 @@ impl PetriApp {
                 );
             }
             let mut matrices_changed = false;
-            if self.show_struct_pre {
+            {
                 ui.separator();
                 ui.horizontal(|ui| {
                     ui.label("Матрица инцидентности Pre");
@@ -217,7 +200,7 @@ impl PetriApp {
                 );
                 matrices_changed |= pre_changed;
             }
-            if self.show_struct_post {
+            {
                 ui.separator();
                 ui.horizontal(|ui| {
                     ui.label("Матрица инцидентности Post");
@@ -267,7 +250,7 @@ impl PetriApp {
                 );
                 matrices_changed |= post_changed;
             }
-            if self.show_struct_inhibitor {
+            {
                 ui.separator();
                 ui.horizontal(|ui| {
                     ui.label("Матрица ингибиторных дуг");
