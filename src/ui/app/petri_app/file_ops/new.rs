@@ -85,6 +85,8 @@ impl PetriApp {
                 markov_annotations: HashMap::new(),
                 markov_place_arcs: Vec::new(),
                 selected_markov_arc: None,
+                markov_stationary_row_offsets: Vec::new(),
+                markov_state_graph_row_offsets: Vec::new(),
                 new_place_size: VisualSize::Medium,
                 new_place_color: NodeColor::Default,
                 new_place_marking: 0,

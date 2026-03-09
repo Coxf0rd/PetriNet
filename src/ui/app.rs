@@ -417,6 +417,8 @@ pub struct PetriApp {
     markov_annotations: HashMap<u64, String>,
     markov_place_arcs: Vec<MarkovPlaceArc>,
     selected_markov_arc: Option<usize>,
+    markov_stationary_row_offsets: Vec<usize>,
+    markov_state_graph_row_offsets: Vec<usize>,
     new_place_size: VisualSize,
     new_place_color: NodeColor,
     new_place_marking: u32,

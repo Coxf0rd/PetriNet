@@ -14,6 +14,20 @@ impl PetriApp {
         self.markov_annotations.clear();
         self.markov_place_arcs.clear();
         self.selected_markov_arc = None;
+        self.markov_stationary_row_offsets.clear();
+        self.markov_state_graph_row_offsets.clear();
+    }
+
+    fn rebuild_markov_virtual_row_offsets(&mut self) {
+        self.markov_stationary_row_offsets.clear();
+        self.markov_state_graph_row_offsets.clear();
+
+        let Some(chain) = self.markov_model.as_ref() else {
+            return;
+        };
+
+        self.markov_stationary_row_offsets = Self::markov_build_stationary_row_offsets(chain);
+        self.markov_state_graph_row_offsets = Self::markov_build_state_graph_row_offsets(chain);
     }
 
     pub(in crate::ui::app) fn calculate_markov_model(&mut self) {
@@ -76,6 +90,7 @@ impl PetriApp {
         self.markov_limit_reached =
             chain.limit_reached && chain.computation_mode == MarkovComputationMode::Exact;
         self.markov_model = Some(chain);
+        self.rebuild_markov_virtual_row_offsets();
         self.markov_computed_for_sim_serial = Some(self.sim_run_serial);
         self.markov_model_pending_compute = false;
         self.update_markov_annotations();
