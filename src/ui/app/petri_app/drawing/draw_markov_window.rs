@@ -39,11 +39,13 @@ impl PetriApp {
             |ui| {
                 let simulation_ready = self.sim_result.is_some();
                 let mut toggle_changed = false;
-                let markov_checkbox_label =
-                    self.tr("включить марковскую модель", "Enable Markov model");
+                let markov_checkbox_label = self.tr(
+                    "показывать дуги марковской модели в рабочей области",
+                    "Show Markov model arcs in workspace",
+                );
                 let simulation_hint = self.tr(
-                    "Сначала запустите симуляцию, чтобы включить марковскую модель",
-                    "Run a simulation first to enable the model",
+                    "Сначала запустите симуляцию, чтобы рассчитать марковскую модель",
+                    "Run a simulation first to calculate the Markov model",
                 );
 
                 ui.horizontal(|ui| {
@@ -68,21 +70,7 @@ impl PetriApp {
                     for place in &mut self.net.places {
                         place.show_markov_model = self.markov_model_enabled;
                     }
-
-                    if self.markov_model_enabled {
-                        self.markov_model_pending_compute = true;
-                        self.markov_model = None;
-                    } else {
-                        self.markov_model_pending_compute = false;
-                        self.markov_place_arcs.clear();
-                    }
-                }
-
-                if simulation_ready
-                    && self.markov_model_enabled
-                    && (self.markov_model_pending_compute || self.markov_model.is_none())
-                {
-                    self.calculate_markov_model();
+                    self.refresh_markov_place_arcs();
                 }
 
                 ui.separator();
@@ -90,6 +78,11 @@ impl PetriApp {
 
                 if let Some(chain) = &self.markov_model {
                     self.draw_markov_chain_summary(ui, chain);
+                } else if simulation_ready {
+                    ui.label(self.tr(
+                        "Марковская модель ещё не рассчитана для текущего результата симуляции",
+                        "The Markov model has not been calculated for the current simulation result yet",
+                    ));
                 } else {
                     ui.label(self.tr("Постройте модель", "Build the model"));
                 }

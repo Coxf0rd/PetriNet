@@ -3,7 +3,7 @@ use super::*;
 impl PetriApp {
     pub(in crate::ui::app) fn invalidate_markov_model(&mut self) {
         self.markov_model = None;
-        self.markov_model_pending_compute = self.markov_model_enabled;
+        self.markov_model_pending_compute = false;
         self.markov_limit_reached = false;
         self.markov_annotations.clear();
         self.markov_place_arcs.clear();

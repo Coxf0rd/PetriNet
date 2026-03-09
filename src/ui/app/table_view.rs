@@ -534,6 +534,7 @@ impl PetriApp {
                         self.net.ui.marker_count_stats,
                     )));
                     self.invalidate_markov_model();
+                    self.calculate_markov_model();
                     self.refresh_debug_animation_state();
                     self.debug_step = 0;
                     self.sync_debug_animation_for_step();
