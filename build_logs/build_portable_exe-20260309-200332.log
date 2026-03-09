@@ -1,0 +1,122 @@
+build_portable_exe.ps1 failed: 20260309-200332
+ProjectDir: C:\Users\KDFX Modes\Desktop\PetriNet_Project\PetriNet
+Cargo: C:\Users\KDFX Modes\.cargo\bin\cargo.exe
+CargoExitCode: 101
+
+ERROR:
+System.Management.Automation.RuntimeException: Cargo build failed with exit code 101
+
+CARGO STDERR:
+   Compiling petri_net_legacy_editor v0.7.141 (C:\Users\KDFX Modes\Desktop\PetriNet_Project\PetriNet)
+error[E0624]: associated function `draw_fixed_cell` is private
+   --> src\ui\app\petri_app\drawing\draw_markov_window.rs:167:23
+    |
+167 |                 Self::draw_fixed_cell(ui, state_col, self.tr("РЎРѕСЃС‚РѕСЏРЅРёРµ", "State"));
+    |                       ^^^^^^^^^^^^^^^ private associated function
+    |
+   ::: src\ui\app\table_view.rs:42:5
+    |
+ 42 |     fn draw_fixed_cell(ui: &mut egui::Ui, width: f32, text: impl Into<egui::WidgetText>) {
+    |     ------------------------------------------------------------------------------------ private associated function defined here
+
+error[E0624]: associated function `draw_fixed_cell` is private
+   --> src\ui\app\petri_app\drawing\draw_markov_window.rs:168:23
+    |
+168 |                 Self::draw_fixed_cell(ui, marking_col, self.tr("РњР°СЂРєРёСЂРѕРІРєР°", "Marking"));
+    |                       ^^^^^^^^^^^^^^^ private associated function
+    |
+   ::: src\ui\app\table_view.rs:42:5
+    |
+ 42 |     fn draw_fixed_cell(ui: &mut egui::Ui, width: f32, text: impl Into<egui::WidgetText>) {
+    |     ------------------------------------------------------------------------------------ private associated function defined here
+
+error[E0624]: associated function `draw_fixed_cell` is private
+   --> src\ui\app\petri_app\drawing\draw_markov_window.rs:169:23
+    |
+169 |                 Self::draw_fixed_cell(ui, prob_col, self.tr("Р’РµСЂРѕСЏС‚РЅРѕСЃС‚СЊ", "Probability"));
+    |                       ^^^^^^^^^^^^^^^ private associated function
+    |
+   ::: src\ui\app\table_view.rs:42:5
+    |
+ 42 |     fn draw_fixed_cell(ui: &mut egui::Ui, width: f32, text: impl Into<egui::WidgetText>) {
+    |     ------------------------------------------------------------------------------------ private associated function defined here
+
+error[E0624]: associated function `draw_fixed_cell` is private
+   --> src\ui\app\petri_app\drawing\draw_markov_window.rs:184:27
+    |
+184 |                     Self::draw_fixed_cell(ui, state_col, format!("S{}", row_idx + 1));
+    |                           ^^^^^^^^^^^^^^^ private associated function
+    |
+   ::: src\ui\app\table_view.rs:42:5
+    |
+ 42 |     fn draw_fixed_cell(ui: &mut egui::Ui, width: f32, text: impl Into<egui::WidgetText>) {
+    |     ------------------------------------------------------------------------------------ private associated function defined here
+
+error[E0624]: associated function `draw_fixed_cell` is private
+   --> src\ui\app\petri_app\drawing\draw_markov_window.rs:185:27
+    |
+185 |                     Self::draw_fixed_cell(
+    |                           ^^^^^^^^^^^^^^^ private associated function
+    |
+   ::: src\ui\app\table_view.rs:42:5
+    |
+ 42 |     fn draw_fixed_cell(ui: &mut egui::Ui, width: f32, text: impl Into<egui::WidgetText>) {
+    |     ------------------------------------------------------------------------------------ private associated function defined here
+
+error[E0624]: associated function `draw_fixed_cell` is private
+   --> src\ui\app\petri_app\drawing\draw_markov_window.rs:190:27
+    |
+190 |                     Self::draw_fixed_cell(ui, prob_col, format!("{:.6}", stationary[row_idx]));
+    |                           ^^^^^^^^^^^^^^^ private associated function
+    |
+   ::: src\ui\app\table_view.rs:42:5
+    |
+ 42 |     fn draw_fixed_cell(ui: &mut egui::Ui, width: f32, text: impl Into<egui::WidgetText>) {
+    |     ------------------------------------------------------------------------------------ private associated function defined here
+
+error[E0624]: associated function `draw_fixed_cell` is private
+   --> src\ui\app\petri_app\drawing\draw_markov_window.rs:206:23
+    |
+206 |                 Self::draw_fixed_cell(ui, state_col, self.tr("РЎРѕСЃС‚РѕСЏРЅРёРµ", "State"));
+    |                       ^^^^^^^^^^^^^^^ private associated function
+    |
+   ::: src\ui\app\table_view.rs:42:5
+    |
+ 42 |     fn draw_fixed_cell(ui: &mut egui::Ui, width: f32, text: impl Into<egui::WidgetText>) {
+    |     ------------------------------------------------------------------------------------ private associated function defined here
+
+error[E0624]: associated function `draw_fixed_cell` is private
+   --> src\ui\app\petri_app\drawing\draw_markov_window.rs:207:23
+    |
+207 |                 Self::draw_fixed_cell(ui, transitions_col, self.tr("РџРµСЂРµС…РѕРґС‹", "Transitions"));
+    |                       ^^^^^^^^^^^^^^^ private associated function
+    |
+   ::: src\ui\app\table_view.rs:42:5
+    |
+ 42 |     fn draw_fixed_cell(ui: &mut egui::Ui, width: f32, text: impl Into<egui::WidgetText>) {
+    |     ------------------------------------------------------------------------------------ private associated function defined here
+
+error[E0624]: associated function `draw_fixed_cell` is private
+   --> src\ui\app\petri_app\drawing\draw_markov_window.rs:222:27
+    |
+222 |                     Self::draw_fixed_cell(ui, state_col, format!("S{}", row_idx + 1));
+    |                           ^^^^^^^^^^^^^^^ private associated function
+    |
+   ::: src\ui\app\table_view.rs:42:5
+    |
+ 42 |     fn draw_fixed_cell(ui: &mut egui::Ui, width: f32, text: impl Into<egui::WidgetText>) {
+    |     ------------------------------------------------------------------------------------ private associated function defined here
+
+error[E0624]: associated function `draw_fixed_cell` is private
+   --> src\ui\app\petri_app\drawing\draw_markov_window.rs:223:27
+    |
+223 |                     Self::draw_fixed_cell(
+    |                           ^^^^^^^^^^^^^^^ private associated function
+    |
+   ::: src\ui\app\table_view.rs:42:5
+    |
+ 42 |     fn draw_fixed_cell(ui: &mut egui::Ui, width: f32, text: impl Into<egui::WidgetText>) {
+    |     ------------------------------------------------------------------------------------ private associated function defined here
+
+For more information about this error, try `rustc --explain E0624`.
+error: could not compile `petri_net_legacy_editor` (lib) due to 10 previous errors
