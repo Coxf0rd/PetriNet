@@ -152,77 +152,75 @@ impl PetriApp {
                                 .map(|i| format!("T{}", i + 1))
                                 .unwrap_or_else(|| "-".to_string())
                         ));
+                        
+// Header
+egui::Grid::new("debug_marking_header")
+    .num_columns(3)
+    .show(ui, |ui| {
+        ui.add_sized([120.0,0.0], egui::Label::new("Позиция"));
+        ui.add_sized([80.0,0.0], egui::Label::new("Маркеры"));
+        ui.add_sized([100.0,0.0], egui::Label::new("Изменение"));
+        ui.end_row();
+    });
 
-                        egui::Grid::new("debug_marking_header").num_columns(3).show(
-                            ui,
-                            |ui: &mut egui::Ui| {
-                                ui.add_sized(
-                                    [130.0, 0.0],
-                                    egui::Label::new(t("Позиция", "Position")),
-                                );
-                                ui.add_sized([90.0, 0.0], egui::Label::new(t("Маркеры", "Tokens")));
-                                ui.add_sized(
-                                    [120.0, 0.0],
-                                    egui::Label::new(t("Изменение", "Delta")),
-                                );
-                                ui.end_row();
-                            },
-                        );
+let row_h = ui.text_style_height(&egui::TextStyle::Body) + 4.0;
+let row_count = entry.marking.len();
 
-                        let row_h = ui.text_style_height(&egui::TextStyle::Body) + 4.0;
-                        let row_count = entry.marking.len();
-                        let prev_entry = if log_idx > 0 {
-                            result.logs.get(log_idx - 1)
-                        } else {
-                            None
-                        };
 
-                        scroll_utils::show_virtualized_rows(
-                            ui,
-                            "debug_marking_grid",
-                            200.0,
-                            row_h,
-                            row_count,
-                            |ui: &mut egui::Ui, idx: usize| {
-                                egui::Grid::new("debug_marking_grid_rows")
-                                    .num_columns(3)
-                                    .striped(true)
-                                    .show(ui, |ui: &mut egui::Ui| {
-                                        let current = entry.marking[idx];
-                                        let previous = prev_entry
-                                            .and_then(|e| e.marking.get(idx))
-                                            .copied()
-                                            .unwrap_or(current);
-                                        let delta = current as i32 - previous as i32;
+scroll_utils::show_virtualized_rows(
+    ui,
+    "debug_marking_grid",
+    ui.available_height(),
+    row_h,
+    row_count,
+    |ui: &mut egui::Ui, idx: usize| {
 
-                                        ui.add_sized(
-                                            [130.0, 0.0],
-                                            egui::Label::new(format!("P{}", idx + 1)),
-                                        );
-                                        ui.add_sized(
-                                            [90.0, 0.0],
-                                            egui::Label::new(current.to_string()),
-                                        );
+        egui::Grid::new("debug_marking_grid_rows")
+            .num_columns(3)
+            .striped(true)
+            .show(ui, |ui: &mut egui::Ui| {
 
-                                        let color = if delta > 0 {
-                                            egui::Color32::GREEN
-                                        } else if delta < 0 {
-                                            egui::Color32::RED
-                                        } else {
-                                            ui.visuals().text_color()
-                                        };
+                let prev = if log_idx > 0 {
+                    result.logs.get(log_idx-1)
+                        .and_then(|e| e.marking.get(idx))
+                        .copied()
+                        .unwrap_or(entry.marking[idx])
+                } else {
+                    entry.marking[idx]
+                };
 
-                                        ui.add_sized(
-                                            [120.0, 0.0],
-                                            egui::Label::new(
-                                                egui::RichText::new(delta.to_string()).color(color),
-                                            ),
-                                        );
+                let current = entry.marking[idx];
+                let delta: i32 = current as i32 - prev as i32;
 
-                                        ui.end_row();
-                                    });
-                            },
-                        );
+                let resp = ui.selectable_label(false, format!("P{}", idx + 1));
+                if resp.clicked() {
+                    if let Some(place) = self.net.places.get(idx) {
+                        self.canvas.selected_place = Some(place.id);
+                    }
+                }
+
+                ui.add_sized([80.0,0.0], egui::Label::new(current.to_string()));
+
+                let color = if delta > 0 {
+                    egui::Color32::GREEN
+                } else if delta < 0 {
+                    egui::Color32::RED
+                } else {
+                    ui.visuals().text_color()
+                };
+
+                ui.add_sized(
+                    [100.0,0.0],
+                    egui::Label::new(
+                        egui::RichText::new(delta.to_string()).color(color)
+                    )
+                );
+
+                ui.end_row();
+            });
+    },
+);
+
                     }
                 }
             },
