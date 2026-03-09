@@ -1,5 +1,6 @@
 use super::*;
 
+use crate::ui::property_selection::{show_collapsible_property_section, PropertySectionConfig};
 impl PetriApp {
     pub(super) fn draw_table_view(&mut self, ui: &mut egui::Ui) {
         ui.heading("Структура сети");
@@ -424,15 +425,6 @@ impl PetriApp {
                         .id_source("results_window_scroll")
                         .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysHidden)
                         .show(ui, |ui| {
-                            ui.label(match result.cycle_time {
-                                Some(t) => format!(
-                                    "{}: {:.6} {}",
-                                    self.tr("Время цикла", "Cycle time"),
-                                    t,
-                                    self.tr("сек", "sec")
-                                ),
-                                None => format!("{}: N/A", self.tr("Время цикла", "Cycle time")),
-                            });
                             let total_minutes = result.sim_time / 60.0;
                             ui.label(format!(
                                 "{}: {:.4} {} / {:.4} {}",
@@ -769,7 +761,6 @@ impl PetriApp {
         }
     }
 
-
     pub(super) fn draw_place_statistics_window(&mut self, ctx: &egui::Context) {
         if !self.show_place_stats_window {
             return;
@@ -794,41 +785,65 @@ impl PetriApp {
             self.place_stats_view_place = available_places[0];
         }
 
-        let title = self.tr("Статистика", "Statistics");
-        let section_controls = self.tr("Параметры", "Parameters");
-        let section_graph = self.tr("График", "Chart");
-        let label_place = self.tr("Позиция", "Place");
-        let label_metric = self.tr("Показатель", "Metric");
-        let label_total = self.tr("Общая", "Total");
-        let label_input = self.tr("На входе", "On input");
-        let label_output = self.tr("На выходе", "On output");
-        let label_plot_sampled = self.tr("График сэмплирован", "Plot sampled");
-        let label_max = self.tr("Максимум", "Maximum");
-        let label_min = self.tr("Минимум", "Minimum");
-        let label_time = self.tr("Время", "Time");
-        let label_avg = self.tr("Среднее", "Average");
-        let label_utilization = self.tr("Утилизация", "Utilization");
-        let label_in_rate = self.tr("Ср. вход/сек", "Avg in/sec");
-        let label_out_rate = self.tr("Ср. выход/сек", "Avg out/sec");
-        let label_zoom_x = self.tr("Масштаб X", "X zoom");
-        let label_pan_x = self.tr("Сдвиг X", "X pan");
-        let label_show_grid = self.tr("Показать сетку", "Show grid");
-        let label_x_range = self.tr("Диапазон X", "X range");
-        let label_points = self.tr("Точки", "Points");
-        let label_grid_step_x = self.tr("Шаг сетки X", "Grid step X");
-        let label_grid_step_y = self.tr("Шаг сетки Y", "Grid step Y");
-        let label_axis_x = self.tr("Ось X: время/шаги", "X axis: time/steps");
-        let label_x = self.tr("X", "X");
-        let label_y = self.tr("Y", "Y");
-        let label_no_data = self.tr("Нет данных для отображения", "No data to display");
-
         let mut open = self.show_place_stats_window;
-        egui::Window::new(title)
+        egui::Window::new(self.tr("Статистика", "Statistics"))
             .id(egui::Id::new("results_place_stats_window"))
             .open(&mut open)
-            .resizable(true)
-            .default_size(egui::vec2(940.0, 640.0))
+            .vscroll(true)
             .show(ctx, |ui| {
+                ui.horizontal(|ui| {
+                    ui.label(self.tr("Позиция", "Place"));
+                    let selected_place_text = self
+                        .net
+                        .places
+                        .get(self.place_stats_view_place)
+                        .map(|p| {
+                            format!(
+                                "P{} | {}",
+                                self.place_stats_view_place + 1,
+                                if p.name.is_empty() {
+                                    format!("P{}", self.place_stats_view_place + 1)
+                                } else {
+                                    p.name.clone()
+                                }
+                            )
+                        })
+                        .unwrap_or_else(|| format!("P{}", self.place_stats_view_place + 1));
+                    egui::ComboBox::from_id_source("results_stats_place_combo")
+                        .selected_text(selected_place_text)
+                        .width(420.0)
+                        .show_ui(ui, |ui| {
+                            for idx in &available_places {
+                                let label = self
+                                    .net
+                                    .places
+                                    .get(*idx)
+                                    .map(|p| {
+                                        format!(
+                                            "P{} | {}",
+                                            *idx + 1,
+                                            if p.name.is_empty() {
+                                                format!("P{}", *idx + 1)
+                                            } else {
+                                                p.name.clone()
+                                            }
+                                        )
+                                    })
+                                    .unwrap_or_else(|| format!("P{}", *idx + 1));
+                                ui.selectable_value(&mut self.place_stats_view_place, *idx, label);
+                            }
+                        });
+                    ui.label(format!("P{}", self.place_stats_view_place + 1));
+                    ui.separator();
+                    let selected_name = self
+                        .net
+                        .places
+                        .get(self.place_stats_view_place)
+                        .map(|p| p.name.clone())
+                        .unwrap_or_else(|| format!("P{}", self.place_stats_view_place + 1));
+                    ui.label(selected_name);
+                });
+
                 let place_idx = self.place_stats_view_place;
                 let place_stats = self
                     .net
@@ -836,7 +851,6 @@ impl PetriApp {
                     .get(place_idx)
                     .map(|p| p.stats)
                     .unwrap_or_default();
-
                 let mut available_series = Vec::new();
                 if place_stats.markers_total {
                     available_series.push(PlaceStatsSeries::Total);
@@ -853,6 +867,17 @@ impl PetriApp {
                 if !available_series.contains(&self.place_stats_series) {
                     self.place_stats_series = available_series[0];
                 }
+                ui.horizontal(|ui| {
+                    ui.label(self.tr("Показатель", "Metric"));
+                    for series in available_series {
+                        let label = match series {
+                            PlaceStatsSeries::Total => self.tr("Общая", "Total"),
+                            PlaceStatsSeries::Input => self.tr("На входе", "On input"),
+                            PlaceStatsSeries::Output => self.tr("На выходе", "On output"),
+                        };
+                        ui.selectable_value(&mut self.place_stats_series, series, label);
+                    }
+                });
 
                 let sampled = Self::sampled_indices(result.logs.len(), Self::MAX_PLOT_POINTS);
                 let mut values = Vec::<f64>::with_capacity(sampled.len());
@@ -901,7 +926,11 @@ impl PetriApp {
                         }
                     };
                     values.push(value);
-                    times.push(if entry.time.is_finite() { entry.time } else { idx as f64 });
+                    times.push(if entry.time.is_finite() {
+                        entry.time
+                    } else {
+                        idx as f64
+                    });
                 }
 
                 if values.len() >= 2 {
@@ -918,10 +947,17 @@ impl PetriApp {
                         }
                     }
                 }
-
                 if values.is_empty() {
-                    ui.label(label_no_data);
+                    ui.label(self.tr("Нет данных для отображения", "No data to display"));
                     return;
+                }
+                if result.logs.len() > values.len() {
+                    ui.label(format!(
+                        "{}: {} / {}",
+                        self.tr("График сэмплирован", "Plot sampled"),
+                        values.len(),
+                        result.logs.len()
+                    ));
                 }
 
                 let mut max_v = values[0];
@@ -941,23 +977,65 @@ impl PetriApp {
                     }
                 }
                 let avg = sum / values.len() as f64;
-                let place_load = result.place_load.as_ref().and_then(|load| load.get(place_idx));
+                let place_load = result
+                    .place_load
+                    .as_ref()
+                    .and_then(|load| load.get(place_idx));
                 let summary_tail = match self.place_stats_series {
                     PlaceStatsSeries::Total => format!(
                         "{} {:.3}%",
-                        label_utilization,
+                        self.tr("Утилизация", "Utilization"),
                         place_load
                             .and_then(|l| l.avg_over_capacity)
                             .map(|v| v * 100.0)
                             .unwrap_or(0.0)
                     ),
-                    PlaceStatsSeries::Input => {
-                        format!("{} {:.3}", label_in_rate, place_load.and_then(|l| l.in_rate).unwrap_or(0.0))
-                    }
-                    PlaceStatsSeries::Output => {
-                        format!("{} {:.3}", label_out_rate, place_load.and_then(|l| l.out_rate).unwrap_or(0.0))
-                    }
+                    PlaceStatsSeries::Input => format!(
+                        "{} {:.3}",
+                        self.tr("Ср. вход/сек", "Avg in/sec"),
+                        place_load.and_then(|l| l.in_rate).unwrap_or(0.0)
+                    ),
+                    PlaceStatsSeries::Output => format!(
+                        "{} {:.3}",
+                        self.tr("Ср. выход/сек", "Avg out/sec"),
+                        place_load.and_then(|l| l.out_rate).unwrap_or(0.0)
+                    ),
                 };
+
+                ui.horizontal(|ui| {
+                    ui.label(format!("{} {:.3}", self.tr("Максимум", "Maximum"), max_v));
+                    ui.label(format!("{} {:.3}", self.tr("Время", "Time"), max_t));
+                    ui.separator();
+                    ui.label(format!("{} {:.3}", self.tr("Минимум", "Minimum"), min_v));
+                    ui.label(format!("{} {:.3}", self.tr("Время", "Time"), min_t));
+                    ui.separator();
+                    ui.label(format!("{} {:.3}", self.tr("Среднее", "Average"), avg));
+                    ui.label(summary_tail);
+                });
+                ui.horizontal(|ui| {
+                    ui.label(self.tr("Масштаб X", "X zoom"));
+                    ui.add(
+                        egui::Slider::new(&mut self.place_stats_zoom_x, 1.0..=20.0)
+                            .logarithmic(true),
+                    );
+                    ui.add(
+                        egui::DragValue::new(&mut self.place_stats_zoom_x)
+                            .range(1.0..=20.0)
+                            .speed(0.01)
+                            .fixed_decimals(3),
+                    );
+                    ui.label(self.tr("Сдвиг X", "X pan"));
+                    ui.add(egui::Slider::new(&mut self.place_stats_pan_x, 0.0..=1.0));
+                    ui.add(
+                        egui::DragValue::new(&mut self.place_stats_pan_x)
+                            .range(0.0..=1.0)
+                            .speed(0.001)
+                            .fixed_decimals(3),
+                    );
+                    ui.separator();
+                    let grid_label = self.tr("Показать сетку", "Show grid");
+                    ui.checkbox(&mut self.place_stats_show_grid, grid_label);
+                });
 
                 let total = values.len();
                 let visible = (((total as f32) / self.place_stats_zoom_x).round() as usize)
@@ -969,6 +1047,20 @@ impl PetriApp {
                 let end = (start + visible).min(total);
                 let values_window = &values[start..end];
                 let times_window = &times[start..end];
+
+                let desired_size = egui::Vec2::new(ui.available_width(), 360.0);
+                let (rect, response) = ui.allocate_exact_size(desired_size, Sense::hover());
+                let painter = ui.painter_at(rect);
+                painter.rect_stroke(rect, 0.0, Stroke::new(1.0, Color32::GRAY));
+                let left_pad = 50.0;
+                let right_pad = 14.0;
+                let top_pad = 14.0;
+                let bottom_pad = 36.0;
+                let plot_rect = Rect::from_min_max(
+                    Pos2::new(rect.left() + left_pad, rect.top() + top_pad),
+                    Pos2::new(rect.right() - right_pad, rect.bottom() - bottom_pad),
+                );
+                painter.rect_stroke(plot_rect, 0.0, Stroke::new(1.0, Color32::GRAY));
 
                 let x_min = times_window.first().copied().unwrap_or(0.0);
                 let mut x_max = times_window.last().copied().unwrap_or(1.0);
@@ -984,271 +1076,177 @@ impl PetriApp {
                 if y_max <= y_min {
                     y_max = y_min + 1.0;
                 }
+
+                ui.label(format!(
+                    "{}: [{:.3} .. {:.3}] | {}: {} / {}",
+                    self.tr("Диапазон X", "X range"),
+                    x_min,
+                    x_max,
+                    self.tr("Точки", "Points"),
+                    values_window.len(),
+                    values.len()
+                ));
+
                 let x_step = ((x_max - x_min) / 10.0).max(0.000_001);
                 let y_step = ((y_max - y_min) / 10.0).max(0.000_001);
 
-                let selected_place_text = self
-                    .net
-                    .places
-                    .get(self.place_stats_view_place)
-                    .map(|p| {
-                        format!(
-                            "P{} | {}",
-                            self.place_stats_view_place + 1,
-                            if p.name.is_empty() {
-                                format!("P{}", self.place_stats_view_place + 1)
-                            } else {
-                                p.name.clone()
-                            }
-                        )
-                    })
-                    .unwrap_or_else(|| format!("P{}", self.place_stats_view_place + 1));
-
-                let _ = show_collapsible_property_section(
-                    ui,
-                    section_controls,
-                    PropertySectionConfig::new("place_stats_controls_section").default_open(true),
-                    |ui: &mut egui::Ui| {
-                        ui.horizontal(|ui: &mut egui::Ui| {
-                            ui.label(label_place);
-                            egui::ComboBox::from_id_source("results_stats_place_combo")
-                                .selected_text(selected_place_text)
-                                .width(420.0)
-                                .show_ui(ui, |ui: &mut egui::Ui| {
-                                    for idx in &available_places {
-                                        let label = self
-                                            .net
-                                            .places
-                                            .get(*idx)
-                                            .map(|p| {
-                                                format!(
-                                                    "P{} | {}",
-                                                    *idx + 1,
-                                                    if p.name.is_empty() {
-                                                        format!("P{}", *idx + 1)
-                                                    } else {
-                                                        p.name.clone()
-                                                    }
-                                                )
-                                            })
-                                            .unwrap_or_else(|| format!("P{}", *idx + 1));
-                                        ui.selectable_value(&mut self.place_stats_view_place, *idx, label);
-                                    }
-                                });
-                            ui.label(format!("P{}", self.place_stats_view_place + 1));
-                            ui.separator();
-                            let selected_name = self
-                                .net
-                                .places
-                                .get(self.place_stats_view_place)
-                                .map(|p| p.name.clone())
-                                .unwrap_or_else(|| format!("P{}", self.place_stats_view_place + 1));
-                            ui.label(selected_name);
-                        });
-
-                        ui.horizontal(|ui: &mut egui::Ui| {
-                            ui.label(label_metric);
-                            for series in available_series.clone() {
-                                let label = match series {
-                                    PlaceStatsSeries::Total => label_total,
-                                    PlaceStatsSeries::Input => label_input,
-                                    PlaceStatsSeries::Output => label_output,
-                                };
-                                ui.selectable_value(&mut self.place_stats_series, series, label);
-                            }
-                        });
-
-                        if result.logs.len() > values.len() {
-                            ui.label(format!("{}: {} / {}", label_plot_sampled, values.len(), result.logs.len()));
-                        }
-
-                        ui.horizontal(|ui: &mut egui::Ui| {
-                            ui.label(format!("{} {:.3}", label_max, max_v));
-                            ui.label(format!("{} {:.3}", label_time, max_t));
-                            ui.separator();
-                            ui.label(format!("{} {:.3}", label_min, min_v));
-                            ui.label(format!("{} {:.3}", label_time, min_t));
-                            ui.separator();
-                            ui.label(format!("{} {:.3}", label_avg, avg));
-                            ui.label(summary_tail);
-                        });
-
-                        ui.horizontal(|ui: &mut egui::Ui| {
-                            ui.label(label_zoom_x);
-                            ui.add(
-                                egui::Slider::new(&mut self.place_stats_zoom_x, 1.0..=20.0)
-                                    .logarithmic(true),
-                            );
-                            ui.add(
-                                egui::DragValue::new(&mut self.place_stats_zoom_x)
-                                    .range(1.0..=20.0)
-                                    .speed(0.01)
-                                    .fixed_decimals(3),
-                            );
-                            ui.label(label_pan_x);
-                            ui.add(egui::Slider::new(&mut self.place_stats_pan_x, 0.0..=1.0));
-                            ui.add(
-                                egui::DragValue::new(&mut self.place_stats_pan_x)
-                                    .range(0.0..=1.0)
-                                    .speed(0.001)
-                                    .fixed_decimals(3),
-                            );
-                            ui.separator();
-                            ui.checkbox(&mut self.place_stats_show_grid, label_show_grid);
-                        });
-                    },
-                );
-
-                let _ = show_collapsible_property_section(
-                    ui,
-                    section_graph,
-                    PropertySectionConfig::new("place_stats_graph_section").default_open(true).top_spacing(6.0),
-                    |ui: &mut egui::Ui| {
-                        let desired_size = egui::Vec2::new(ui.available_width(), 360.0);
-                        let (rect, response) = ui.allocate_exact_size(desired_size, Sense::hover());
-                        let painter = ui.painter_at(rect);
-                        painter.rect_stroke(rect, 0.0, Stroke::new(1.0, Color32::GRAY));
-                        let left_pad = 50.0;
-                        let right_pad = 14.0;
-                        let top_pad = 14.0;
-                        let bottom_pad = 36.0;
-                        let plot_rect = Rect::from_min_max(
-                            Pos2::new(rect.left() + left_pad, rect.top() + top_pad),
-                            Pos2::new(rect.right() - right_pad, rect.bottom() - bottom_pad),
+                if self.place_stats_show_grid {
+                    ui.label(format!(
+                        "{}: {:.3} | {}: {:.3}",
+                        self.tr("Шаг сетки X", "Grid step X"),
+                        x_step,
+                        self.tr("Шаг сетки Y", "Grid step Y"),
+                        y_step
+                    ));
+                    for i in 1..10 {
+                        let x = plot_rect.left() + plot_rect.width() * (i as f32 / 10.0);
+                        painter.line_segment(
+                            [
+                                Pos2::new(x, plot_rect.top()),
+                                Pos2::new(x, plot_rect.bottom()),
+                            ],
+                            Stroke::new(0.5, Color32::LIGHT_GRAY),
                         );
-                        painter.rect_stroke(plot_rect, 0.0, Stroke::new(1.0, Color32::GRAY));
+                    }
+                    for i in 1..10 {
+                        let y = plot_rect.bottom() - plot_rect.height() * (i as f32 / 10.0);
+                        painter.line_segment(
+                            [
+                                Pos2::new(plot_rect.left(), y),
+                                Pos2::new(plot_rect.right(), y),
+                            ],
+                            Stroke::new(0.5, Color32::LIGHT_GRAY),
+                        );
+                    }
 
-                        if self.place_stats_show_grid {
-                            ui.label(format!(
-                                "{}: [{:.3} .. {:.3}] | {}: {} / {}",
-                                label_x_range,
-                                x_min,
-                                x_max,
-                                label_points,
-                                values_window.len(),
-                                values.len()
-                            ));
-                            ui.label(format!(
-                                "{}: {:.3} | {}: {:.3}",
-                                label_grid_step_x,
-                                x_step,
-                                label_grid_step_y,
-                                y_step
-                            ));
-                            for i in 1..10 {
-                                let x = plot_rect.left() + plot_rect.width() * (i as f32 / 10.0);
-                                painter.line_segment(
-                                    [Pos2::new(x, plot_rect.top()), Pos2::new(x, plot_rect.bottom())],
-                                    Stroke::new(0.5, Color32::LIGHT_GRAY),
-                                );
-                            }
-                            for i in 1..10 {
-                                let y = plot_rect.bottom() - plot_rect.height() * (i as f32 / 10.0);
-                                painter.line_segment(
-                                    [Pos2::new(plot_rect.left(), y), Pos2::new(plot_rect.right(), y)],
-                                    Stroke::new(0.5, Color32::LIGHT_GRAY),
-                                );
-                            }
-                            for i in 0..=10 {
-                                let t = i as f32 / 10.0;
-                                let x = plot_rect.left() + plot_rect.width() * t;
-                                let xv = x_min + x_step * i as f64;
-                                painter.text(
-                                    Pos2::new(x, plot_rect.bottom() + 6.0),
-                                    egui::Align2::CENTER_TOP,
-                                    format!("{:.1}", xv),
-                                    egui::FontId::default(),
-                                    Color32::DARK_GRAY,
-                                );
-                            }
-                            for i in 0..=10 {
-                                let t = i as f32 / 10.0;
-                                let y = plot_rect.bottom() - plot_rect.height() * t;
-                                let yv = y_min + y_step * i as f64;
-                                painter.text(
-                                    Pos2::new(rect.left() + 4.0, y),
-                                    egui::Align2::LEFT_CENTER,
-                                    format!("{:.1}", yv),
-                                    egui::FontId::default(),
-                                    Color32::DARK_GRAY,
-                                );
-                            }
-                        }
-
-                        let to_screen = |x: f64, y: f64| -> Pos2 {
-                            let xr = ((x - x_min) / (x_max - x_min)).clamp(0.0, 1.0) as f32;
-                            let yr = ((y - y_min) / (y_max - y_min)).clamp(0.0, 1.0) as f32;
-                            Pos2::new(
-                                plot_rect.left() + xr * plot_rect.width(),
-                                plot_rect.bottom() - yr * plot_rect.height(),
-                            )
-                        };
-
-                        let mut points_data = Vec::with_capacity(values_window.len());
-                        let mut line_points = Vec::with_capacity(values_window.len());
-                        for (x, y) in times_window.iter().zip(values_window.iter()) {
-                            let pt = to_screen(*x, *y);
-                            points_data.push((pt, *x, *y));
-                            line_points.push(pt);
-                        }
-                        if line_points.len() >= 2 {
-                            painter.add(egui::Shape::line(line_points.clone(), Stroke::new(1.6, Color32::BLUE)));
-                        }
-
-                        if let Some(mouse_pos) = response.hover_pos() {
-                            if plot_rect.contains(mouse_pos) && points_data.len() >= 2 {
-                                let tolerance = 8.0_f32;
-                                let mut best: Option<(f32, Pos2, f64, f64)> = None;
-                                for idx in 0..(points_data.len() - 1) {
-                                    let (p0, x0, y0) = points_data[idx];
-                                    let (p1, x1, y1) = points_data[idx + 1];
-                                    let seg = p1 - p0;
-                                    let len_sq = seg.length_sq();
-                                    let (t, proj) = if len_sq <= f32::EPSILON {
-                                        (0.0_f32, p0)
-                                    } else {
-                                        let rel = mouse_pos - p0;
-                                        let t = (rel.dot(seg) / len_sq).clamp(0.0, 1.0);
-                                        (t, p0 + seg * t)
-                                    };
-                                    let dist = proj.distance(mouse_pos);
-                                    if dist <= tolerance {
-                                        let x = x0 + (x1 - x0) * t as f64;
-                                        let y = y0 + (y1 - y0) * t as f64;
-                                        match best {
-                                            Some((best_dist, _, _, _)) if dist >= best_dist => {}
-                                            _ => best = Some((dist, proj, x, y)),
-                                        }
-                                    }
-                                }
-                                if let Some((_, pos, x, y)) = best {
-                                    painter.circle_filled(pos, 4.0, Color32::WHITE);
-                                    painter.circle_stroke(pos, 4.0, Stroke::new(2.0, Color32::BLUE));
-                                    painter.text(
-                                        pos + Vec2::new(6.0, 12.0),
-                                        egui::Align2::LEFT_TOP,
-                                        format!("{}: {:.3}, {}: {:.3}", label_x, x, label_y, y),
-                                        egui::FontId::default(),
-                                        Color32::BLACK,
-                                    );
-                                }
-                            }
-                        }
-
-                        if !self.place_stats_show_grid {
-                            painter.text(Pos2::new(rect.left() + 4.0, plot_rect.top()), egui::Align2::LEFT_TOP, format!("{:.3}", y_max), egui::FontId::default(), Color32::DARK_GRAY);
-                            painter.text(Pos2::new(rect.left() + 4.0, plot_rect.bottom()), egui::Align2::LEFT_BOTTOM, "0", egui::FontId::default(), Color32::DARK_GRAY);
-                            painter.text(Pos2::new(plot_rect.left(), plot_rect.bottom() + 6.0), egui::Align2::LEFT_TOP, format!("{:.3}", x_min), egui::FontId::default(), Color32::DARK_GRAY);
-                            painter.text(Pos2::new(plot_rect.right(), plot_rect.bottom() + 6.0), egui::Align2::RIGHT_TOP, format!("{:.3}", x_max), egui::FontId::default(), Color32::DARK_GRAY);
-                        }
+                    for i in 0..=10 {
+                        let t = i as f32 / 10.0;
+                        let x = plot_rect.left() + plot_rect.width() * t;
+                        let xv = x_min + x_step * i as f64;
                         painter.text(
-                            Pos2::new(plot_rect.center().x, rect.bottom() - 2.0),
-                            egui::Align2::CENTER_BOTTOM,
-                            label_axis_x,
+                            Pos2::new(x, plot_rect.bottom() + 6.0),
+                            egui::Align2::CENTER_TOP,
+                            format!("{:.1}", xv),
                             egui::FontId::default(),
                             Color32::DARK_GRAY,
                         );
-                    },
+                    }
+
+                    for i in 0..=10 {
+                        let t = i as f32 / 10.0;
+                        let y = plot_rect.bottom() - plot_rect.height() * t;
+                        let yv = y_min + y_step * i as f64;
+                        painter.text(
+                            Pos2::new(rect.left() + 4.0, y),
+                            egui::Align2::LEFT_CENTER,
+                            format!("{:.1}", yv),
+                            egui::FontId::default(),
+                            Color32::DARK_GRAY,
+                        );
+                    }
+                }
+
+                let to_screen = |x: f64, y: f64| -> Pos2 {
+                    let xr = ((x - x_min) / (x_max - x_min)).clamp(0.0, 1.0) as f32;
+                    let yr = ((y - y_min) / (y_max - y_min)).clamp(0.0, 1.0) as f32;
+                    Pos2::new(
+                        plot_rect.left() + xr * plot_rect.width(),
+                        plot_rect.bottom() - yr * plot_rect.height(),
+                    )
+                };
+
+                let mut points_data = Vec::with_capacity(values_window.len());
+                let mut line_points = Vec::with_capacity(values_window.len());
+                for (x, y) in times_window.iter().zip(values_window.iter()) {
+                    let pt = to_screen(*x, *y);
+                    points_data.push((pt, *x, *y));
+                    line_points.push(pt);
+                }
+                if line_points.len() >= 2 {
+                    painter.add(egui::Shape::line(
+                        line_points,
+                        Stroke::new(1.6, Color32::BLUE),
+                    ));
+                }
+
+                if let Some(mouse_pos) = response.hover_pos() {
+                    if plot_rect.contains(mouse_pos) {
+                        let x_tolerance = 32.0;
+                        let y_tolerance = 80.0;
+                        if let Some((pos, x, y)) = points_data
+                            .iter()
+                            .filter_map(|(pos, x, y)| {
+                                let dx = (mouse_pos.x - pos.x).abs();
+                                let dy = (mouse_pos.y - pos.y).abs();
+                                let normalized =
+                                    (dx / x_tolerance).powi(2) + (dy / y_tolerance).powi(2);
+                                if normalized <= 1.0 {
+                                    Some((normalized, *pos, *x, *y))
+                                } else {
+                                    None
+                                }
+                            })
+                            .min_by(|a, b| {
+                                a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal)
+                            })
+                            .map(|(_, pos, x, y)| (pos, x, y))
+                        {
+                            painter.circle_filled(pos, 4.0, Color32::WHITE);
+                            painter.circle_stroke(pos, 4.0, Stroke::new(2.0, Color32::BLUE));
+                            let point_label = format!(
+                                "{}: {:.3}, {}: {:.3}",
+                                self.tr("X", "X"),
+                                x,
+                                self.tr("Y", "Y"),
+                                y
+                            );
+                            painter.text(
+                                pos + Vec2::new(6.0, 12.0),
+                                egui::Align2::LEFT_TOP,
+                                point_label,
+                                egui::FontId::default(),
+                                Color32::BLACK,
+                            );
+                        }
+                    }
+                }
+
+                if !self.place_stats_show_grid {
+                    painter.text(
+                        Pos2::new(rect.left() + 4.0, plot_rect.top()),
+                        egui::Align2::LEFT_TOP,
+                        format!("{:.3}", y_max),
+                        egui::FontId::default(),
+                        Color32::DARK_GRAY,
+                    );
+                    painter.text(
+                        Pos2::new(rect.left() + 4.0, plot_rect.bottom()),
+                        egui::Align2::LEFT_BOTTOM,
+                        "0",
+                        egui::FontId::default(),
+                        Color32::DARK_GRAY,
+                    );
+                    painter.text(
+                        Pos2::new(plot_rect.left(), plot_rect.bottom() + 6.0),
+                        egui::Align2::LEFT_TOP,
+                        format!("{:.3}", x_min),
+                        egui::FontId::default(),
+                        Color32::DARK_GRAY,
+                    );
+                    painter.text(
+                        Pos2::new(plot_rect.right(), plot_rect.bottom() + 6.0),
+                        egui::Align2::RIGHT_TOP,
+                        format!("{:.3}", x_max),
+                        egui::FontId::default(),
+                        Color32::DARK_GRAY,
+                    );
+                }
+                painter.text(
+                    Pos2::new(plot_rect.center().x, rect.bottom() - 2.0),
+                    egui::Align2::CENTER_BOTTOM,
+                    self.tr("Ось X: время/шаги", "X axis: time/steps"),
+                    egui::FontId::default(),
+                    Color32::DARK_GRAY,
                 );
             });
 
