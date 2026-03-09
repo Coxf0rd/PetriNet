@@ -4,7 +4,7 @@ use crate::model::{PetriNet, StochasticDistribution};
 
 const DEFAULT_MIN_MAX_STATES: usize = 2_000;
 const TARGET_MARKOV_GRAPH_BYTES: usize = 256 * 1024 * 1024;
-const HARD_AUTO_MAX_STATES: usize = 100_000;
+const HARD_AUTO_MAX_STATES: usize = 1_000_000;
 const APPROX_STATE_OVERHEAD_BYTES: usize = 96;
 const APPROX_EDGE_OVERHEAD_BYTES: usize = 24;
 const APPROX_SEEN_ENTRY_BYTES: usize = 48;
@@ -18,6 +18,17 @@ pub struct MarkovChain {
     pub transitions: Vec<Vec<(usize, f64)>>,
     pub stationary: Option<Vec<f64>>,
     pub limit_reached: bool,
+    pub state_limit: usize,
+    pub stationary_status: StationaryStatus,
+}
+
+#[derive(Clone, Debug)]
+pub enum StationaryStatus {
+    Computed,
+    LimitReached { explored_states: usize, limit: usize },
+    TimedNetUnsupported,
+    SolverDidNotConverge,
+    NoDynamicTransitions,
 }
 
 impl MarkovChain {
@@ -111,10 +122,24 @@ pub fn build_markov_chain(net: &PetriNet, max_states: Option<usize>) -> MarkovCh
         }
     }
 
-    let stationary = if limit_reached || !can_compute_stationary {
-        None
+    let (stationary, stationary_status) = if !can_compute_stationary {
+        (None, StationaryStatus::TimedNetUnsupported)
+    } else if limit_reached {
+        (
+            None,
+            StationaryStatus::LimitReached {
+                explored_states: states.len(),
+                limit: adaptive_limit,
+            },
+        )
     } else {
-        compute_stationary_sparse(&transitions)
+        match compute_stationary_sparse(&transitions) {
+            Some(stationary) => (Some(stationary), StationaryStatus::Computed),
+            None if transitions.iter().all(|edges| edges.is_empty()) => {
+                (None, StationaryStatus::NoDynamicTransitions)
+            }
+            None => (None, StationaryStatus::SolverDidNotConverge),
+        }
     };
 
     MarkovChain {
@@ -122,6 +147,8 @@ pub fn build_markov_chain(net: &PetriNet, max_states: Option<usize>) -> MarkovCh
         transitions,
         stationary,
         limit_reached,
+        state_limit: adaptive_limit,
+        stationary_status,
     }
 }
 
@@ -345,20 +372,57 @@ fn compute_stationary_sparse(transitions: &[Vec<(usize, f64)>]) -> Option<Vec<f6
         return None;
     }
 
+    let stay_probabilities: Vec<f64> = exit_rates
+        .iter()
+        .map(|rate| (1.0 - rate / max_exit_rate).max(0.0))
+        .collect();
+
+    let mut incoming: Vec<Vec<(usize, f64)>> = vec![Vec::new(); n];
+    for (src, edges) in transitions.iter().enumerate() {
+        for &(dest, rate) in edges {
+            if rate > 0.0 {
+                incoming[dest].push((src, rate / max_exit_rate));
+            }
+        }
+    }
+
+    let threads = std::thread::available_parallelism()
+        .map(|n| n.get())
+        .unwrap_or(1)
+        .min(n.max(1));
+    let chunk_size = n.div_ceil(threads).max(1);
+
     let mut current = vec![1.0 / (n as f64); n];
     let mut next = vec![0.0; n];
 
     for _ in 0..STATIONARY_MAX_ITERS {
-        next.fill(0.0);
-
-        for (i, edges) in transitions.iter().enumerate() {
-            let mass = current[i];
-            let stay = (1.0 - exit_rates[i] / max_exit_rate).max(0.0);
-            next[i] += mass * stay;
-            for &(dest, rate) in edges {
-                next[dest] += mass * (rate / max_exit_rate);
+        std::thread::scope(|scope| {
+            let mut handles = Vec::new();
+            for start in (0..n).step_by(chunk_size) {
+                let end = (start + chunk_size).min(n);
+                let current_ref = &current;
+                let incoming_ref = &incoming;
+                let stay_ref = &stay_probabilities;
+                handles.push(scope.spawn(move || {
+                    let mut chunk = Vec::with_capacity(end - start);
+                    for idx in start..end {
+                        let mut value = current_ref[idx] * stay_ref[idx];
+                        for &(src, probability) in &incoming_ref[idx] {
+                            value += current_ref[src] * probability;
+                        }
+                        chunk.push((idx, value));
+                    }
+                    chunk
+                }));
             }
-        }
+
+            for handle in handles {
+                for (idx, value) in handle.join().ok()? {
+                    next[idx] = value;
+                }
+            }
+            Some(())
+        })?;
 
         let sum: f64 = next.iter().sum();
         if sum <= f64::EPSILON {
@@ -374,6 +438,7 @@ fn compute_stationary_sparse(transitions: &[Vec<(usize, f64)>]) -> Option<Vec<f6
             .map(|(a, b)| (a - b).abs())
             .sum();
         std::mem::swap(&mut current, &mut next);
+        next.fill(0.0);
 
         if diff < STATIONARY_TOLERANCE {
             return Some(current);

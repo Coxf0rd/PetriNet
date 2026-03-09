@@ -1,4 +1,5 @@
 use super::*;
+use crate::markov::StationaryStatus;
 use crate::ui::property_selection::{show_collapsible_property_section, PropertySectionConfig};
 use crate::ui::property_window::{show_property_window, PropertyWindowConfig};
 use crate::ui::scroll_utils;
@@ -135,10 +136,7 @@ impl PetriApp {
                 if let Some(stationary) = stationary {
                     self.draw_markov_stationary_grid(ui, chain, stationary);
                 } else {
-                    ui.label(self.tr(
-                        "Стационарное распределение не вычислено",
-                        "Unable to compute stationary",
-                    ));
+                    ui.label(self.markov_stationary_status_text(chain));
                 }
             },
         );
@@ -162,6 +160,44 @@ impl PetriApp {
                 self.draw_markov_highlight(ui, chain, stationary);
             },
         );
+    }
+
+    fn markov_stationary_status_text(&self, chain: &MarkovChain) -> String {
+        match &chain.stationary_status {
+            StationaryStatus::Computed => self
+                .tr(
+                    "Стационарное распределение рассчитано",
+                    "Stationary distribution computed",
+                )
+                .into_owned(),
+            StationaryStatus::LimitReached { explored_states, limit } => format!(
+                "{}: {} / {}",
+                self.tr(
+                    "Стационарное распределение не вычислено: достигнут лимит состояний",
+                    "Stationary distribution unavailable: state limit reached",
+                ),
+                explored_states,
+                limit
+            ),
+            StationaryStatus::TimedNetUnsupported => self
+                .tr(
+                    "Стационарное распределение не вычислено: сеть использует задержки или стохастику, для этого нужна расширенная timed-Markov модель",
+                    "Stationary distribution unavailable: timed or stochastic net requires an extended timed Markov model",
+                )
+                .into_owned(),
+            StationaryStatus::SolverDidNotConverge => self
+                .tr(
+                    "Стационарное распределение не вычислено: численный решатель не сошёлся",
+                    "Stationary distribution unavailable: numerical solver did not converge",
+                )
+                .into_owned(),
+            StationaryStatus::NoDynamicTransitions => self
+                .tr(
+                    "Стационарное распределение не вычислено: в графе состояний нет выходящих интенсивностей",
+                    "Stationary distribution unavailable: the state graph has no outgoing rates",
+                )
+                .into_owned(),
+        }
     }
 
     fn draw_markov_stationary_grid(
