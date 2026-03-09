@@ -72,13 +72,6 @@ impl PetriApp {
                     ui.label(self.tr("Постройте модель", "Build the model"));
                 }
 
-                if !self.markov_model_enabled {
-                    ui.separator();
-                    ui.label(self.tr(
-                        "Включите флажок выше, чтобы увидеть марковскую модель",
-                        "Toggle the checkbox above to display the Markov model",
-                    ));
-                }
             },
         );
 
@@ -228,8 +221,6 @@ impl PetriApp {
     }
 
     fn draw_markov_state_graph(&self, ui: &mut egui::Ui, chain: &MarkovChain) {
-        ui.label(self.tr("Граф состояний", "State graph"));
-
         // Compute the available width and derive the transitions column width for the
         // header.  This width will be recomputed for each row to adapt to the
         // scroll area's width.
@@ -322,8 +313,6 @@ impl PetriApp {
             return;
         }
 
-        ui.label(self.tr("Отображение марковской метки", "Markov highlight display"));
-
         let expectation = Self::markov_expected_tokens(chain, self.net.places.len());
 
         let max_height = Self::markov_section_height(ui, 280.0, 140.0);
@@ -365,15 +354,25 @@ impl PetriApp {
                         let distribution = Self::markov_tokens_distribution(chain, *place_idx);
 
                         if !distribution.is_empty() {
+                            ui.horizontal(|ui: &mut egui::Ui| {
+                                ui.add_sized(
+                                    [140.0, 0.0],
+                                    egui::Label::new(
+                                        RichText::new(self.tr("Число маркеров", "Token count")).strong(),
+                                    ),
+                                );
+                                ui.add_sized(
+                                    [84.0, 0.0],
+                                    egui::Label::new(
+                                        RichText::new(self.tr("Вероятность", "Probability")).strong(),
+                                    ),
+                                );
+                            });
                             for (count, prob) in distribution.iter() {
                                 ui.horizontal(|ui: &mut egui::Ui| {
                                     ui.add_sized(
                                         [140.0, 0.0],
-                                        egui::Label::new(format!(
-                                            "{} {}",
-                                            count,
-                                            self.tr("маркеров", "tokens")
-                                        )),
+                                        egui::Label::new(count.to_string()),
                                     );
                                     ui.add_sized(
                                         [84.0, 0.0],
@@ -409,6 +408,8 @@ impl PetriApp {
         }
 
         let rows = (marking.len() + COLUMNS - 1) / COLUMNS;
+        let place_header = self.tr("Позиция", "Place");
+        let tokens_header = self.tr("Маркеры", "Tokens");
 
         egui::Grid::new(format!(
             "state_marking_summary_{}_{}",
@@ -419,11 +420,17 @@ impl PetriApp {
         .spacing([6.0, 2.0])
         .min_col_width(48.0)
         .show(ui, |ui| {
+            for _ in 0..COLUMNS {
+                ui.label(RichText::new(place_header.as_ref()).strong());
+                ui.label(RichText::new(tokens_header.as_ref()).strong());
+            }
+            ui.end_row();
+
             for row in 0..rows {
                 for col in 0..COLUMNS {
                     let idx = row + col * rows;
                     if idx < marking.len() {
-                        ui.label(format!("P{}", idx + 1));
+                        ui.label(self.markov_place_display_name(idx));
                         ui.label(marking[idx].to_string());
                     } else {
                         ui.label(" ");
@@ -433,6 +440,20 @@ impl PetriApp {
                 ui.end_row();
             }
         });
+    }
+
+    fn markov_place_display_name(&self, place_idx: usize) -> String {
+        self.net
+            .places
+            .get(place_idx)
+            .map(|place| {
+                if place.name.is_empty() {
+                    format!("P{}", place.id)
+                } else {
+                    format!("{} (P{})", place.name, place.id)
+                }
+            })
+            .unwrap_or_else(|| format!("P{}", place_idx + 1))
     }
 
     fn markov_marking_column_width(available: f32) -> f32 {
