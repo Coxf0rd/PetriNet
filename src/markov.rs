@@ -1,6 +1,7 @@
 use std::collections::{HashMap, VecDeque};
 
 use crate::model::{PetriNet, StochasticDistribution};
+use crate::sim::engine::SimulationResult;
 
 const DEFAULT_MIN_MAX_STATES: usize = 2_000;
 const TARGET_MARKOV_GRAPH_BYTES: usize = 256 * 1024 * 1024;
@@ -23,6 +24,7 @@ pub struct MarkovChain {
     pub state_limit: usize,
     pub build_stop_reason: BuildStopReason,
     pub stationary_status: StationaryStatus,
+    pub computation_mode: MarkovComputationMode,
 }
 
 #[derive(Clone, Debug)]
@@ -34,6 +36,16 @@ pub enum BuildStopReason {
         explored_states: usize,
         limit: usize,
     },
+    ApproximationFromSimulation {
+        sampled_states: usize,
+        sampled_steps: usize,
+    },
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum MarkovComputationMode {
+    Exact,
+    Approximate,
 }
 
 #[derive(Clone, Debug)]
@@ -241,7 +253,150 @@ pub fn build_markov_chain(net: &PetriNet, max_states: Option<usize>) -> MarkovCh
         state_limit: adaptive_limit,
         build_stop_reason,
         stationary_status,
+        computation_mode: MarkovComputationMode::Exact,
     }
+}
+
+pub fn build_markov_chain_approximate(
+    result: &SimulationResult,
+    max_states: usize,
+) -> Option<MarkovChain> {
+    if result.logs.is_empty() {
+        return None;
+    }
+
+    let mut states: Vec<Vec<u32>> = Vec::new();
+    let mut seen: HashMap<Vec<u32>, usize> = HashMap::new();
+    let mut transitions_map: Vec<HashMap<usize, f64>> = Vec::new();
+    let mut time_weights: Vec<f64> = Vec::new();
+
+    let mut transition_count_before_merge = 0_usize;
+    let mut sampled_steps = 0_usize;
+
+    for window in result.logs.windows(2) {
+        let current = &window[0];
+        let next = &window[1];
+
+        let src = ensure_approx_state(
+            &current.marking,
+            max_states,
+            &mut seen,
+            &mut states,
+            &mut transitions_map,
+            &mut time_weights,
+        )?;
+        let dst = ensure_approx_state(
+            &next.marking,
+            max_states,
+            &mut seen,
+            &mut states,
+            &mut transitions_map,
+            &mut time_weights,
+        )?;
+
+        let dt = (next.time - current.time).max(0.0);
+        time_weights[src] += dt;
+
+        let has_step = current.fired_transition.is_some() || current.marking != next.marking;
+        if !has_step {
+            continue;
+        }
+        sampled_steps = sampled_steps.saturating_add(1);
+        transition_count_before_merge = transition_count_before_merge.saturating_add(1);
+        *transitions_map[src].entry(dst).or_insert(0.0) += 1.0;
+    }
+
+    if let Some(last) = result.logs.last() {
+        if let Some(idx) = ensure_approx_state(
+            &last.marking,
+            max_states,
+            &mut seen,
+            &mut states,
+            &mut transitions_map,
+            &mut time_weights,
+        ) {
+            // If all timestamps are equal, fall back to visit counts.
+            if time_weights.iter().all(|w| *w <= f64::EPSILON) {
+                time_weights[idx] += 1.0;
+            }
+        }
+    }
+
+    if time_weights.iter().all(|w| *w <= f64::EPSILON) {
+        for entry in &result.logs {
+            if let Some(idx) = seen.get(&entry.marking).copied() {
+                time_weights[idx] += 1.0;
+            }
+        }
+    }
+
+    let total_weight: f64 = time_weights.iter().sum();
+    let stationary = if total_weight > f64::EPSILON {
+        Some(
+            time_weights
+                .into_iter()
+                .map(|w| (w / total_weight).max(0.0))
+                .collect::<Vec<_>>(),
+        )
+    } else {
+        None
+    };
+
+    let mut transitions: Vec<Vec<(usize, f64)>> = Vec::with_capacity(transitions_map.len());
+    let mut transition_count_after_merge = 0_usize;
+    for map in transitions_map {
+        let mut edges: Vec<(usize, f64)> = map.into_iter().collect();
+        edges.sort_unstable_by_key(|(idx, _)| *idx);
+        transition_count_after_merge = transition_count_after_merge.saturating_add(edges.len());
+        transitions.push(edges);
+    }
+
+    let stationary_status = if stationary.is_some() {
+        StationaryStatus::Computed
+    } else if transitions.iter().all(|edges| edges.is_empty()) {
+        StationaryStatus::NoDynamicTransitions
+    } else {
+        StationaryStatus::SolverDidNotConverge
+    };
+
+    Some(MarkovChain {
+        states,
+        transitions,
+        transition_count_before_merge,
+        transition_count_after_merge,
+        stationary,
+        limit_reached: false,
+        state_limit: max_states.max(1),
+        build_stop_reason: BuildStopReason::ApproximationFromSimulation {
+            sampled_states: seen.len(),
+            sampled_steps,
+        },
+        stationary_status,
+        computation_mode: MarkovComputationMode::Approximate,
+    })
+}
+
+fn ensure_approx_state(
+    marking: &[u32],
+    max_states: usize,
+    seen: &mut HashMap<Vec<u32>, usize>,
+    states: &mut Vec<Vec<u32>>,
+    transitions_map: &mut Vec<HashMap<usize, f64>>,
+    time_weights: &mut Vec<f64>,
+) -> Option<usize> {
+    if let Some(&idx) = seen.get(marking) {
+        return Some(idx);
+    }
+    if states.len() >= max_states {
+        return None;
+    }
+    let idx = states.len();
+    let key = marking.to_vec();
+    states.push(key.clone());
+    seen.insert(key, idx);
+    transitions_map.push(HashMap::new());
+    time_weights.push(0.0);
+    Some(idx)
 }
 
 fn auto_state_limit(
@@ -595,6 +750,7 @@ fn compute_stationary_sparse(transitions: &[Vec<(usize, f64)>]) -> Option<Vec<f6
 mod tests {
     use super::*;
     use crate::model::PetriNet;
+    use crate::sim::engine::{LogEntry, SimulationResult};
 
     #[test]
     fn chain_enumerates_states() {
@@ -698,5 +854,54 @@ mod tests {
         assert_eq!(chain.transitions[0].len(), 1);
         assert_eq!(chain.transitions[0][0].0, 0);
         assert!((chain.transitions[0][0].1 - 2.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn approximate_chain_is_built_from_simulation_logs() {
+        let result = SimulationResult {
+            logs: vec![
+                LogEntry {
+                    time: 0.0,
+                    fired_transition: None,
+                    marking: vec![1, 0],
+                    touched_places: vec![],
+                },
+                LogEntry {
+                    time: 1.0,
+                    fired_transition: Some(0),
+                    marking: vec![0, 1],
+                    touched_places: vec![0, 1],
+                },
+                LogEntry {
+                    time: 2.0,
+                    fired_transition: Some(1),
+                    marking: vec![1, 0],
+                    touched_places: vec![0, 1],
+                },
+            ],
+            log_entries_total: 3,
+            log_sampling_stride: 1,
+            place_stats: None,
+            place_flow: None,
+            place_load: None,
+            sim_time: 2.0,
+            fired_count: 2,
+            final_marking: vec![1, 0],
+        };
+
+        let chain = build_markov_chain_approximate(&result, 16).expect("approximate chain");
+
+        assert_eq!(chain.computation_mode, MarkovComputationMode::Approximate);
+        assert_eq!(chain.state_count(), 2);
+        assert_eq!(chain.transition_count_before_merge, 2);
+        assert_eq!(chain.transition_count_after_merge, 2);
+        assert!(matches!(
+            chain.build_stop_reason,
+            BuildStopReason::ApproximationFromSimulation { .. }
+        ));
+        assert!(matches!(
+            chain.stationary_status,
+            StationaryStatus::Computed
+        ));
     }
 }

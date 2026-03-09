@@ -1,5 +1,5 @@
 use super::*;
-use crate::markov::{BuildStopReason, StationaryStatus};
+use crate::markov::{BuildStopReason, MarkovComputationMode, StationaryStatus};
 use crate::ui::property_selection::{show_collapsible_property_section, PropertySectionConfig};
 use crate::ui::property_window::{show_property_window, PropertyWindowConfig};
 use crate::ui::scroll_utils;
@@ -30,7 +30,10 @@ impl PetriApp {
 
         show_property_window(
             ctx,
-            self.tr("РњР°СЂРєРѕРІСЃРєР°СЏ РјРѕРґРµР»СЊ", "Markov model"),
+            self.tr(
+                "Р СљР В°РЎР‚Р С”Р С•Р Р†РЎРѓР С”Р В°РЎРЏ Р СР С•Р Т‘Р ВµР В»РЎРЉ",
+                "Markov model",
+            ),
             &mut open,
             PropertyWindowConfig::new("markov_window")
                 .default_size(egui::vec2(520.0, 520.0))
@@ -40,11 +43,11 @@ impl PetriApp {
                 let simulation_ready = self.sim_result.is_some();
                 let mut toggle_changed = false;
                 let markov_checkbox_label = self.tr(
-                    "РїРѕРєР°Р·С‹РІР°С‚СЊ РґСѓРіРё РјР°СЂРєРѕРІСЃРєРѕР№ РјРѕРґРµР»Рё РІ СЂР°Р±РѕС‡РµР№ РѕР±Р»Р°СЃС‚Рё",
+                    "Р С—Р С•Р С”Р В°Р В·РЎвЂ№Р Р†Р В°РЎвЂљРЎРЉ Р Т‘РЎС“Р С–Р С‘ Р СР В°РЎР‚Р С”Р С•Р Р†РЎРѓР С”Р С•Р в„– Р СР С•Р Т‘Р ВµР В»Р С‘ Р Р† РЎР‚Р В°Р В±Р С•РЎвЂЎР ВµР в„– Р С•Р В±Р В»Р В°РЎРѓРЎвЂљР С‘",
                     "Show Markov model arcs in workspace",
                 );
                 let simulation_hint = self.tr(
-                    "РЎРЅР°С‡Р°Р»Р° Р·Р°РїСѓСЃС‚РёС‚Рµ СЃРёРјСѓР»СЏС†РёСЋ, С‡С‚РѕР±С‹ СЂР°СЃСЃС‡РёС‚Р°С‚СЊ РјР°СЂРєРѕРІСЃРєСѓСЋ РјРѕРґРµР»СЊ",
+                    "Р РЋР Р…Р В°РЎвЂЎР В°Р В»Р В° Р В·Р В°Р С—РЎС“РЎРѓРЎвЂљР С‘РЎвЂљР Вµ РЎРѓР С‘Р СРЎС“Р В»РЎРЏРЎвЂ Р С‘РЎР‹, РЎвЂЎРЎвЂљР С•Р В±РЎвЂ№ РЎР‚Р В°РЎРѓРЎРѓРЎвЂЎР С‘РЎвЂљР В°РЎвЂљРЎРЉ Р СР В°РЎР‚Р С”Р С•Р Р†РЎРѓР С”РЎС“РЎР‹ Р СР С•Р Т‘Р ВµР В»РЎРЉ",
                     "Run a simulation first to calculate the Markov model",
                 );
 
@@ -79,11 +82,14 @@ impl PetriApp {
                     self.draw_markov_chain_summary(ui, chain);
                 } else if simulation_ready {
                     ui.label(self.tr(
-                        "РњР°СЂРєРѕРІСЃРєР°СЏ РјРѕРґРµР»СЊ РµС‰С‘ РЅРµ СЂР°СЃСЃС‡РёС‚Р°РЅР° РґР»СЏ С‚РµРєСѓС‰РµРіРѕ СЂРµР·СѓР»СЊС‚Р°С‚Р° СЃРёРјСѓР»СЏС†РёРё",
+                        "Р СљР В°РЎР‚Р С”Р С•Р Р†РЎРѓР С”Р В°РЎРЏ Р СР С•Р Т‘Р ВµР В»РЎРЉ Р ВµРЎвЂ°РЎвЂ Р Р…Р Вµ РЎР‚Р В°РЎРѓРЎРѓРЎвЂЎР С‘РЎвЂљР В°Р Р…Р В° Р Т‘Р В»РЎРЏ РЎвЂљР ВµР С”РЎС“РЎвЂ°Р ВµР С–Р С• РЎР‚Р ВµР В·РЎС“Р В»РЎРЉРЎвЂљР В°РЎвЂљР В° РЎРѓР С‘Р СРЎС“Р В»РЎРЏРЎвЂ Р С‘Р С‘",
                         "The Markov model has not been calculated for the current simulation result yet",
                     ));
                 } else {
-                    ui.label(self.tr("РџРѕСЃС‚СЂРѕР№С‚Рµ РјРѕРґРµР»СЊ", "Build the model"));
+                    ui.label(self.tr(
+                        "Р СџР С•РЎРѓРЎвЂљРЎР‚Р С•Р в„–РЎвЂљР Вµ Р СР С•Р Т‘Р ВµР В»РЎРЉ",
+                        "Build the model",
+                    ));
                 }
             },
         );
@@ -99,12 +105,20 @@ impl PetriApp {
         let stationary = chain.stationary.as_ref().map(|values| values.as_slice());
 
         ui.horizontal(|ui| {
+            let mode_text = match chain.computation_mode {
+                MarkovComputationMode::Exact => self.tr("Режим: точный", "Mode: exact"),
+                MarkovComputationMode::Approximate => {
+                    self.tr("Режим: примерный", "Mode: approximate")
+                }
+            };
+            ui.label(mode_text.as_ref());
+            ui.separator();
             ui.label(format!(
                 "{}: {}{}",
-                self.tr("РЎРѕСЃС‚РѕСЏРЅРёР№", "States"),
+                self.tr("Р РЋР С•РЎРѓРЎвЂљР С•РЎРЏР Р…Р С‘Р в„–", "States"),
                 chain.state_count(),
                 if chain.limit_reached {
-                    format!(" ({})", self.tr("Р»РёРјРёС‚", "limit reached"))
+                    format!(" ({})", self.tr("Р В»Р С‘Р СР С‘РЎвЂљ", "limit reached"))
                 } else {
                     String::new()
                 }
@@ -112,7 +126,7 @@ impl PetriApp {
 
             ui.label(format!(
                 "{}: {}",
-                self.tr("РџРµСЂРµС…РѕРґРѕРІ", "Transitions"),
+                self.tr("Р СџР ВµРЎР‚Р ВµРЎвЂ¦Р С•Р Т‘Р С•Р Р†", "Transitions"),
                 chain.transition_count_after_merge
             ));
         });
@@ -120,7 +134,7 @@ impl PetriApp {
         ui.horizontal_wrapped(|ui| {
             ui.label(format!(
                 "{}: {}",
-                self.tr("Переходов до схлопывания", "Transitions before merge"),
+                self.tr("РџРµСЂРµС…РѕРґРѕРІ РґРѕ СЃС…Р»РѕРїС‹РІР°РЅРёСЏ", "Transitions before merge"),
                 chain.transition_count_before_merge
             ));
             ui.separator();
@@ -128,7 +142,7 @@ impl PetriApp {
                 BuildStopReason::ExhaustedStateSpace { explored_states } => format!(
                     "{}: {}",
                     self.tr(
-                        "Остановка: пространство состояний исчерпано",
+                        "РћСЃС‚Р°РЅРѕРІРєР°: РїСЂРѕСЃС‚СЂР°РЅСЃС‚РІРѕ СЃРѕСЃС‚РѕСЏРЅРёР№ РёСЃС‡РµСЂРїР°РЅРѕ",
                         "Stop: state-space exhausted",
                     ),
                     explored_states
@@ -139,11 +153,23 @@ impl PetriApp {
                 } => format!(
                     "{}: {} / {}",
                     self.tr(
-                        "Остановка: достигнут лимит состояний",
+                        "РћСЃС‚Р°РЅРѕРІРєР°: РґРѕСЃС‚РёРіРЅСѓС‚ Р»РёРјРёС‚ СЃРѕСЃС‚РѕСЏРЅРёР№",
                         "Stop: state limit reached",
                     ),
                     explored_states,
                     limit
+                ),
+                BuildStopReason::ApproximationFromSimulation {
+                    sampled_states,
+                    sampled_steps,
+                } => format!(
+                    "{}: {} / {}",
+                    self.tr(
+                        "Остановка: использована аппроксимация по журналу симуляции (состояний/шагов)",
+                        "Stop: approximation from simulation log (states/steps)",
+                    ),
+                    sampled_states,
+                    sampled_steps
                 ),
             };
             ui.label(stop_reason);
@@ -159,7 +185,7 @@ impl PetriApp {
             ui,
             PropertySectionConfig::new("markov_stationary_section")
                 .label(self.tr(
-                    "РЎС‚Р°С†РёРѕРЅР°СЂРЅРѕРµ СЂР°СЃРїСЂРµРґРµР»РµРЅРёРµ",
+                    "Р РЋРЎвЂљР В°РЎвЂ Р С‘Р С•Р Р…Р В°РЎР‚Р Р…Р С•Р Вµ РЎР‚Р В°РЎРѓР С—РЎР‚Р ВµР Т‘Р ВµР В»Р ВµР Р…Р С‘Р Вµ",
                     "Stationary distribution",
                 ))
                 .default_open(false),
@@ -175,7 +201,10 @@ impl PetriApp {
         let _ = show_collapsible_property_section(
             ui,
             PropertySectionConfig::new("markov_state_graph_section")
-                .label(self.tr("Р“СЂР°С„ СЃРѕСЃС‚РѕСЏРЅРёР№", "State graph"))
+                .label(self.tr(
+                    "Р вЂњРЎР‚Р В°РЎвЂћ РЎРѓР С•РЎРѓРЎвЂљР С•РЎРЏР Р…Р С‘Р в„–",
+                    "State graph",
+                ))
                 .default_open(false),
             |ui| {
                 self.draw_markov_state_graph(ui, chain);
@@ -186,7 +215,7 @@ impl PetriApp {
             ui,
             PropertySectionConfig::new("markov_highlight_section")
                 .label(self.tr(
-                    "РћС‚РѕР±СЂР°Р¶РµРЅРёРµ РјР°СЂРєРѕРІСЃРєРѕР№ РјРµС‚РєРё",
+                    "Р С›РЎвЂљР С•Р В±РЎР‚Р В°Р В¶Р ВµР Р…Р С‘Р Вµ Р СР В°РЎР‚Р С”Р С•Р Р†РЎРѓР С”Р С•Р в„– Р СР ВµРЎвЂљР С”Р С‘",
                     "Markov highlight display",
                 ))
                 .default_open(false),
@@ -200,14 +229,14 @@ impl PetriApp {
         match &chain.stationary_status {
             StationaryStatus::Computed => self
                 .tr(
-                    "РЎС‚Р°С†РёРѕРЅР°СЂРЅРѕРµ СЂР°СЃРїСЂРµРґРµР»РµРЅРёРµ СЂР°СЃСЃС‡РёС‚Р°РЅРѕ",
+                    "Р РЋРЎвЂљР В°РЎвЂ Р С‘Р С•Р Р…Р В°РЎР‚Р Р…Р С•Р Вµ РЎР‚Р В°РЎРѓР С—РЎР‚Р ВµР Т‘Р ВµР В»Р ВµР Р…Р С‘Р Вµ РЎР‚Р В°РЎРѓРЎРѓРЎвЂЎР С‘РЎвЂљР В°Р Р…Р С•",
                     "Stationary distribution computed",
                 )
                 .into_owned(),
             StationaryStatus::LimitReached { explored_states, limit } => format!(
                 "{}: {} / {}",
                 self.tr(
-                    "РЎС‚Р°С†РёРѕРЅР°СЂРЅРѕРµ СЂР°СЃРїСЂРµРґРµР»РµРЅРёРµ РЅРµ РІС‹С‡РёСЃР»РµРЅРѕ: РґРѕСЃС‚РёРіРЅСѓС‚ Р»РёРјРёС‚ СЃРѕСЃС‚РѕСЏРЅРёР№",
+                    "Р РЋРЎвЂљР В°РЎвЂ Р С‘Р С•Р Р…Р В°РЎР‚Р Р…Р С•Р Вµ РЎР‚Р В°РЎРѓР С—РЎР‚Р ВµР Т‘Р ВµР В»Р ВµР Р…Р С‘Р Вµ Р Р…Р Вµ Р Р†РЎвЂ№РЎвЂЎР С‘РЎРѓР В»Р ВµР Р…Р С•: Р Т‘Р С•РЎРѓРЎвЂљР С‘Р С–Р Р…РЎС“РЎвЂљ Р В»Р С‘Р СР С‘РЎвЂљ РЎРѓР С•РЎРѓРЎвЂљР С•РЎРЏР Р…Р С‘Р в„–",
                     "Stationary distribution unavailable: state limit reached",
                 ),
                 explored_states,
@@ -221,21 +250,21 @@ impl PetriApp {
                 if *delayed_places > 0 {
                     details.push(format!(
                         "{}: {}",
-                        self.tr("РїРѕР·РёС†РёР№ СЃ Р·Р°РґРµСЂР¶РєРѕР№", "delayed places"),
+                        self.tr("Р С—Р С•Р В·Р С‘РЎвЂ Р С‘Р в„– РЎРѓ Р В·Р В°Р Т‘Р ВµРЎР‚Р В¶Р С”Р С•Р в„–", "delayed places"),
                         delayed_places
                     ));
                 }
                 if *stochastic_places > 0 {
                     details.push(format!(
                         "{}: {}",
-                        self.tr("РїРѕР·РёС†РёР№ СЃРѕ СЃС‚РѕС…Р°СЃС‚РёРєРѕР№", "stochastic places"),
+                        self.tr("Р С—Р С•Р В·Р С‘РЎвЂ Р С‘Р в„– РЎРѓР С• РЎРѓРЎвЂљР С•РЎвЂ¦Р В°РЎРѓРЎвЂљР С‘Р С”Р С•Р в„–", "stochastic places"),
                         stochastic_places
                     ));
                 }
                 format!(
                     "{}{}{}",
                     self.tr(
-                        "РЎС‚Р°С†РёРѕРЅР°СЂРЅРѕРµ СЂР°СЃРїСЂРµРґРµР»РµРЅРёРµ РґР»СЏ СЃРµС‚Рё СЃ Р·Р°РґРµСЂР¶РєР°РјРё/СЃС‚РѕС…Р°СЃС‚РёРєРѕР№ СЃРµР№С‡Р°СЃ РЅРµ СЂР°СЃСЃС‡РёС‚С‹РІР°РµС‚СЃСЏ",
+                        "Р РЋРЎвЂљР В°РЎвЂ Р С‘Р С•Р Р…Р В°РЎР‚Р Р…Р С•Р Вµ РЎР‚Р В°РЎРѓР С—РЎР‚Р ВµР Т‘Р ВµР В»Р ВµР Р…Р С‘Р Вµ Р Т‘Р В»РЎРЏ РЎРѓР ВµРЎвЂљР С‘ РЎРѓ Р В·Р В°Р Т‘Р ВµРЎР‚Р В¶Р С”Р В°Р СР С‘/РЎРѓРЎвЂљР С•РЎвЂ¦Р В°РЎРѓРЎвЂљР С‘Р С”Р С•Р в„– РЎРѓР ВµР в„–РЎвЂЎР В°РЎРѓ Р Р…Р Вµ РЎР‚Р В°РЎРѓРЎРѓРЎвЂЎР С‘РЎвЂљРЎвЂ№Р Р†Р В°Р ВµРЎвЂљРЎРѓРЎРЏ",
                         "Stationary distribution is currently unavailable for timed or stochastic nets",
                     ),
                     if details.is_empty() { "" } else { ": " },
@@ -244,13 +273,13 @@ impl PetriApp {
             }
             StationaryStatus::SolverDidNotConverge => self
                 .tr(
-                    "РЎС‚Р°С†РёРѕРЅР°СЂРЅРѕРµ СЂР°СЃРїСЂРµРґРµР»РµРЅРёРµ РЅРµ РІС‹С‡РёСЃР»РµРЅРѕ: С‡РёСЃР»РµРЅРЅС‹Р№ СЂРµС€Р°С‚РµР»СЊ РЅРµ СЃРѕС€С‘Р»СЃСЏ",
+                    "Р РЋРЎвЂљР В°РЎвЂ Р С‘Р С•Р Р…Р В°РЎР‚Р Р…Р С•Р Вµ РЎР‚Р В°РЎРѓР С—РЎР‚Р ВµР Т‘Р ВµР В»Р ВµР Р…Р С‘Р Вµ Р Р…Р Вµ Р Р†РЎвЂ№РЎвЂЎР С‘РЎРѓР В»Р ВµР Р…Р С•: РЎвЂЎР С‘РЎРѓР В»Р ВµР Р…Р Р…РЎвЂ№Р в„– РЎР‚Р ВµРЎв‚¬Р В°РЎвЂљР ВµР В»РЎРЉ Р Р…Р Вµ РЎРѓР С•РЎв‚¬РЎвЂР В»РЎРѓРЎРЏ",
                     "Stationary distribution unavailable: numerical solver did not converge",
                 )
                 .into_owned(),
             StationaryStatus::NoDynamicTransitions => self
                 .tr(
-                    "РЎС‚Р°С†РёРѕРЅР°СЂРЅРѕРµ СЂР°СЃРїСЂРµРґРµР»РµРЅРёРµ РЅРµ РІС‹С‡РёСЃР»РµРЅРѕ: РІ РіСЂР°С„Рµ СЃРѕСЃС‚РѕСЏРЅРёР№ РЅРµС‚ РІС‹С…РѕРґСЏС‰РёС… РёРЅС‚РµРЅСЃРёРІРЅРѕСЃС‚РµР№",
+                    "Р РЋРЎвЂљР В°РЎвЂ Р С‘Р С•Р Р…Р В°РЎР‚Р Р…Р С•Р Вµ РЎР‚Р В°РЎРѓР С—РЎР‚Р ВµР Т‘Р ВµР В»Р ВµР Р…Р С‘Р Вµ Р Р…Р Вµ Р Р†РЎвЂ№РЎвЂЎР С‘РЎРѓР В»Р ВµР Р…Р С•: Р Р† Р С–РЎР‚Р В°РЎвЂћР Вµ РЎРѓР С•РЎРѓРЎвЂљР С•РЎРЏР Р…Р С‘Р в„– Р Р…Р ВµРЎвЂљ Р Р†РЎвЂ№РЎвЂ¦Р С•Р Т‘РЎРЏРЎвЂ°Р С‘РЎвЂ¦ Р С‘Р Р…РЎвЂљР ВµР Р…РЎРѓР С‘Р Р†Р Р…Р С•РЎРѓРЎвЂљР ВµР в„–",
                     "Stationary distribution unavailable: the state graph has no outgoing rates",
                 )
                 .into_owned(),
@@ -264,7 +293,10 @@ impl PetriApp {
         stationary: &[f64],
     ) {
         if chain.state_count() == 0 {
-            ui.label(self.tr("РЎРѕСЃС‚РѕСЏРЅРёР№ РЅРµ РЅР°Р№РґРµРЅРѕ", "No states found"));
+            ui.label(self.tr(
+                "Р РЋР С•РЎРѓРЎвЂљР С•РЎРЏР Р…Р С‘Р в„– Р Р…Р Вµ Р Р…Р В°Р в„–Р Т‘Р ВµР Р…Р С•",
+                "No states found",
+            ));
             return;
         }
 
@@ -278,22 +310,27 @@ impl PetriApp {
                 Self::markov_draw_cell(
                     ui,
                     state_col,
-                    RichText::new(self.tr("РЎРѕСЃС‚РѕСЏРЅРёРµ", "State")).strong(),
+                    RichText::new(self.tr("Р РЋР С•РЎРѓРЎвЂљР С•РЎРЏР Р…Р С‘Р Вµ", "State"))
+                        .strong(),
                 );
                 Self::markov_draw_cell(
                     ui,
                     place_col,
-                    RichText::new(self.tr("РџРѕР·РёС†РёСЏ", "Place")).strong(),
+                    RichText::new(self.tr("Р СџР С•Р В·Р С‘РЎвЂ Р С‘РЎРЏ", "Place")).strong(),
                 );
                 Self::markov_draw_cell(
                     ui,
                     tokens_col,
-                    RichText::new(self.tr("РњР°СЂРєРµСЂС‹", "Tokens")).strong(),
+                    RichText::new(self.tr("Р СљР В°РЎР‚Р С”Р ВµРЎР‚РЎвЂ№", "Tokens")).strong(),
                 );
                 Self::markov_draw_cell(
                     ui,
                     prob_col,
-                    RichText::new(self.tr("Р’РµСЂРѕСЏС‚РЅРѕСЃС‚СЊ", "Probability")).strong(),
+                    RichText::new(self.tr(
+                        "Р вЂ™Р ВµРЎР‚Р С•РЎРЏРЎвЂљР Р…Р С•РЎРѓРЎвЂљРЎРЉ",
+                        "Probability",
+                    ))
+                    .strong(),
                 );
                 ui.end_row();
             });
@@ -337,7 +374,7 @@ impl PetriApp {
     fn draw_markov_state_graph(&self, ui: &mut egui::Ui, chain: &MarkovChain) {
         if chain.transitions.is_empty() {
             ui.label(self.tr(
-                "РџРµСЂРµС…РѕРґРѕРІ РЅРµ РЅР°Р№РґРµРЅРѕ",
+                "Р СџР ВµРЎР‚Р ВµРЎвЂ¦Р С•Р Т‘Р С•Р Р† Р Р…Р Вµ Р Р…Р В°Р в„–Р Т‘Р ВµР Р…Р С•",
                 "No transitions detected",
             ));
             return;
@@ -353,17 +390,22 @@ impl PetriApp {
                 Self::markov_draw_cell(
                     ui,
                     state_col,
-                    RichText::new(self.tr("РЎРѕСЃС‚РѕСЏРЅРёРµ", "State")).strong(),
+                    RichText::new(self.tr("Р РЋР С•РЎРѓРЎвЂљР С•РЎРЏР Р…Р С‘Р Вµ", "State"))
+                        .strong(),
                 );
                 Self::markov_draw_cell(
                     ui,
                     target_col,
-                    RichText::new(self.tr("РџРµСЂРµС…РѕРґ", "Transition")).strong(),
+                    RichText::new(self.tr("Р СџР ВµРЎР‚Р ВµРЎвЂ¦Р С•Р Т‘", "Transition")).strong(),
                 );
                 Self::markov_draw_cell(
                     ui,
                     prob_col,
-                    RichText::new(self.tr("Р’РµСЂРѕСЏС‚РЅРѕСЃС‚СЊ", "Probability")).strong(),
+                    RichText::new(self.tr(
+                        "Р вЂ™Р ВµРЎР‚Р С•РЎРЏРЎвЂљР Р…Р С•РЎРѓРЎвЂљРЎРЉ",
+                        "Probability",
+                    ))
+                    .strong(),
                 );
                 ui.end_row();
             });
@@ -419,14 +461,14 @@ impl PetriApp {
 
         if markov_highlight_places.is_empty() {
             ui.label(self.tr(
-                "РћС‚РјРµС‚СЊС‚Рµ РјР°СЂРєРѕРІСЃРєСѓСЋ РјРµС‚РєСѓ РІ СЃРІРѕР№СЃС‚РІР°С… РїРѕР·РёС†РёРё, С‡С‚РѕР±С‹ СѓРІРёРґРµС‚СЊ РµС‘ РѕС‚РѕР±СЂР°Р¶РµРЅРёРµ",
+                "Р С›РЎвЂљР СР ВµРЎвЂљРЎРЉРЎвЂљР Вµ Р СР В°РЎР‚Р С”Р С•Р Р†РЎРѓР С”РЎС“РЎР‹ Р СР ВµРЎвЂљР С”РЎС“ Р Р† РЎРѓР Р†Р С•Р в„–РЎРѓРЎвЂљР Р†Р В°РЎвЂ¦ Р С—Р С•Р В·Р С‘РЎвЂ Р С‘Р С‘, РЎвЂЎРЎвЂљР С•Р В±РЎвЂ№ РЎС“Р Р†Р С‘Р Т‘Р ВµРЎвЂљРЎРЉ Р ВµРЎвЂ Р С•РЎвЂљР С•Р В±РЎР‚Р В°Р В¶Р ВµР Р…Р С‘Р Вµ",
                 "Enable the Markov highlight on a place to view its display",
             ));
             return;
         }
 
         ui.label(self.tr(
-            "РћС‚РѕР±СЂР°Р¶РµРЅРёРµ РјР°СЂРєРѕРІСЃРєРѕР№ РјРµС‚РєРё",
+            "Р С›РЎвЂљР С•Р В±РЎР‚Р В°Р В¶Р ВµР Р…Р С‘Р Вµ Р СР В°РЎР‚Р С”Р С•Р Р†РЎРѓР С”Р С•Р в„– Р СР ВµРЎвЂљР С”Р С‘",
             "Markov highlight display",
         ));
 
@@ -450,7 +492,7 @@ impl PetriApp {
                             format!("P{} {{{}}}", place.id, place.name.trim())
                         };
 
-                        ui.label(format!("{}: {}", self.tr("РџРѕР·РёС†РёСЏ", "Place"), place_label));
+                        ui.label(format!("{}: {}", self.tr("Р СџР С•Р В·Р С‘РЎвЂ Р С‘РЎРЏ", "Place"), place_label));
 
                         if let Some(expected) = expectation
                             .as_ref()
@@ -458,7 +500,7 @@ impl PetriApp {
                         {
                             ui.label(format!(
                                 "{}: {:.3}",
-                                self.tr("РћР¶РёРґР°РµРјРѕРµ С‡РёСЃР»Рѕ РјР°СЂРєРµСЂРѕРІ", "Expected tokens"),
+                                self.tr("Р С›Р В¶Р С‘Р Т‘Р В°Р ВµР СР С•Р Вµ РЎвЂЎР С‘РЎРѓР В»Р С• Р СР В°РЎР‚Р С”Р ВµРЎР‚Р С•Р Р†", "Expected tokens"),
                                 expected
                             ));
                         }
@@ -473,7 +515,7 @@ impl PetriApp {
                                         egui::Label::new(format!(
                                             "{} {}",
                                             count,
-                                            self.tr("РјР°СЂРєРµСЂРѕРІ", "tokens")
+                                            self.tr("Р СР В°РЎР‚Р С”Р ВµРЎР‚Р С•Р Р†", "tokens")
                                         )),
                                     );
                                     ui.add_sized(
@@ -484,12 +526,12 @@ impl PetriApp {
                             }
                         } else if stationary.is_some() {
                             ui.label(self.tr(
-                                "Р”Р»СЏ СЌС‚РѕР№ РїРѕР·РёС†РёРё СЃРѕСЃС‚РѕСЏРЅРёСЏ РЅРµ РЅР°Р№РґРµРЅС‹",
+                                "Р вЂќР В»РЎРЏ РЎРЊРЎвЂљР С•Р в„– Р С—Р С•Р В·Р С‘РЎвЂ Р С‘Р С‘ РЎРѓР С•РЎРѓРЎвЂљР С•РЎРЏР Р…Р С‘РЎРЏ Р Р…Р Вµ Р Р…Р В°Р в„–Р Т‘Р ВµР Р…РЎвЂ№",
                                 "No states found for this place",
                             ));
                         } else {
                             ui.label(self.tr(
-                                "РЎС‚Р°С†РёРѕРЅР°СЂРЅРѕРµ СЂР°СЃРїСЂРµРґРµР»РµРЅРёРµ РЅРµРґРѕСЃС‚СѓРїРЅРѕ",
+                                "Р РЋРЎвЂљР В°РЎвЂ Р С‘Р С•Р Р…Р В°РЎР‚Р Р…Р С•Р Вµ РЎР‚Р В°РЎРѓР С—РЎР‚Р ВµР Т‘Р ВµР В»Р ВµР Р…Р С‘Р Вµ Р Р…Р ВµР Т‘Р С•РЎРѓРЎвЂљРЎС“Р С—Р Р…Р С•",
                                 "Stationary distribution unavailable",
                             ));
                         }
@@ -537,7 +579,10 @@ impl PetriApp {
                 rows.push(MarkovStationaryRow {
                     state_index: Some(state_idx),
                     place_text: self
-                        .tr("РїСѓСЃС‚Р°СЏ РјР°СЂРєРёСЂРѕРІРєР°", "empty marking")
+                        .tr(
+                            "Р С—РЎС“РЎРѓРЎвЂљР В°РЎРЏ Р СР В°РЎР‚Р С”Р С‘РЎР‚Р С•Р Р†Р С”Р В°",
+                            "empty marking",
+                        )
                         .into_owned(),
                     place_hover: None,
                     tokens_text: String::new(),
@@ -572,7 +617,10 @@ impl PetriApp {
                     group_state_index: state_idx,
                     source_index: Some(state_idx),
                     target_text: self
-                        .tr("РїРµСЂРµС…РѕРґРѕРІ РЅРµС‚", "no transitions")
+                        .tr(
+                            "Р С—Р ВµРЎР‚Р ВµРЎвЂ¦Р С•Р Т‘Р С•Р Р† Р Р…Р ВµРЎвЂљ",
+                            "no transitions",
+                        )
                         .into_owned(),
                     probability: None,
                 });
@@ -589,7 +637,7 @@ impl PetriApp {
                 rows.push(MarkovTransitionRow {
                     group_state_index: state_idx,
                     source_index: (edge_idx == 0).then_some(state_idx),
-                    target_text: format!("в†’ S{}", dest + 1),
+                    target_text: format!("РІвЂ вЂ™ S{}", dest + 1),
                     probability: Some(probability),
                 });
             }

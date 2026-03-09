@@ -1,5 +1,8 @@
 use super::*;
-use crate::markov::BuildStopReason;
+use crate::markov::{build_markov_chain_approximate, BuildStopReason, MarkovComputationMode};
+
+const EXACT_MARKOV_MAX_STATES: usize = 250_000;
+const APPROX_MARKOV_MAX_STATES: usize = 250_000;
 
 impl PetriApp {
     pub(in crate::ui::app) fn invalidate_markov_model(&mut self) {
@@ -26,7 +29,20 @@ impl PetriApp {
         }
 
         self.net.sanitize_values();
-        let chain = build_markov_chain(&self.net, None);
+        let mut chain = build_markov_chain(&self.net, Some(EXACT_MARKOV_MAX_STATES));
+        if chain.limit_reached {
+            if let Some(sim_result) = self.sim_result.as_deref() {
+                if let Some(approx) =
+                    build_markov_chain_approximate(sim_result, APPROX_MARKOV_MAX_STATES)
+                {
+                    eprintln!(
+                        "[markov] exact model reached state limit ({}), switched to approximate mode from simulation logs",
+                        EXACT_MARKOV_MAX_STATES
+                    );
+                    chain = approx;
+                }
+            }
+        }
         let stop_reason = match &chain.build_stop_reason {
             BuildStopReason::ExhaustedStateSpace { explored_states } => {
                 format!("state-space exhausted, explored_states={}", explored_states)
@@ -38,10 +54,18 @@ impl PetriApp {
                 "state limit reached, explored_states={}, limit={}",
                 explored_states, limit
             ),
+            BuildStopReason::ApproximationFromSimulation {
+                sampled_states,
+                sampled_steps,
+            } => format!(
+                "approximation from simulation logs, sampled_states={}, sampled_steps={}",
+                sampled_states, sampled_steps
+            ),
         };
         eprintln!(
-            "[markov] calculated: sim_run_serial={}, states={}, transitions(before_merge)={}, transitions(after_merge)={}, stop_reason={}, stationary_status={:?}, repeated_recalc_attempts={}",
+            "[markov] calculated: sim_run_serial={}, mode={:?}, states={}, transitions(before_merge)={}, transitions(after_merge)={}, stop_reason={}, stationary_status={:?}, repeated_recalc_attempts={}",
             self.sim_run_serial,
+            chain.computation_mode,
             chain.state_count(),
             chain.transition_count_before_merge,
             chain.transition_count_after_merge,
@@ -49,7 +73,8 @@ impl PetriApp {
             chain.stationary_status,
             self.markov_recompute_attempts
         );
-        self.markov_limit_reached = chain.limit_reached;
+        self.markov_limit_reached =
+            chain.limit_reached && chain.computation_mode == MarkovComputationMode::Exact;
         self.markov_model = Some(chain);
         self.markov_computed_for_sim_serial = Some(self.sim_run_serial);
         self.markov_model_pending_compute = false;
