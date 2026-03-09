@@ -144,83 +144,114 @@ impl PetriApp {
                             ui.label("t");
                             ui.label(format!("= {:.3}", entry.time));
                         });
-                        ui.label(format!(
-                            "{}: {}",
-                            t("Переход", "Transition"),
-                            entry
-                                .fired_transition
-                                .map(|i| format!("T{}", i + 1))
-                                .unwrap_or_else(|| "-".to_string())
-                        ));
-                        
-// Header
-egui::Grid::new("debug_marking_header")
-    .num_columns(3)
-    .show(ui, |ui| {
-        ui.add_sized([120.0,0.0], egui::Label::new("Позиция"));
-        ui.add_sized([80.0,0.0], egui::Label::new("Маркеры"));
-        ui.add_sized([100.0,0.0], egui::Label::new("Изменение"));
-        ui.end_row();
-    });
+                        if let Some(tr_idx) = entry.fired_transition {
+                            let transition_text = egui::RichText::new(format!(
+                                "{}: T{}",
+                                t("Переход", "Transition"),
+                                tr_idx + 1
+                            ))
+                            .color(egui::Color32::from_rgb(80, 120, 255));
 
-let row_h = ui.text_style_height(&egui::TextStyle::Body) + 4.0;
-let row_count = entry.marking.len();
+                            let response = ui
+                                .add(egui::Label::new(transition_text).sense(egui::Sense::click()));
 
+                            if let Some(tr) = self.net.transitions.get(tr_idx) {
+                                self.canvas.selected_transition = Some(tr.id);
 
-scroll_utils::show_virtualized_rows(
-    ui,
-    "debug_marking_grid",
-    ui.available_height(),
-    row_h,
-    row_count,
-    |ui: &mut egui::Ui, idx: usize| {
+                                if response.clicked() {
+                                    let screen_center = ctx.available_rect().center();
+                                    self.canvas.pan = egui::vec2(
+                                        screen_center.x - tr.pos[0] * self.canvas.zoom,
+                                        screen_center.y - tr.pos[1] * self.canvas.zoom,
+                                    );
+                                }
+                            }
+                        } else {
+                            ui.label(format!("{}: -", t("Переход", "Transition")));
+                        }
 
-        egui::Grid::new("debug_marking_grid_rows")
-            .num_columns(3)
-            .striped(true)
-            .show(ui, |ui: &mut egui::Ui| {
+                        // Header
+                        egui::Grid::new("debug_marking_header")
+                            .num_columns(3)
+                            .spacing([20.0, 4.0])
+                            .show(ui, |ui| {
+                                ui.add_sized([120.0, 0.0], egui::Label::new("Позиция"));
+                                ui.add_sized([80.0, 0.0], egui::Label::new("Маркеры"));
+                                ui.add_sized([100.0, 0.0], egui::Label::new("Изменение"));
+                                ui.end_row();
+                            });
 
-                let prev = if log_idx > 0 {
-                    result.logs.get(log_idx-1)
-                        .and_then(|e| e.marking.get(idx))
-                        .copied()
-                        .unwrap_or(entry.marking[idx])
-                } else {
-                    entry.marking[idx]
-                };
+                        let row_h = ui.text_style_height(&egui::TextStyle::Body) + 6.0;
+                        let row_count = entry.marking.len();
 
-                let current = entry.marking[idx];
-                let delta: i32 = current as i32 - prev as i32;
+                        scroll_utils::show_virtualized_rows(
+                            ui,
+                            "debug_marking_grid",
+                            ui.available_height(),
+                            row_h,
+                            row_count,
+                            |ui: &mut egui::Ui, idx: usize| {
+                                let current = entry.marking[idx];
+                                let prev = if log_idx > 0 {
+                                    result
+                                        .logs
+                                        .get(log_idx - 1)
+                                        .and_then(|e| e.marking.get(idx))
+                                        .copied()
+                                        .unwrap_or(current)
+                                } else {
+                                    current
+                                };
+                                let delta: i32 = current as i32 - prev as i32;
 
-                let resp = ui.selectable_label(false, format!("P{}", idx + 1));
-                if resp.clicked() {
-                    if let Some(place) = self.net.places.get(idx) {
-                        self.canvas.selected_place = Some(place.id);
-                    }
-                }
+                                egui::Grid::new(format!("debug_marking_grid_rows_{idx}"))
+                                    .num_columns(3)
+                                    .striped(true)
+                                    .spacing([20.0, 4.0])
+                                    .show(ui, |ui: &mut egui::Ui| {
+                                        let place_label = format!("P{}", idx + 1);
+                                        let response = ui.add_sized(
+                                            [120.0, 0.0],
+                                            egui::SelectableLabel::new(false, place_label),
+                                        );
 
-                ui.add_sized([80.0,0.0], egui::Label::new(current.to_string()));
+                                        if response.clicked() {
+                                            if let Some(place) = self.net.places.get(idx) {
+                                                self.canvas.selected_place = Some(place.id);
+                                                let screen_center = ctx.available_rect().center();
+                                                self.canvas.pan = egui::vec2(
+                                                    screen_center.x
+                                                        - place.pos[0] * self.canvas.zoom,
+                                                    screen_center.y
+                                                        - place.pos[1] * self.canvas.zoom,
+                                                );
+                                            }
+                                        }
 
-                let color = if delta > 0 {
-                    egui::Color32::GREEN
-                } else if delta < 0 {
-                    egui::Color32::RED
-                } else {
-                    ui.visuals().text_color()
-                };
+                                        ui.add_sized(
+                                            [80.0, 0.0],
+                                            egui::Label::new(current.to_string()),
+                                        );
 
-                ui.add_sized(
-                    [100.0,0.0],
-                    egui::Label::new(
-                        egui::RichText::new(delta.to_string()).color(color)
-                    )
-                );
+                                        let color = if delta > 0 {
+                                            egui::Color32::GREEN
+                                        } else if delta < 0 {
+                                            egui::Color32::RED
+                                        } else {
+                                            ui.visuals().text_color()
+                                        };
 
-                ui.end_row();
-            });
-    },
-);
+                                        ui.add_sized(
+                                            [100.0, 0.0],
+                                            egui::Label::new(
+                                                egui::RichText::new(delta.to_string()).color(color),
+                                            ),
+                                        );
 
+                                        ui.end_row();
+                                    });
+                            },
+                        );
                     }
                 }
             },
