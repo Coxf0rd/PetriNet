@@ -7,7 +7,7 @@
 //! `show_hidden_vertical_scroll`, `show_list_with_scroll`, and
 //! `show_virtualized_rows` for details.
 
-use egui::{self, scroll_area::ScrollBarVisibility, Ui};
+use egui::{self, scroll_area::ScrollBarVisibility, Color32, Frame, Ui};
 
 /// Show a vertical scroll area whose scroll bar is always hidden.
 ///
@@ -73,19 +73,51 @@ pub fn show_virtualized_rows(
     max_height: f32,
     row_height: f32,
     total_rows: usize,
+    row_ui: impl FnMut(&mut Ui, usize),
+) {
+    show_virtualized_rows_with_fill(
+        ui,
+        id_source,
+        max_height,
+        row_height,
+        total_rows,
+        |idx| {
+            if idx % 2 == 1 {
+                Color32::from_rgb(235, 245, 255)
+            } else {
+                Color32::TRANSPARENT
+            }
+        },
+        row_ui,
+    );
+}
+
+
+/// Virtualize a list of rows with customizable row background fill.
+///
+/// This variant mirrors `show_virtualized_rows`, but lets the caller decide
+/// the fill color for each rendered row. It is useful for tables whose row
+/// grouping should not follow a simple odd/even pattern.
+pub fn show_virtualized_rows_with_fill(
+    ui: &mut Ui,
+    id_source: impl std::hash::Hash,
+    max_height: f32,
+    row_height: f32,
+    total_rows: usize,
+    mut row_fill: impl FnMut(usize) -> Color32,
     mut row_ui: impl FnMut(&mut Ui, usize),
 ) {
     egui::ScrollArea::vertical()
         .id_source(id_source)
         .max_height(max_height)
-        // Prevent horizontal shrink so that the scroll area fills the
-        // available width.  Without this, the scroll area may only be as
-        // wide as its contents, leaving unused space on the right.
         .auto_shrink([false, false])
         .scroll_bar_visibility(ScrollBarVisibility::VisibleWhenNeeded)
         .show_rows(ui, row_height, total_rows, |ui, range| {
             for idx in range {
-                row_ui(ui, idx);
+                let fill = row_fill(idx);
+                Frame::none().fill(fill).show(ui, |ui| {
+                    row_ui(ui, idx);
+                });
             }
         });
 }
