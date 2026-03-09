@@ -29,6 +29,20 @@ impl PetriApp {
                     self.legacy_export_hints = legacy_hints;
                     self.status_hint = None;
                     self.canvas.cursor_valid = false;
+                    self.sim_result = None;
+                    self.show_results = false;
+                    self.show_debug = false;
+                    self.show_proof = false;
+                    self.show_place_stats_window = false;
+                    self.debug_playing = false;
+                    self.debug_animation_enabled = false;
+                    self.debug_arc_animation = false;
+                    self.debug_animation_events.clear();
+                    self.debug_place_colors.clear();
+                    self.invalidate_markov_model();
+                    self.markov_model_enabled = false;
+                    self.show_markov_window = false;
+                    self.sim_run_serial = 0;
                     let filtered: Vec<String> = result
                         .warnings
                         .iter()

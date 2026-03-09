@@ -16,16 +16,33 @@ const STATIONARY_MAX_ITERS: usize = 20_000;
 pub struct MarkovChain {
     pub states: Vec<Vec<u32>>,
     pub transitions: Vec<Vec<(usize, f64)>>,
+    pub transition_count_before_merge: usize,
+    pub transition_count_after_merge: usize,
     pub stationary: Option<Vec<f64>>,
     pub limit_reached: bool,
     pub state_limit: usize,
+    pub build_stop_reason: BuildStopReason,
     pub stationary_status: StationaryStatus,
+}
+
+#[derive(Clone, Debug)]
+pub enum BuildStopReason {
+    ExhaustedStateSpace {
+        explored_states: usize,
+    },
+    StateLimitReached {
+        explored_states: usize,
+        limit: usize,
+    },
 }
 
 #[derive(Clone, Debug)]
 pub enum StationaryStatus {
     Computed,
-    LimitReached { explored_states: usize, limit: usize },
+    LimitReached {
+        explored_states: usize,
+        limit: usize,
+    },
     TimedNetUnsupported {
         delayed_places: usize,
         stochastic_places: usize,
@@ -96,14 +113,15 @@ pub fn build_markov_chain(net: &PetriNet, max_states: Option<usize>) -> MarkovCh
     queue.push_back(0);
 
     let mut limit_reached = false;
+    let mut transition_count_before_merge = 0_usize;
     let mut total_edge_count = 0_usize;
-    while let Some(idx) = queue.pop_front() {
-
+    'bfs: while let Some(idx) = queue.pop_front() {
         let state = states[idx].clone();
         let enabled = enabled_transition_candidates(net, &specs, &state);
         let mut edges_by_state: HashMap<usize, f64> = HashMap::new();
 
         for &t in &enabled {
+            transition_count_before_merge = transition_count_before_merge.saturating_add(1);
             let next_state = apply_transition(&state, &specs[t], &release_rates);
             let state_id = if let Some(&id) = seen.get(&next_state) {
                 id
@@ -111,7 +129,8 @@ pub fn build_markov_chain(net: &PetriNet, max_states: Option<usize>) -> MarkovCh
                 let id = states.len();
                 if id >= adaptive_limit {
                     if fixed_limit.is_none() {
-                        adaptive_limit = auto_state_limit(net, id + 1, total_edge_count, queue.len() + 1);
+                        adaptive_limit =
+                            auto_state_limit(net, id + 1, total_edge_count, queue.len() + 1);
                     }
                     if id >= adaptive_limit {
                         limit_reached = true;
@@ -126,6 +145,12 @@ pub fn build_markov_chain(net: &PetriNet, max_states: Option<usize>) -> MarkovCh
             };
             *edges_by_state.entry(state_id).or_insert(0.0) += 1.0;
         }
+        if limit_reached {
+            total_edge_count = total_edge_count.saturating_add(edges_by_state.len());
+            transitions[idx] = edges_by_state.into_iter().collect::<Vec<_>>();
+            transitions[idx].sort_unstable_by_key(|(state_id, _)| *state_id);
+            break 'bfs;
+        }
 
         for (place_idx, &release_rate) in release_rates.iter().enumerate() {
             if release_rate <= 0.0 {
@@ -135,6 +160,7 @@ pub fn build_markov_chain(net: &PetriNet, max_states: Option<usize>) -> MarkovCh
             if pending == 0 {
                 continue;
             }
+            transition_count_before_merge = transition_count_before_merge.saturating_add(1);
             let next_state = release_pending_token(&state, place_idx);
             let state_id = if let Some(&id) = seen.get(&next_state) {
                 id
@@ -142,7 +168,8 @@ pub fn build_markov_chain(net: &PetriNet, max_states: Option<usize>) -> MarkovCh
                 let id = states.len();
                 if id >= adaptive_limit {
                     if fixed_limit.is_none() {
-                        adaptive_limit = auto_state_limit(net, id + 1, total_edge_count, queue.len() + 1);
+                        adaptive_limit =
+                            auto_state_limit(net, id + 1, total_edge_count, queue.len() + 1);
                     }
                     if id >= adaptive_limit {
                         limit_reached = true;
@@ -157,6 +184,12 @@ pub fn build_markov_chain(net: &PetriNet, max_states: Option<usize>) -> MarkovCh
             };
             *edges_by_state.entry(state_id).or_insert(0.0) += release_rate * pending as f64;
         }
+        if limit_reached {
+            total_edge_count = total_edge_count.saturating_add(edges_by_state.len());
+            transitions[idx] = edges_by_state.into_iter().collect::<Vec<_>>();
+            transitions[idx].sort_unstable_by_key(|(state_id, _)| *state_id);
+            break 'bfs;
+        }
 
         let mut edges: Vec<(usize, f64)> = edges_by_state.into_iter().collect();
         edges.sort_unstable_by_key(|(state_id, _)| *state_id);
@@ -166,11 +199,17 @@ pub fn build_markov_chain(net: &PetriNet, max_states: Option<usize>) -> MarkovCh
         if fixed_limit.is_none() {
             adaptive_limit = auto_state_limit(net, states.len(), total_edge_count, queue.len());
         }
-
-        if limit_reached {
-            break;
-        }
     }
+    let build_stop_reason = if limit_reached {
+        BuildStopReason::StateLimitReached {
+            explored_states: states.len(),
+            limit: adaptive_limit,
+        }
+    } else {
+        BuildStopReason::ExhaustedStateSpace {
+            explored_states: states.len(),
+        }
+    };
 
     let (stationary, stationary_status) = if limit_reached {
         (
@@ -195,9 +234,12 @@ pub fn build_markov_chain(net: &PetriNet, max_states: Option<usize>) -> MarkovCh
     MarkovChain {
         states: display_states,
         transitions,
+        transition_count_before_merge,
+        transition_count_after_merge: total_edge_count,
         stationary,
         limit_reached,
         state_limit: adaptive_limit,
+        build_stop_reason,
         stationary_status,
     }
 }
@@ -210,7 +252,10 @@ fn auto_state_limit(
 ) -> usize {
     let states = state_count.max(1);
     let estimated_bytes = estimate_graph_bytes(net, states, edge_count, queue_len);
-    let approx_bytes_per_state = estimated_bytes.checked_div(states).unwrap_or(estimated_bytes).max(1);
+    let approx_bytes_per_state = estimated_bytes
+        .checked_div(states)
+        .unwrap_or(estimated_bytes)
+        .max(1);
 
     let memory_budget_limit = TARGET_MARKOV_GRAPH_BYTES
         .checked_div(approx_bytes_per_state)
@@ -259,8 +304,10 @@ fn estimate_graph_bytes(
 ) -> usize {
     let places = net.places.len();
     let marking_bytes = places.saturating_mul(std::mem::size_of::<u32>());
-    let state_bytes = state_count.saturating_mul(marking_bytes.saturating_add(APPROX_STATE_OVERHEAD_BYTES));
-    let seen_bytes = state_count.saturating_mul(marking_bytes.saturating_add(APPROX_SEEN_ENTRY_BYTES));
+    let state_bytes =
+        state_count.saturating_mul(marking_bytes.saturating_add(APPROX_STATE_OVERHEAD_BYTES));
+    let seen_bytes =
+        state_count.saturating_mul(marking_bytes.saturating_add(APPROX_SEEN_ENTRY_BYTES));
     let edge_bytes = edge_count.saturating_mul(APPROX_EDGE_OVERHEAD_BYTES);
     let queue_bytes = queue_len.saturating_mul(APPROX_QUEUE_ENTRY_BYTES);
 
@@ -274,7 +321,12 @@ fn build_release_rates(net: &PetriNet) -> Vec<f64> {
     net.places
         .iter()
         .enumerate()
-        .map(|(place_idx, place)| release_rate_for_place(net.tables.mz.get(place_idx).copied().unwrap_or(0.0), &place.stochastic))
+        .map(|(place_idx, place)| {
+            release_rate_for_place(
+                net.tables.mz.get(place_idx).copied().unwrap_or(0.0),
+                &place.stochastic,
+            )
+        })
         .collect()
 }
 
@@ -291,7 +343,9 @@ fn release_rate_for_place(base_delay: f64, stochastic: &StochasticDistribution) 
             let l = (*lambda).max(1e-9);
             return l;
         }
-        StochasticDistribution::Gamma { shape, scale } => (shape.max(0.0) * scale.max(0.0)).max(0.0),
+        StochasticDistribution::Gamma { shape, scale } => {
+            (shape.max(0.0) * scale.max(0.0)).max(0.0)
+        }
         StochasticDistribution::Poisson { lambda } => lambda.max(0.0),
     };
 
@@ -407,9 +461,7 @@ fn transition_enabled(net: &PetriNet, spec: &TransitionSpec, state: &MarkovState
     for &(p, pre_w, post_w) in &spec.capacity_effects {
         if let Some(cap) = net.tables.mo[p] {
             let current_total = state.available[p].saturating_add(state.pending[p]);
-            let after = current_total
-                .saturating_sub(pre_w)
-                .saturating_add(post_w);
+            let after = current_total.saturating_sub(pre_w).saturating_add(post_w);
             if after > cap {
                 return false;
             }
@@ -419,7 +471,11 @@ fn transition_enabled(net: &PetriNet, spec: &TransitionSpec, state: &MarkovState
     true
 }
 
-fn apply_transition(state: &MarkovStateKey, spec: &TransitionSpec, release_rates: &[f64]) -> MarkovStateKey {
+fn apply_transition(
+    state: &MarkovStateKey,
+    spec: &TransitionSpec,
+    release_rates: &[f64],
+) -> MarkovStateKey {
     let mut next = state.clone();
     for &(p, pre_w) in &spec.pre {
         next.available[p] = next.available[p].saturating_sub(pre_w);
@@ -564,6 +620,8 @@ mod tests {
         net.set_counts(2, 3);
         net.tables.m0[0] = 2;
         net.tables.m0[1] = 1;
+        net.tables.mo[0] = None;
+        net.tables.mo[1] = None;
 
         net.tables.pre[0][0] = 1;
         net.tables.post[0][0] = 1;
@@ -603,9 +661,42 @@ mod tests {
 
         let chain = build_markov_chain(&net, Some(32));
 
-        assert!(matches!(chain.stationary_status, StationaryStatus::Computed));
+        assert!(matches!(
+            chain.stationary_status,
+            StationaryStatus::Computed
+        ));
         assert!(chain.state_count() >= 3);
-        assert!(chain.states.iter().any(|state| state.get(1).copied().unwrap_or(0) == 1));
-        assert!(chain.transitions.iter().flatten().any(|(_, rate)| *rate > 0.0));
+        assert!(chain
+            .states
+            .iter()
+            .any(|state| state.get(1).copied().unwrap_or(0) == 1));
+        assert!(chain
+            .transitions
+            .iter()
+            .flatten()
+            .any(|(_, rate)| *rate > 0.0));
+    }
+
+    #[test]
+    fn identical_edges_are_collapsed() {
+        let mut net = PetriNet::new();
+        net.set_counts(1, 2);
+        net.tables.m0[0] = 1;
+        // Both transitions keep the same marking, producing duplicate S1 -> S1 edges.
+        net.tables.pre[0][0] = 1;
+        net.tables.post[0][0] = 1;
+        net.tables.pre[0][1] = 1;
+        net.tables.post[0][1] = 1;
+        net.tables.mpr[0] = 1;
+        net.tables.mpr[1] = 1;
+
+        let chain = build_markov_chain(&net, Some(16));
+
+        assert_eq!(chain.state_count(), 1);
+        assert_eq!(chain.transition_count_before_merge, 2);
+        assert_eq!(chain.transition_count_after_merge, 1);
+        assert_eq!(chain.transitions[0].len(), 1);
+        assert_eq!(chain.transitions[0][0].0, 0);
+        assert!((chain.transitions[0][0].1 - 2.0).abs() < 1e-9);
     }
 }

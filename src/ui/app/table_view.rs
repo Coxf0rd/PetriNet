@@ -527,6 +527,7 @@ impl PetriApp {
                 if ui.button(self.tr("СТАРТ", "START")).clicked() {
                     self.net.sanitize_values();
                     self.net.rebuild_matrices_from_arcs();
+                    self.sim_run_serial = self.sim_run_serial.saturating_add(1);
                     self.sim_result = Some(std::sync::Arc::new(run_simulation(
                         &self.net,
                         &self.sim_params,
@@ -535,6 +536,11 @@ impl PetriApp {
                     )));
                     self.invalidate_markov_model();
                     self.calculate_markov_model();
+                    eprintln!(
+                        "[markov] simulation started: sim_run_serial={}, markov_calculated={}",
+                        self.sim_run_serial,
+                        self.markov_model.is_some()
+                    );
                     self.refresh_debug_animation_state();
                     self.debug_step = 0;
                     self.sync_debug_animation_for_step();
