@@ -593,7 +593,12 @@ impl PetriApp {
                         .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysHidden)
                         .show(ui, |ui| {
                             // Summary information about the simulation.
-                            ui.label(match result.cycle_time {
+                            let cycle_time = if result.fired_count > 0 {
+                                Some(result.sim_time / result.fired_count as f64)
+                            } else {
+                                None
+                            };
+                            ui.label(match cycle_time {
                                 Some(t) => format!(
                                     "{}: {:.6} {}",
                                     self.tr("Время цикла", "Cycle time"),
