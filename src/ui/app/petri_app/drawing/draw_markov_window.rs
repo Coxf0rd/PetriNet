@@ -171,12 +171,14 @@ impl PetriApp {
         let header_marking_width = Self::markov_marking_column_width(header_available);
 
         // Draw the header row of the stationary distribution table.
+        let state_col = 76.0;
+        let prob_col = 84.0;
         ui.horizontal(|ui| {
-            ui.label(RichText::new(self.tr("Состояние", "State")).strong());
+            ui.add_sized([state_col, 0.0], egui::Label::new(RichText::new(self.tr("Состояние", "State")).strong()));
             ui.allocate_ui(Vec2::new(header_marking_width, 0.0), |ui| {
                 ui.label(RichText::new(self.tr("Маркировка", "Marking")).strong());
             });
-            ui.label(RichText::new("π").strong());
+            ui.add_sized([prob_col, 0.0], egui::Label::new(RichText::new("π").strong()));
         });
 
         // Determine a dynamic maximum height for the scroll area.  Use the
@@ -207,11 +209,11 @@ impl PetriApp {
                 let row_available = ui.available_width();
                 let marking_width = Self::markov_marking_column_width(row_available);
                 ui.horizontal(|ui: &mut egui::Ui| {
-                    ui.label(format!("S{}", idx + 1));
+                    ui.add_sized([state_col, 0.0], egui::Label::new(format!("S{}", idx + 1)));
                     ui.allocate_ui(Vec2::new(marking_width, 0.0), |ui: &mut egui::Ui| {
                         self.draw_state_marking_table(ui, &chain.states[idx][..], idx);
                     });
-                    ui.label(format!("{:.6}", value));
+                    ui.add_sized([prob_col, 0.0], egui::Label::new(format!("{:.6}", value)));
                 });
                 ui.add_space(6.0);
             },
@@ -227,8 +229,9 @@ impl PetriApp {
         let header_available = ui.available_width();
         let header_transitions_width = Self::markov_transitions_column_width(header_available);
 
+        let state_col = 76.0;
         ui.horizontal(|ui| {
-            ui.label(RichText::new(self.tr("Состояние", "State")).strong());
+            ui.add_sized([state_col, 0.0], egui::Label::new(RichText::new(self.tr("Состояние", "State")).strong()));
             ui.allocate_ui(Vec2::new(header_transitions_width, 0.0), |ui| {
                 ui.label(RichText::new(self.tr("Переходы", "Transitions")).strong());
             });
@@ -258,7 +261,7 @@ impl PetriApp {
                     let row_available = ui.available_width();
                     let transitions_width = Self::markov_transitions_column_width(row_available);
                     ui.horizontal(|ui: &mut egui::Ui| {
-                        ui.label(format!("S{}", idx + 1));
+                        ui.add_sized([state_col, 0.0], egui::Label::new(format!("S{}", idx + 1)));
                         ui.allocate_ui(Vec2::new(transitions_width, 0.0), |ui: &mut egui::Ui| {
                             if edges.is_empty() {
                                 ui.label(self.tr("Переходов нет", "No transitions"));
@@ -362,12 +365,12 @@ impl PetriApp {
                         if !distribution.is_empty() {
                             for (count, prob) in distribution.iter() {
                                 ui.horizontal(|ui: &mut egui::Ui| {
-                                    ui.label(format!(
+                                    ui.add_sized([140.0, 0.0], egui::Label::new(format!(
                                         "{} {}",
                                         count,
                                         self.tr("маркеров", "tokens")
-                                    ));
-                                    ui.label(format!("{:.2}%", prob * 100.0));
+                                    )));
+                                    ui.add_sized([84.0, 0.0], egui::Label::new(format!("{:.2}%", prob * 100.0)));
                                 });
                             }
                         } else if stationary.is_some() {

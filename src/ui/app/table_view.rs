@@ -1,6 +1,7 @@
 use super::*;
 
 use crate::ui::property_selection::{show_collapsible_property_section, PropertySectionConfig};
+use crate::ui::property_window::{show_property_window, PropertyWindowConfig};
 use crate::ui::scroll_utils;
 
 impl PetriApp {
@@ -40,6 +41,44 @@ impl PetriApp {
 
     fn draw_fixed_cell(ui: &mut egui::Ui, width: f32, text: impl Into<egui::WidgetText>) {
         ui.add_sized([width, 0.0], egui::Label::new(text));
+    }
+
+
+    fn section_open(ctx: &egui::Context, id: impl std::hash::Hash, default_open: bool) -> bool {
+        egui::collapsing_header::CollapsingState::load_with_default_open(
+            ctx,
+            egui::Id::new(id),
+            default_open,
+        )
+        .is_open()
+    }
+
+    fn place_stats_points(
+        result: &SimulationResult,
+        place_index: usize,
+        series: PlaceStatsSeries,
+    ) -> Vec<(f64, f64)> {
+        let mut points = Vec::with_capacity(result.logs.len());
+        let mut cumulative_in = 0.0_f64;
+        let mut cumulative_out = 0.0_f64;
+        let mut prev = result.logs.first().and_then(|e| e.marking.get(place_index)).copied().unwrap_or(0);
+        for entry in &result.logs {
+            let current = entry.marking.get(place_index).copied().unwrap_or(0);
+            let y = match series {
+                PlaceStatsSeries::Total => current as f64,
+                PlaceStatsSeries::Input => {
+                    if current > prev { cumulative_in += (current - prev) as f64; }
+                    cumulative_in
+                }
+                PlaceStatsSeries::Output => {
+                    if prev > current { cumulative_out += (prev - current) as f64; }
+                    cumulative_out
+                }
+            };
+            points.push((entry.time, y));
+            prev = current;
+        }
+        points
     }
 
     /// Draw the network structure editor (vectors and matrices).
@@ -472,11 +511,20 @@ impl PetriApp {
     pub(super) fn draw_results(&mut self, ctx: &egui::Context) {
         if let Some(result) = self.sim_result.clone() {
             let mut open = self.show_results;
+            let any_results_section_open = Self::section_open(ctx, "results_log_section", true)
+                || Self::section_open(ctx, "results_marker_stats_section", true)
+                || Self::section_open(ctx, "results_flow_section", true)
+                || Self::section_open(ctx, "results_load_section", true);
+            let results_min_size = if any_results_section_open {
+                egui::vec2(960.0, 420.0)
+            } else {
+                egui::vec2(420.0, 180.0)
+            };
             egui::Window::new(self.tr("Результаты/Статистика", "Results/Statistics"))
                 .open(&mut open)
                 .resizable(true)
                 .default_size(egui::vec2(1120.0, 760.0))
-                .min_size(egui::vec2(960.0, 540.0))
+                .min_size(results_min_size)
                 .show(ctx, |ui| {
                     egui::ScrollArea::vertical()
                         .id_source("results_window_scroll")
@@ -794,57 +842,204 @@ impl PetriApp {
             self.show_results = open;
         }
     }
-
     pub(in crate::ui::app) fn draw_place_statistics_window(&mut self, ctx: &egui::Context) {
         if !self.show_place_stats_window || self.net.places.is_empty() {
             self.show_place_stats_window = false;
             return;
         }
-        let title = self
-            .tr("Статистика по месту", "Place statistics")
-            .to_string();
-        let close_label = self.tr("Закрыть", "Close").to_string();
-        let place_index = self
-            .place_stats_view_place
-            .min(self.net.places.len().saturating_sub(1));
-        let place_name = format!("P{}", place_index + 1);
-        let current_tokens = self.net.tables.m0.get(place_index).copied().unwrap_or(0);
-        let sim_result = self.sim_result.clone();
-        let position_label = self.tr("Позиция", "Place").to_string();
-        let tokens_label = self.tr("Маркеры", "Tokens").to_string();
-        let latest_time_label = self.tr("Последнее время", "Latest time").to_string();
-        let final_marking_label = self.tr("Итоговые маркеры", "Final marking").to_string();
-        let no_data_label = self
-            .tr(
-                "Данные симуляции отсутствуют",
-                "Simulation data unavailable",
-            )
-            .to_string();
+        let Some(result) = self.sim_result.clone() else {
+            self.show_place_stats_window = false;
+            return;
+        };
+
+        let place_index = self.place_stats_view_place.min(self.net.places.len().saturating_sub(1));
         let mut open = self.show_place_stats_window;
-        let mut close_requested = false;
-        egui::Window::new(title)
-            .open(&mut open)
-            .resizable(true)
-            .default_size(egui::vec2(320.0, 200.0))
-            .show(ctx, |ui| {
-                ui.label(format!("{}: {}", position_label, place_name));
-                ui.label(format!("{}: {}", tokens_label, current_tokens));
-                ui.separator();
-                if let Some(result) = sim_result.as_ref() {
-                    let latest_marking =
-                        result.final_marking.get(place_index).copied().unwrap_or(0);
-                    ui.label(format!("{}: {:.3}", latest_time_label, result.sim_time));
-                    ui.label(format!("{}: {}", final_marking_label, latest_marking));
-                } else {
-                    ui.label(no_data_label);
-                }
-                if ui.button(&close_label).clicked() {
-                    close_requested = true;
-                }
-            });
-        if close_requested {
-            open = false;
-        }
+        let title = self.tr("Статистика", "Statistics");
+        let position_label = self.tr("Позиция", "Place").to_string();
+        let indicator_label = self.tr("Показатель", "Indicator").to_string();
+        let sampled_label = self.tr("График сэмплирован", "Chart sampled").to_string();
+        let total_tab = self.tr("Общая", "Total").to_string();
+        let input_tab = self.tr("На входе", "Input").to_string();
+        let output_tab = self.tr("На выходе", "Output").to_string();
+        let show_grid_label = self.tr("Показать сетку", "Show grid").to_string();
+        let scale_x_label = self.tr("Масштаб X", "Scale X").to_string();
+        let pan_x_label = self.tr("Сдвиг X", "Pan X").to_string();
+
+        let min_size = egui::vec2(720.0, 420.0);
+        let default_size = min_size * 1.2;
+
+        show_property_window(
+            ctx,
+            title,
+            &mut open,
+            PropertyWindowConfig::new("place_statistics_window")
+                .default_size(default_size)
+                .min_size(min_size),
+            |ui: &mut egui::Ui| {
+                let points = Self::place_stats_points(&result, place_index, self.place_stats_series);
+                let x_min = points.first().map(|p| p.0).unwrap_or(0.0);
+                let x_max = points.last().map(|p| p.0).unwrap_or(1.0).max(x_min + 1.0);
+                let y_max = points.iter().map(|(_, y)| *y).fold(0.0_f64, f64::max).max(1.0);
+                let avg = if points.is_empty() { 0.0 } else { points.iter().map(|(_, y)| *y).sum::<f64>() / points.len() as f64 };
+                let y_min_val = points.iter().map(|(_, y)| *y).fold(f64::INFINITY, f64::min);
+                let y_min_val = if y_min_val.is_finite() { y_min_val } else { 0.0 };
+                let utilization = if y_max > 0.0 { avg / y_max * 100.0 } else { 0.0 };
+
+                let _ = Self::draw_collapsible_section(
+                    ui,
+                    "place_stats_controls_section",
+                    self.tr("Параметры", "Parameters"),
+                    true,
+                    0.0,
+                    |ui: &mut egui::Ui| {
+                        ui.horizontal(|ui| {
+                            ui.label(&position_label);
+                            egui::ComboBox::from_id_source("place_stats_place_combo")
+                                .selected_text(format!("P{}", place_index + 1))
+                                .show_ui(ui, |ui| {
+                                    for idx in 0..self.net.places.len() {
+                                        ui.selectable_value(&mut self.place_stats_view_place, idx, format!("P{}", idx + 1));
+                                    }
+                                });
+                            ui.label(format!("P{}", place_index + 1));
+                            ui.label(match self.place_stats_series {
+                                PlaceStatsSeries::Total => total_tab.clone(),
+                                PlaceStatsSeries::Input => input_tab.clone(),
+                                PlaceStatsSeries::Output => output_tab.clone(),
+                            });
+                        });
+                        ui.horizontal(|ui| {
+                            ui.label(&indicator_label);
+                            ui.selectable_value(&mut self.place_stats_series, PlaceStatsSeries::Total, &total_tab);
+                            ui.selectable_value(&mut self.place_stats_series, PlaceStatsSeries::Input, &input_tab);
+                            ui.selectable_value(&mut self.place_stats_series, PlaceStatsSeries::Output, &output_tab);
+                        });
+                        ui.label(format!("{}: {} / {}", sampled_label, result.logs.len(), result.log_entries_total));
+                        ui.horizontal(|ui| {
+                            ui.label(format!("{} {:.3}", self.tr("Максимум", "Maximum"), y_max));
+                            ui.separator();
+                            ui.label(format!("{} {:.3}", self.tr("Минимум", "Minimum"), y_min_val));
+                            ui.separator();
+                            ui.label(format!("{} {:.3}", self.tr("Среднее", "Average"), avg));
+                            ui.separator();
+                            ui.label(format!("{} {:.3}%", self.tr("Утилизация", "Utilization"), utilization));
+                        });
+                        ui.horizontal(|ui| {
+                            ui.label(&scale_x_label);
+                            ui.add(egui::Slider::new(&mut self.place_stats_zoom_x, 1.0..=20.0).show_value(false));
+                            ui.add(egui::DragValue::new(&mut self.place_stats_zoom_x).range(1.0..=20.0).speed(0.1));
+                            ui.label(&pan_x_label);
+                            ui.add(egui::Slider::new(&mut self.place_stats_pan_x, 0.0..=1.0).show_value(false));
+                            ui.add(egui::DragValue::new(&mut self.place_stats_pan_x).range(0.0..=1.0).speed(0.01));
+                            ui.checkbox(&mut self.place_stats_show_grid, &show_grid_label);
+                        });
+                    },
+                );
+
+                let _ = Self::draw_collapsible_section(
+                    ui,
+                    "place_stats_graph_section",
+                    self.tr("График", "Chart"),
+                    true,
+                    6.0,
+                    |ui: &mut egui::Ui| {
+                        let desired = egui::vec2(ui.available_width().max(200.0), ui.available_height().max(300.0));
+                        let (response, painter) = ui.allocate_painter(desired, egui::Sense::hover());
+                        let rect = response.rect.shrink2(egui::vec2(14.0, 10.0));
+                        painter.rect_stroke(rect, 0.0, egui::Stroke::new(1.0, egui::Color32::GRAY));
+
+                        let full_span = (x_max - x_min).max(1.0);
+                        let zoom = self.place_stats_zoom_x.max(1.0) as f64;
+                        let visible_span = (full_span / zoom).max(full_span / 1000.0).min(full_span);
+                        let max_pan = (full_span - visible_span).max(0.0);
+                        let pan = (self.place_stats_pan_x.clamp(0.0, 1.0) as f64) * max_pan;
+                        let visible_min_x = x_min + pan;
+                        let visible_max_x = visible_min_x + visible_span;
+                        let visible_y_max = y_max.max(1.0);
+
+                        let to_screen = |x: f64, y: f64| -> egui::Pos2 {
+                            let tx = if visible_span > 0.0 { ((x - visible_min_x) / visible_span).clamp(0.0, 1.0) } else { 0.0 };
+                            let ty = (y / visible_y_max).clamp(0.0, 1.0);
+                            egui::pos2(
+                                rect.left() + rect.width() * tx as f32,
+                                rect.bottom() - rect.height() * ty as f32,
+                            )
+                        };
+
+                        if self.place_stats_show_grid {
+                            for i in 1..10 {
+                                let t = i as f32 / 10.0;
+                                let x = egui::lerp(rect.left()..=rect.right(), t);
+                                let y = egui::lerp(rect.top()..=rect.bottom(), t);
+                                painter.line_segment([egui::pos2(x, rect.top()), egui::pos2(x, rect.bottom())], egui::Stroke::new(1.0, egui::Color32::from_gray(220)));
+                                painter.line_segment([egui::pos2(rect.left(), y), egui::pos2(rect.right(), y)], egui::Stroke::new(1.0, egui::Color32::from_gray(220)));
+                            }
+                        }
+
+                        let visible_points: Vec<(f64, f64)> = points
+                            .iter()
+                            .copied()
+                            .filter(|(x, _)| *x >= visible_min_x && *x <= visible_max_x)
+                            .collect();
+                        if visible_points.len() >= 2 {
+                            let poly: Vec<egui::Pos2> = visible_points.iter().map(|(x, y)| to_screen(*x, *y)).collect();
+                            painter.add(egui::Shape::line(poly, egui::Stroke::new(2.0, egui::Color32::BLUE)));
+
+                            if let Some(mouse) = response.hover_pos() {
+                                let mut best: Option<(f32, egui::Pos2, f64, f64)> = None;
+                                for window in visible_points.windows(2) {
+                                    let (x1,y1) = window[0];
+                                    let (x2,y2) = window[1];
+                                    let p1 = to_screen(x1,y1);
+                                    let p2 = to_screen(x2,y2);
+                                    let v = p2 - p1;
+                                    let len2 = v.length_sq();
+                                    if len2 <= 0.0 { continue; }
+                                    let t = ((mouse - p1).dot(v) / len2).clamp(0.0, 1.0);
+                                    let proj = p1 + v * t;
+                                    let dist = proj.distance(mouse);
+                                    let hx = x1 + (x2 - x1) * t as f64;
+                                    let hy = y1 + (y2 - y1) * t as f64;
+                                    if best.map(|b| dist < b.0).unwrap_or(true) {
+                                        best = Some((dist, proj, hx, hy));
+                                    }
+                                }
+                                if let Some((dist, pos, hx, hy)) = best {
+                                    if dist <= 8.0 {
+                                        painter.circle_filled(pos, 4.0, egui::Color32::WHITE);
+                                        painter.circle_stroke(pos, 4.0, egui::Stroke::new(1.5, egui::Color32::BLUE));
+                                        painter.text(
+                                            pos + egui::vec2(8.0, 8.0),
+                                            egui::Align2::LEFT_TOP,
+                                            format!("X: {:.3}, Y: {:.3}", hx, hy),
+                                            egui::TextStyle::Body.resolve(ui.style()),
+                                            egui::Color32::BLACK,
+                                        );
+                                    }
+                                }
+                            }
+                        }
+
+                        painter.text(
+                            egui::pos2(rect.center().x, rect.bottom() + 18.0),
+                            egui::Align2::CENTER_CENTER,
+                            self.tr("Ось X: Время/шаги", "X axis: Time/steps"),
+                            egui::TextStyle::Body.resolve(ui.style()),
+                            egui::Color32::GRAY,
+                        );
+                        ui.add_space(6.0);
+                        ui.label(format!(
+                            "{} X: [{:.3} .. {:.3}] | {} Y: {:.3}",
+                            self.tr("Диапазон", "Range"),
+                            visible_min_x,
+                            visible_max_x,
+                            self.tr("Максимум", "Maximum"),
+                            visible_y_max
+                        ));
+                    },
+                );
+            },
+        );
         self.show_place_stats_window = open;
     }
 }

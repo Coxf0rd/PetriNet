@@ -168,8 +168,8 @@ impl PetriApp {
                                 egui::Grid::new("debug_marking_grid_rows")
                                     .striped(true)
                                     .show(ui, |ui: &mut egui::Ui| {
-                                        ui.label(format!("P{}", idx + 1));
-                                        ui.label(entry.marking[idx].to_string());
+                                        ui.add_sized([72.0, 0.0], egui::Label::new(format!("P{}", idx + 1)));
+                                        ui.add_sized([84.0, 0.0], egui::Label::new(entry.marking[idx].to_string()));
                                         ui.end_row();
                                     });
                             },

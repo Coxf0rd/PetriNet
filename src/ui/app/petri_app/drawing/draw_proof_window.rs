@@ -87,12 +87,15 @@ impl PetriApp {
                     .show(ui, |ui| {
                         // Draw the header of the grid.  We place it inside the horizontal
                         // scroll area so that it scrolls together with the row contents.
+                        let step_w = 56.0;
+                        let time_w = 72.0;
+                        let transition_w = 132.0;
                         egui::Grid::new("proof_grid_header")
                             .striped(true)
                             .show(ui, |ui| {
-                                ui.label(self.tr("Шаг", "Step"));
-                                ui.label(self.tr("Время", "Time"));
-                                ui.label(self.tr("Сработал переход", "Fired transition"));
+                                ui.add_sized([step_w, 0.0], egui::Label::new(self.tr("Шаг", "Step")));
+                                ui.add_sized([time_w, 0.0], egui::Label::new(self.tr("Время", "Time")));
+                                ui.add_sized([transition_w, 0.0], egui::Label::new(self.tr("Сработал переход", "Fired transition")));
                                 ui.label(self.tr("Маркировка", "Marking"));
                                 ui.end_row();
                             });
@@ -119,18 +122,17 @@ impl PetriApp {
                                     .show(ui, |ui| {
                                         for row_idx in range {
                                             let entry = &result.logs[visible_steps[row_idx]];
-                                            ui.label(row_idx.to_string());
-                                            ui.label(format!("{:.3}", entry.time));
-                                            ui.label(
-                                                entry
-                                                    .fired_transition
-                                                    .map(|i| format!("T{}", i + 1))
-                                                    .unwrap_or_else(|| "-".to_string()),
+                                            ui.add_sized([step_w, 0.0], egui::Label::new(row_idx.to_string()));
+                                            ui.add_sized([time_w, 0.0], egui::Label::new(format!("{:.3}", entry.time)));
+                                            ui.add_sized(
+                                                [transition_w, 0.0],
+                                                egui::Label::new(
+                                                    entry
+                                                        .fired_transition
+                                                        .map(|i| format!("T{}", i + 1))
+                                                        .unwrap_or_else(|| "-".to_string()),
+                                                ),
                                             );
-                                            // The marking can be long; wrapping it in its own
-                                            // `Label` ensures it can shrink and expand as needed.  We
-                                            // rely on the horizontal scroll area to allow the row to
-                                            // exceed the window width.
                                             ui.label(format!("{:?}", entry.marking));
                                             ui.end_row();
                                         }
