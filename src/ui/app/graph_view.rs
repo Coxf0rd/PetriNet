@@ -1140,6 +1140,9 @@ impl PetriApp {
             let tr_color = Self::color_to_egui(tr.color, Color32::BLACK);
             let is_selected = self.canvas.selected_transition == Some(tr.id)
                 || self.canvas.selected_transitions.contains(&tr.id);
+            if is_selected {
+                painter.rect_filled(r, 0.0, Color32::from_rgba_unmultiplied(80, 120, 255, 48));
+            }
             painter.rect_stroke(
                 r,
                 0.0,

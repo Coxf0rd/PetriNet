@@ -1,87 +1,94 @@
 use super::*;
-use egui::{Color32, RichText, Vec2};
-// Import the property section helpers to unify collapsible sections across the UI.
+use egui::{Color32, RichText};
 use crate::ui::property_selection::{show_collapsible_property_section, PropertySectionConfig};
+use crate::ui::property_window::{show_property_window, PropertyWindowConfig};
 use crate::ui::scroll_utils;
 
 impl PetriApp {
     pub(in crate::ui::app) fn draw_markov_window(&mut self, ctx: &egui::Context) {
+        if !self.show_markov_window {
+            return;
+        }
+
         let mut open = self.show_markov_window;
-        let viewport = ctx.available_rect();
-        let max_height = (viewport.height() - 120.0).max(360.0);
-        let max_width = (viewport.width() - 120.0).max(360.0);
 
-        egui::Window::new(self.tr("Марковская модель", "Markov model"))
-            .constrained_to_viewport(ctx)
-            .id(egui::Id::new("markov_window"))
-            .default_size(Vec2::new(520.0, 520.0))
-            .min_size(Vec2::new(360.0, 360.0))
-            .max_size(Vec2::new(max_width, max_height))
-            .open(&mut open)
-            .show(ctx, |ui| {
-                ui.vertical(|ui| {
-                    let simulation_ready = self.sim_result.is_some();
-                    let mut toggle_changed = false;
-                    let markov_checkbox_label =
-                        self.tr("включить марковскую модель", "Enable Markov model");
-                    let simulation_hint = self.tr(
-                        "Сначала запустите симуляцию, чтобы включить марковскую модель",
-                        "Run a simulation first to enable the model",
-                    );
+        show_property_window(
+            ctx,
+            self.tr("Марковская модель", "Markov model"),
+            &mut open,
+            PropertyWindowConfig::new("markov_window")
+                .default_size(egui::vec2(520.0, 520.0))
+                .min_size(egui::vec2(360.0, 280.0))
+                .resizable(true),
+            |ui| {
+                let simulation_ready = self.sim_result.is_some();
+                let mut toggle_changed = false;
+                let markov_checkbox_label =
+                    self.tr("включить марковскую модель", "Enable Markov model");
+                let simulation_hint = self.tr(
+                    "Сначала запустите симуляцию, чтобы включить марковскую модель",
+                    "Run a simulation first to enable the model",
+                );
 
-                    ui.horizontal(|ui| {
-                        ui.add_enabled_ui(simulation_ready, |ui| {
-                            if ui
-                                .checkbox(
-                                    &mut self.markov_model_enabled,
-                                    markov_checkbox_label.as_ref(),
-                                )
-                                .changed()
-                            {
-                                toggle_changed = true;
-                            }
-                        });
-
-                        if !simulation_ready {
-                            ui.colored_label(
-                                Color32::from_rgb(190, 40, 40),
-                                simulation_hint.as_ref(),
-                            );
+                ui.horizontal(|ui| {
+                    ui.add_enabled_ui(simulation_ready, |ui| {
+                        if ui
+                            .checkbox(
+                                &mut self.markov_model_enabled,
+                                markov_checkbox_label.as_ref(),
+                            )
+                            .changed()
+                        {
+                            toggle_changed = true;
                         }
                     });
 
-                    if toggle_changed {
-                        for place in &mut self.net.places {
-                            place.show_markov_model = self.markov_model_enabled;
-                        }
-
-                        if self.markov_model_enabled {
-                            self.calculate_markov_model();
-                        } else {
-                            self.markov_place_arcs.clear();
-                        }
-                    }
-
-                    ui.separator();
-                    ui.add_space(6.0);
-
-                    if let Some(chain) = &self.markov_model {
-                        self.draw_markov_chain_summary(ui, chain);
-                    } else {
-                        ui.label(self.tr("Постройте модель", "Build the model"));
-                    }
-
-                    if !self.markov_model_enabled {
-                        ui.separator();
-                        ui.label(self.tr(
-                            "Включите флажок выше, чтобы увидеть марковскую модель",
-                            "Toggle the checkbox above to display the Markov model",
-                        ));
+                    if !simulation_ready {
+                        ui.colored_label(
+                            Color32::from_rgb(190, 40, 40),
+                            simulation_hint.as_ref(),
+                        );
                     }
                 });
-            });
+
+                if toggle_changed {
+                    for place in &mut self.net.places {
+                        place.show_markov_model = self.markov_model_enabled;
+                    }
+
+                    if self.markov_model_enabled {
+                        self.calculate_markov_model();
+                    } else {
+                        self.markov_place_arcs.clear();
+                    }
+                }
+
+                ui.separator();
+                ui.add_space(6.0);
+
+                if let Some(chain) = &self.markov_model {
+                    self.draw_markov_chain_summary(ui, chain);
+                } else {
+                    ui.label(self.tr("Постройте модель", "Build the model"));
+                }
+
+                if !self.markov_model_enabled {
+                    ui.separator();
+                    ui.label(self.tr(
+                        "Включите флажок выше, чтобы увидеть марковскую модель",
+                        "Toggle the checkbox above to display the Markov model",
+                    ));
+                }
+            },
+        );
 
         self.show_markov_window = open;
+    }
+
+    fn markov_section_height(ui: &egui::Ui, preferred: f32, min_height: f32) -> f32 {
+        let available = ui.available_height().max(min_height);
+        let adaptive = available * 0.45;
+        adaptive.clamp(min_height, preferred)
     }
 
     fn draw_markov_chain_summary(&self, ui: &mut egui::Ui, chain: &MarkovChain) {
@@ -187,13 +194,7 @@ impl PetriApp {
             );
         });
 
-        // Determine a dynamic maximum height for the scroll area.  Use the
-        // remaining available height, but enforce a sensible minimum of 360.0
-        // points to avoid extremely small scroll areas.
-        let mut max_height = ui.available_height();
-        if max_height < 360.0 {
-            max_height = 360.0;
-        }
+        let max_height = Self::markov_section_height(ui, 320.0, 140.0);
 
         // Row height is based on the body text style plus some padding.
         let row_h = ui.text_style_height(&egui::TextStyle::Body) + 4.0;
@@ -246,11 +247,7 @@ impl PetriApp {
             });
         });
 
-        // Determine a dynamic maximum height for the state graph scroll area.
-        let mut max_height = ui.available_height();
-        if max_height < 320.0 {
-            max_height = 320.0;
-        }
+        let max_height = Self::markov_section_height(ui, 280.0, 140.0);
 
         // Use a scroll area with a visible scroll bar when needed.  Within the
         // scroll area, recompute the transitions column width based on the
@@ -329,11 +326,7 @@ impl PetriApp {
 
         let expectation = Self::markov_expected_tokens(chain, self.net.places.len());
 
-        // Compute a dynamic maximum height for the place distribution scroll area.
-        let mut max_height = ui.available_height();
-        if max_height < 320.0 {
-            max_height = 320.0;
-        }
+        let max_height = Self::markov_section_height(ui, 280.0, 140.0);
 
         // Use a scroll area with a visible scroll bar when needed for the place
         // highlight distribution.  We compute widths inside each row to adapt
@@ -424,6 +417,7 @@ impl PetriApp {
         ))
         .striped(true)
         .spacing([6.0, 2.0])
+        .min_col_width(48.0)
         .show(ui, |ui| {
             for row in 0..rows {
                 for col in 0..COLUMNS {
