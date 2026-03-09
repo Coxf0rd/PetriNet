@@ -859,37 +859,53 @@ impl PetriApp {
         let total_tab = self.tr("Общая", "Total").to_string();
         let input_tab = self.tr("На входе", "Input").to_string();
         let output_tab = self.tr("На выходе", "Output").to_string();
-        let show_grid_label = self.tr("Показать сетку", "Show grid").to_string();
         let scale_x_label = self.tr("Масштаб X", "Scale X").to_string();
         let pan_x_label = self.tr("Сдвиг X", "Pan X").to_string();
         let x_axis_label = self.tr("Ось X: Время/шаги", "X axis: Time/steps").to_string();
         let y_axis_label = self.tr("Ось Y", "Y axis").to_string();
+        let axis_text_color = egui::Color32::from_gray(70);
+        let grid_text_color = egui::Color32::from_gray(80);
 
-        let mut options: Vec<(usize, PlaceStatsSeries, String)> = Vec::new();
+        let mut place_options: Vec<(usize, String)> = Vec::new();
         for (idx, place) in self.net.places.iter().enumerate() {
-            if place.stats.markers_total || place.stats.load_total {
-                options.push((idx, PlaceStatsSeries::Total, format!("P{} | {}", idx + 1, total_tab)));
-            }
-            if place.stats.markers_input || place.stats.load_input {
-                options.push((idx, PlaceStatsSeries::Input, format!("P{} | {}", idx + 1, input_tab)));
-            }
-            if place.stats.markers_output || place.stats.load_output {
-                options.push((idx, PlaceStatsSeries::Output, format!("P{} | {}", idx + 1, output_tab)));
+            if place.stats.markers_total
+                || place.stats.markers_input
+                || place.stats.markers_output
+                || place.stats.load_total
+                || place.stats.load_input
+                || place.stats.load_output
+            {
+                place_options.push((idx, format!("P{}", idx + 1)));
             }
         }
 
-        if options.is_empty() {
+        if place_options.is_empty() {
             self.show_place_stats_window = false;
             return;
         }
 
-        let selected_idx = options
+        let selected_idx = place_options
             .iter()
-            .position(|(idx, series, _)| *idx == self.place_stats_view_place && *series == self.place_stats_series)
+            .position(|(idx, _)| *idx == self.place_stats_view_place)
             .unwrap_or(0);
-        self.place_stats_view_place = options[selected_idx].0;
-        self.place_stats_series = options[selected_idx].1;
+        self.place_stats_view_place = place_options[selected_idx].0;
         let place_index = self.place_stats_view_place;
+        let selected_place = &self.net.places[place_index];
+        let total_enabled = selected_place.stats.markers_total || selected_place.stats.load_total;
+        let input_enabled = selected_place.stats.markers_input || selected_place.stats.load_input;
+        let output_enabled = selected_place.stats.markers_output || selected_place.stats.load_output;
+        if (self.place_stats_series == PlaceStatsSeries::Total && !total_enabled)
+            || (self.place_stats_series == PlaceStatsSeries::Input && !input_enabled)
+            || (self.place_stats_series == PlaceStatsSeries::Output && !output_enabled)
+        {
+            self.place_stats_series = if total_enabled {
+                PlaceStatsSeries::Total
+            } else if input_enabled {
+                PlaceStatsSeries::Input
+            } else {
+                PlaceStatsSeries::Output
+            };
+        }
         let current_series = self.place_stats_series;
 
         let mut open = self.show_place_stats_window;
@@ -926,18 +942,35 @@ impl PetriApp {
                     ui.horizontal(|ui| {
                         ui.label(&position_label);
                         egui::ComboBox::from_id_source("place_stats_place_combo")
-                            .selected_text(options[selected_idx].2.clone())
+                            .selected_text(place_options[selected_idx].1.clone())
                             .show_ui(ui, |ui| {
-                                for (idx, series, label) in &options {
-                                    if ui.selectable_label(
-                                        self.place_stats_view_place == *idx && self.place_stats_series == *series,
-                                        label,
-                                    ).clicked() {
+                                for (idx, label) in &place_options {
+                                    if ui.selectable_label(self.place_stats_view_place == *idx, label).clicked() {
                                         self.place_stats_view_place = *idx;
-                                        self.place_stats_series = *series;
                                     }
                                 }
                             });
+                        let total_btn = ui.add_enabled(
+                            total_enabled,
+                            egui::SelectableLabel::new(self.place_stats_series == PlaceStatsSeries::Total, &total_tab),
+                        );
+                        if total_btn.clicked() && total_enabled {
+                            self.place_stats_series = PlaceStatsSeries::Total;
+                        }
+                        let input_btn = ui.add_enabled(
+                            input_enabled,
+                            egui::SelectableLabel::new(self.place_stats_series == PlaceStatsSeries::Input, &input_tab),
+                        );
+                        if input_btn.clicked() && input_enabled {
+                            self.place_stats_series = PlaceStatsSeries::Input;
+                        }
+                        let output_btn = ui.add_enabled(
+                            output_enabled,
+                            egui::SelectableLabel::new(self.place_stats_series == PlaceStatsSeries::Output, &output_tab),
+                        );
+                        if output_btn.clicked() && output_enabled {
+                            self.place_stats_series = PlaceStatsSeries::Output;
+                        }
                     });
                     ui.label(format!("{}: {} / {}", sampled_label, result.logs.len(), result.log_entries_total));
                     ui.horizontal(|ui| {
@@ -956,7 +989,6 @@ impl PetriApp {
                         ui.label(&pan_x_label);
                         ui.add(egui::Slider::new(&mut self.place_stats_pan_x, 0.0..=1.0).show_value(false));
                         ui.add(egui::DragValue::new(&mut self.place_stats_pan_x).range(0.0..=1.0).speed(0.01));
-                        ui.checkbox(&mut self.place_stats_show_grid, &show_grid_label);
                     });
                 });
 
@@ -998,41 +1030,39 @@ impl PetriApp {
                         )
                     };
 
-                    let x_ticks = 6;
-                    let y_ticks = 6;
-                    if self.place_stats_show_grid {
-                        for i in 0..=x_ticks {
-                            let t = i as f32 / x_ticks as f32;
-                            let x = egui::lerp(plot_rect.left()..=plot_rect.right(), t);
-                            painter.line_segment(
-                                [egui::pos2(x, plot_rect.top()), egui::pos2(x, plot_rect.bottom())],
-                                egui::Stroke::new(1.0, egui::Color32::from_gray(220)),
-                            );
-                            let value = visible_min_x + visible_span * t as f64;
-                            painter.text(
-                                egui::pos2(x, plot_rect.bottom() + 8.0),
-                                egui::Align2::CENTER_TOP,
-                                format!("{:.1}", value),
-                                egui::TextStyle::Small.resolve(ui.style()),
-                                egui::Color32::GRAY,
-                            );
-                        }
-                        for i in 0..=y_ticks {
-                            let t = i as f32 / y_ticks as f32;
-                            let y = egui::lerp(plot_rect.bottom()..=plot_rect.top(), t);
-                            painter.line_segment(
-                                [egui::pos2(plot_rect.left(), y), egui::pos2(plot_rect.right(), y)],
-                                egui::Stroke::new(1.0, egui::Color32::from_gray(220)),
-                            );
-                            let value = visible_y_max * (i as f64 / y_ticks as f64);
-                            painter.text(
-                                egui::pos2(plot_rect.left() - 8.0, y),
-                                egui::Align2::RIGHT_CENTER,
-                                format!("{:.1}", value),
-                                egui::TextStyle::Small.resolve(ui.style()),
-                                egui::Color32::GRAY,
-                            );
-                        }
+                    let x_ticks = 10;
+                    let y_ticks = 10;
+                    for i in 0..=x_ticks {
+                        let t = i as f32 / x_ticks as f32;
+                        let x = egui::lerp(plot_rect.left()..=plot_rect.right(), t);
+                        painter.line_segment(
+                            [egui::pos2(x, plot_rect.top()), egui::pos2(x, plot_rect.bottom())],
+                            egui::Stroke::new(1.0, egui::Color32::from_gray(220)),
+                        );
+                        let value = visible_min_x + visible_span * t as f64;
+                        painter.text(
+                            egui::pos2(x, plot_rect.bottom() + 8.0),
+                            egui::Align2::CENTER_TOP,
+                            format!("{:.1}", value),
+                            egui::TextStyle::Small.resolve(ui.style()),
+                            grid_text_color,
+                        );
+                    }
+                    for i in 0..=y_ticks {
+                        let t = i as f32 / y_ticks as f32;
+                        let y = egui::lerp(plot_rect.bottom()..=plot_rect.top(), t);
+                        painter.line_segment(
+                            [egui::pos2(plot_rect.left(), y), egui::pos2(plot_rect.right(), y)],
+                            egui::Stroke::new(1.0, egui::Color32::from_gray(220)),
+                        );
+                        let value = visible_y_max * (i as f64 / y_ticks as f64);
+                        painter.text(
+                            egui::pos2(plot_rect.left() - 8.0, y),
+                            egui::Align2::RIGHT_CENTER,
+                            format!("{:.1}", value),
+                            egui::TextStyle::Small.resolve(ui.style()),
+                            grid_text_color,
+                        );
                     }
 
                     painter.line_segment(
@@ -1093,28 +1123,16 @@ impl PetriApp {
                         egui::Align2::CENTER_CENTER,
                         x_axis_label,
                         egui::TextStyle::Body.resolve(ui.style()),
-                        egui::Color32::GRAY,
+                        axis_text_color,
                     );
+                    let vertical_y_label = y_axis_label.chars().map(|c| c.to_string()).collect::<Vec<_>>().join("
+");
                     painter.text(
-                        egui::pos2(outer.left() + 16.0, plot_rect.top() - 2.0),
-                        egui::Align2::LEFT_TOP,
-                        y_axis_label,
+                        egui::pos2(outer.left() + 16.0, plot_rect.center().y),
+                        egui::Align2::CENTER_CENTER,
+                        vertical_y_label,
                         egui::TextStyle::Body.resolve(ui.style()),
-                        egui::Color32::GRAY,
-                    );
-                    painter.text(
-                        egui::pos2(plot_rect.right() - 4.0, plot_rect.bottom() + 8.0),
-                        egui::Align2::RIGHT_TOP,
-                        "X",
-                        egui::TextStyle::Heading.resolve(ui.style()),
-                        egui::Color32::DARK_GRAY,
-                    );
-                    painter.text(
-                        egui::pos2(plot_rect.left() - 22.0, plot_rect.top()),
-                        egui::Align2::CENTER_TOP,
-                        "Y",
-                        egui::TextStyle::Heading.resolve(ui.style()),
-                        egui::Color32::DARK_GRAY,
+                        axis_text_color,
                     );
 
                     ui.add_space(6.0);
