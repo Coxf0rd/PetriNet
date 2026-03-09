@@ -9,7 +9,10 @@ impl PetriApp {
         chain: &MarkovChain,
         place_count: usize,
     ) -> Option<Vec<f64>> {
-        let weights = Self::chain_state_weights(chain)?;
+        let weights = Self::chain_state_weights(chain);
+        if weights.is_empty() {
+            return None;
+        }
         let mut expected = vec![0.0; place_count];
         for (state, prob) in chain.states.iter().zip(weights.iter()) {
             for (idx, &tokens) in state.iter().enumerate().take(place_count) {
@@ -23,9 +26,10 @@ impl PetriApp {
         chain: &MarkovChain,
         place_idx: usize,
     ) -> Vec<(u32, f64)> {
-        let Some(weights) = Self::chain_state_weights(chain) else {
+        let weights = Self::chain_state_weights(chain);
+        if weights.is_empty() {
             return Vec::new();
-        };
+        }
         let mut distribution = HashMap::new();
         for (state, prob) in chain.states.iter().zip(weights.iter()) {
             let count = *state.get(place_idx).unwrap_or(&0);
@@ -46,13 +50,17 @@ impl PetriApp {
         } else {
             self.markov_place_arcs.clear();
         }
+        if self
+            .selected_markov_arc
+            .is_some_and(|idx| idx >= self.markov_place_arcs.len())
+        {
+            self.selected_markov_arc = None;
+        }
     }
 
     fn build_markov_place_arcs(&self, chain: &MarkovChain) -> Vec<MarkovPlaceArc> {
-        let Some(state_weights) = Self::chain_state_weights(chain) else {
-            return self.fallback_markov_place_arcs();
-        };
         let mut arcs = HashMap::new();
+        let state_weights = Self::chain_state_weights(chain);
         for (state_idx, edges) in chain.transitions.iter().enumerate() {
             let state_prob = *state_weights.get(state_idx).unwrap_or(&0.0);
             if state_prob <= 0.0 {
@@ -177,16 +185,19 @@ impl PetriApp {
         result
     }
 
-    fn chain_state_weights(chain: &MarkovChain) -> Option<Vec<f64>> {
-        let mut weights = chain.stationary.as_ref()?.clone();
+    fn chain_state_weights(chain: &MarkovChain) -> Vec<f64> {
+        let mut weights = chain
+            .stationary
+            .as_ref()
+            .cloned()
+            .unwrap_or_else(|| vec![1.0; chain.states.len()]);
         let total: f64 = weights.iter().sum();
-        if total <= 0.0 {
-            return None;
+        if total > 0.0 {
+            for w in weights.iter_mut() {
+                *w /= total;
+            }
         }
-        for w in weights.iter_mut() {
-            *w /= total;
-        }
-        Some(weights)
+        weights
     }
 
     fn markov_places_delta(src: &[u32], dest: &[u32]) -> (Vec<usize>, Vec<usize>) {

@@ -1,9 +1,8 @@
 use super::*;
-use crate::markov::StationaryStatus;
-use egui::{Color32, RichText, WidgetText};
 use crate::ui::property_selection::{show_collapsible_property_section, PropertySectionConfig};
 use crate::ui::property_window::{show_property_window, PropertyWindowConfig};
 use crate::ui::scroll_utils;
+use egui::{Color32, Frame, RichText, WidgetText};
 
 struct MarkovStationaryRow {
     state_index: Option<usize>,
@@ -60,10 +59,7 @@ impl PetriApp {
                     });
 
                     if !simulation_ready {
-                        ui.colored_label(
-                            Color32::from_rgb(190, 40, 40),
-                            simulation_hint.as_ref(),
-                        );
+                        ui.colored_label(Color32::from_rgb(190, 40, 40), simulation_hint.as_ref());
                     }
                 });
 
@@ -87,13 +83,11 @@ impl PetriApp {
                 } else {
                     ui.label(self.tr("Постройте модель", "Build the model"));
                 }
-
             },
         );
 
         self.show_markov_window = open;
     }
-
 
     fn markov_section_height(preferred: f32, min_height: f32) -> f32 {
         preferred.max(min_height)
@@ -141,25 +135,10 @@ impl PetriApp {
                 if let Some(stationary) = stationary {
                     self.draw_markov_stationary_grid(ui, chain, stationary);
                 } else {
-                    let message = match chain.stationary_status {
-                        StationaryStatus::StateLimitReached => self.tr(
-                            "Стационарное распределение не вычислено: достигнут лимит состояний. Упростите сеть или уменьшите пространство состояний.",
-                            "Stationary distribution is unavailable because the state limit was reached. Simplify the net or reduce the state space.",
-                        ),
-                        StationaryStatus::TimedSemanticsUnsupported => self.tr(
-                            "Стационарное распределение недоступно для сетей с задержками или стохастическими распределениями: текущая марковская модель учитывает только мгновенные маркировки.",
-                            "Stationary distribution is unavailable for nets with delays or stochastic distributions: the current Markov model only supports instantaneous markings.",
-                        ),
-                        StationaryStatus::SolverFailed => self.tr(
-                            "Стационарное распределение не вычислено: численный решатель не смог найти устойчивое решение.",
-                            "Stationary distribution is unavailable because the numerical solver could not find a stable solution.",
-                        ),
-                        StationaryStatus::Available => self.tr(
-                            "Стационарное распределение не вычислено",
-                            "Unable to compute stationary",
-                        ),
-                    };
-                    ui.label(message);
+                    ui.label(self.tr(
+                        "Стационарное распределение не вычислено",
+                        "Unable to compute stationary",
+                    ));
                 }
             },
         );
@@ -243,7 +222,8 @@ impl PetriApp {
                             .unwrap_or_default();
                         Self::markov_draw_cell(ui, state_col, state_text);
 
-                        let place_response = Self::markov_draw_cell(ui, place_col, row.place_text.as_str());
+                        let place_response =
+                            Self::markov_draw_cell(ui, place_col, row.place_text.as_str());
                         if let Some(full) = &row.place_hover {
                             place_response.on_hover_text(full);
                         }
@@ -292,37 +272,37 @@ impl PetriApp {
                 ui.end_row();
             });
 
-        scroll_utils::show_virtualized_rows_with_fill(
+        scroll_utils::show_virtualized_rows(
             ui,
             "markov_state_graph",
             180.0,
             row_h,
             rows.len(),
-            |idx| {
-                if rows[idx].group_state_index % 2 == 1 {
+            |ui: &mut egui::Ui, idx: usize| {
+                let row = &rows[idx];
+                let fill = if row.group_state_index % 2 == 1 {
                     Color32::from_rgb(235, 245, 255)
                 } else {
                     Color32::TRANSPARENT
-                }
-            },
-            |ui: &mut egui::Ui, idx: usize| {
-                let row = &rows[idx];
-                egui::Grid::new(("markov_state_graph_row", idx))
-                    .num_columns(3)
-                    .show(ui, |ui| {
-                        let state_text = row
-                            .source_index
-                            .map(|state_idx| format!("S{}", state_idx + 1))
-                            .unwrap_or_default();
-                        Self::markov_draw_cell(ui, state_col, state_text);
-                        Self::markov_draw_cell(ui, target_col, row.target_text.as_str());
-                        let prob_text = row
-                            .probability
-                            .map(|value| format!("{:.2}%", value * 100.0))
-                            .unwrap_or_default();
-                        Self::markov_draw_cell(ui, prob_col, prob_text);
-                        ui.end_row();
-                    });
+                };
+                Frame::none().fill(fill).show(ui, |ui| {
+                    egui::Grid::new(("markov_state_graph_row", idx))
+                        .num_columns(3)
+                        .show(ui, |ui| {
+                            let state_text = row
+                                .source_index
+                                .map(|state_idx| format!("S{}", state_idx + 1))
+                                .unwrap_or_default();
+                            Self::markov_draw_cell(ui, state_col, state_text);
+                            Self::markov_draw_cell(ui, target_col, row.target_text.as_str());
+                            let prob_text = row
+                                .probability
+                                .map(|value| format!("{:.2}%", value * 100.0))
+                                .unwrap_or_default();
+                            Self::markov_draw_cell(ui, prob_col, prob_text);
+                            ui.end_row();
+                        });
+                });
             },
         );
     }
@@ -371,11 +351,7 @@ impl PetriApp {
                             format!("P{} {{{}}}", place.id, place.name.trim())
                         };
 
-                        ui.label(format!(
-                            "{}: {}",
-                            self.tr("Позиция", "Place"),
-                            place_label
-                        ));
+                        ui.label(format!("{}: {}", self.tr("Позиция", "Place"), place_label));
 
                         if let Some(expected) = expectation
                             .as_ref()
@@ -441,8 +417,6 @@ impl PetriApp {
     fn markov_state_graph_column_widths() -> [f32; 3] {
         [88.0, 420.0, 120.0]
     }
-
-
 
     fn markov_stationary_rows(
         &self,

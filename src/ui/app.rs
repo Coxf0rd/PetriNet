@@ -412,6 +412,7 @@ pub struct PetriApp {
     markov_limit_reached: bool,
     markov_annotations: HashMap<u64, String>,
     markov_place_arcs: Vec<MarkovPlaceArc>,
+    selected_markov_arc: Option<usize>,
     new_place_size: VisualSize,
     new_place_color: NodeColor,
     new_place_marking: u32,

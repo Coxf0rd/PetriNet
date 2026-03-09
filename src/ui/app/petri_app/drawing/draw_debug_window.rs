@@ -248,7 +248,8 @@ impl PetriApp {
                                     if let Some(place) = self.net.places.get(idx) {
                                         self.canvas.selected_place = Some(place.id);
                                         let screen_rect = ctx.available_rect();
-                                        let target_x = screen_rect.left() + screen_rect.width() * 0.3;
+                                        let target_x =
+                                            screen_rect.left() + screen_rect.width() * 0.3;
                                         let target_y = screen_rect.center().y;
                                         self.canvas.pan = egui::vec2(
                                             target_x - place.pos[0] * self.canvas.zoom,

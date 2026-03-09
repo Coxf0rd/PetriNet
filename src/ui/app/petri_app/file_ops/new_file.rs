@@ -18,6 +18,8 @@ impl PetriApp {
         self.markov_model = None;
         self.markov_limit_reached = false;
         self.markov_annotations.clear();
+        self.markov_place_arcs.clear();
+        self.selected_markov_arc = None;
         self.show_markov_window = false;
         self.markov_model_enabled = false;
         self.canvas.cursor_valid = false;

@@ -80,6 +80,7 @@ impl PetriApp {
                 markov_limit_reached: false,
                 markov_annotations: HashMap::new(),
                 markov_place_arcs: Vec::new(),
+                selected_markov_arc: None,
                 new_place_size: VisualSize::Medium,
                 new_place_color: NodeColor::Default,
                 new_place_marking: 0,
