@@ -1,4 +1,5 @@
 use super::*;
+use crate::markov::StationaryStatus;
 use egui::{Color32, RichText, WidgetText};
 use crate::ui::property_selection::{show_collapsible_property_section, PropertySectionConfig};
 use crate::ui::property_window::{show_property_window, PropertyWindowConfig};
@@ -140,10 +141,25 @@ impl PetriApp {
                 if let Some(stationary) = stationary {
                     self.draw_markov_stationary_grid(ui, chain, stationary);
                 } else {
-                    ui.label(self.tr(
-                        "Стационарное распределение не вычислено",
-                        "Unable to compute stationary",
-                    ));
+                    let message = match chain.stationary_status {
+                        StationaryStatus::StateLimitReached => self.tr(
+                            "Стационарное распределение не вычислено: достигнут лимит состояний. Упростите сеть или уменьшите пространство состояний.",
+                            "Stationary distribution is unavailable because the state limit was reached. Simplify the net or reduce the state space.",
+                        ),
+                        StationaryStatus::TimedSemanticsUnsupported => self.tr(
+                            "Стационарное распределение недоступно для сетей с задержками или стохастическими распределениями: текущая марковская модель учитывает только мгновенные маркировки.",
+                            "Stationary distribution is unavailable for nets with delays or stochastic distributions: the current Markov model only supports instantaneous markings.",
+                        ),
+                        StationaryStatus::SolverFailed => self.tr(
+                            "Стационарное распределение не вычислено: численный решатель не смог найти устойчивое решение.",
+                            "Stationary distribution is unavailable because the numerical solver could not find a stable solution.",
+                        ),
+                        StationaryStatus::Available => self.tr(
+                            "Стационарное распределение не вычислено",
+                            "Unable to compute stationary",
+                        ),
+                    };
+                    ui.label(message);
                 }
             },
         );

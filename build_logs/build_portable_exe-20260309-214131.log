@@ -1,0 +1,29 @@
+build_portable_exe.ps1 failed: 20260309-214131
+ProjectDir: C:\Users\KDFX Modes\Desktop\PetriNet_Project\PetriNet
+Cargo: C:\Users\KDFX Modes\.cargo\bin\cargo.exe
+CargoExitCode: 101
+
+ERROR:
+System.Management.Automation.RuntimeException: Cargo build failed with exit code 101
+
+CARGO STDERR:
+   Compiling petri_net_legacy_editor v0.7.145 (C:\Users\KDFX Modes\Desktop\PetriNet_Project\PetriNet)
+error[E0425]: cannot find function `show_virtualized_rows_with_fill` in module `scroll_utils`
+   --> src\ui\app\petri_app\drawing\draw_markov_window.rs:295:23
+    |
+295 |           scroll_utils::show_virtualized_rows_with_fill(
+    |                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: a function with a similar name exists: `show_virtualized_rows`
+    |
+   ::: src\ui\scroll_utils.rs:70:1
+    |
+ 70 | / pub fn show_virtualized_rows(
+ 71 | |     ui: &mut Ui,
+ 72 | |     id_source: impl std::hash::Hash,
+ 73 | |     max_height: f32,
+...   |
+ 97 | |         });
+ 98 | | }
+    | |_- similarly named function `show_virtualized_rows` defined here
+
+For more information about this error, try `rustc --explain E0425`.
+error: could not compile `petri_net_legacy_editor` (lib) due to 1 previous error
