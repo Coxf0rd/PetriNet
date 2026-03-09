@@ -867,17 +867,24 @@ impl PetriApp {
         let grid_text_color = egui::Color32::from_gray(80);
 
         let mut place_options: Vec<(usize, String)> = Vec::new();
-        for (idx, place) in self.net.places.iter().enumerate() {
-            if place.stats.markers_total
-                || place.stats.markers_input
-                || place.stats.markers_output
-                || place.stats.load_total
-                || place.stats.load_input
-                || place.stats.load_output
-            {
-                place_options.push((idx, format!("P{}", idx + 1)));
-            }
-        }
+		
+		for (idx, place) in self.net.places.iter().enumerate() {
+			if place.stats.markers_total
+				|| place.stats.markers_input
+				|| place.stats.markers_output
+				|| place.stats.load_total
+				|| place.stats.load_input
+				|| place.stats.load_output
+			{
+				let label = if place.name.trim().is_empty() {
+					format!("P{}", idx + 1)
+				} else {
+					format!("P{} ({})", idx + 1, place.name)
+				};
+
+				place_options.push((idx, label));
+			}
+	}
 
         if place_options.is_empty() {
             self.show_place_stats_window = false;
