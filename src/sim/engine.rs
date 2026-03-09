@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use rand::rngs::SmallRng;
 use rand::{Rng, SeedableRng};
 use rand_distr::{Distribution, Gamma};
@@ -67,7 +65,6 @@ pub struct PlaceLoadStats {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SimulationResult {
-    pub cycle_time: Option<f64>,
     pub logs: Vec<LogEntry>,
     pub log_entries_total: usize,
     pub log_sampling_stride: usize,
@@ -175,9 +172,6 @@ pub fn run_simulation(
     );
     // Deterministic by default: makes tests and bug reports reproducible.
     let mut rng = SmallRng::seed_from_u64(0x5EED_5EED);
-    let mut seen_markings: HashMap<Vec<u32>, f64> = HashMap::new();
-    let mut cycle_time = None;
-
     let mut stats_acc = vec![0_f64; places];
     let mut stats_min = vec![u32::MAX; places];
     let mut stats_max = vec![0_u32; places];
@@ -186,12 +180,6 @@ pub fn run_simulation(
     loop {
         state.process_releases(now);
         let marking = state.total_marking();
-
-        if cycle_time.is_none() {
-            if let Some(prev) = seen_markings.insert(marking.clone(), now) {
-                cycle_time = Some((now - prev).max(0.0));
-            }
-        }
 
         if collect_stats {
             for p in 0..places {
@@ -340,7 +328,6 @@ pub fn run_simulation(
     };
 
     SimulationResult {
-        cycle_time,
         logs,
         log_entries_total: raw_log_total,
         log_sampling_stride,

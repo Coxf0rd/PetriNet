@@ -51,12 +51,24 @@ impl PetriApp {
                     }
                     return;
                 }
-                ui.columns(2, |columns| {
-                    if self.show_graph_view {
-                        self.draw_graph_view(&mut columns[0]);
-                    }
-                    self.draw_table_workspace(&mut columns[1]);
-                });
+
+                let available_width = ui.available_width();
+                let min_table_width = 280.0;
+                let max_table_width = (available_width - 240.0).max(min_table_width);
+
+                egui::SidePanel::right("table_view_side_panel")
+                    .resizable(true)
+                    .default_width(self.table_panel_width)
+                    .min_width(min_table_width)
+                    .max_width(max_table_width)
+                    .show_inside(ui, |ui| {
+                        self.table_panel_width = ui.max_rect().width();
+                        self.draw_table_workspace(ui);
+                    });
+
+                if self.show_graph_view {
+                    self.draw_graph_view(ui);
+                }
             }
             LayoutMode::Minimized => {}
         });
