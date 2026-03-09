@@ -98,15 +98,6 @@ pub fn build_markov_chain(net: &PetriNet, max_states: Option<usize>) -> MarkovCh
     let mut limit_reached = false;
     let mut total_edge_count = 0_usize;
     while let Some(idx) = queue.pop_front() {
-        if states.len() >= adaptive_limit {
-            if fixed_limit.is_none() {
-                adaptive_limit = auto_state_limit(net, states.len(), total_edge_count, queue.len());
-            }
-            if states.len() >= adaptive_limit {
-                limit_reached = true;
-                break;
-            }
-        }
 
         let state = states[idx].clone();
         let enabled = enabled_transition_candidates(net, &specs, &state);
