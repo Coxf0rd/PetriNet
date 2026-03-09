@@ -3,7 +3,7 @@ use crate::markov::{BuildStopReason, MarkovComputationMode, StationaryStatus};
 use crate::ui::property_selection::{show_collapsible_property_section, PropertySectionConfig};
 use crate::ui::property_window::{show_property_window, PropertyWindowConfig};
 use crate::ui::scroll_utils;
-use egui::{Color32, Frame, RichText, WidgetText};
+use egui::{Color32, RichText, WidgetText};
 
 struct MarkovStationaryRow {
     state_index: Option<usize>,
@@ -404,29 +404,22 @@ impl PetriApp {
             rows.len(),
             |ui: &mut egui::Ui, idx: usize| {
                 let row = &rows[idx];
-                let fill = if row.group_state_index % 2 == 1 {
-                    Color32::from_rgb(235, 245, 255)
-                } else {
-                    Color32::TRANSPARENT
-                };
-                Frame::none().fill(fill).show(ui, |ui| {
-                    egui::Grid::new(("markov_state_graph_row", idx))
-                        .num_columns(3)
-                        .show(ui, |ui| {
-                            let state_text = row
-                                .source_index
-                                .map(|state_idx| format!("S{}", state_idx + 1))
-                                .unwrap_or_default();
-                            Self::markov_draw_cell(ui, state_col, state_text);
-                            Self::markov_draw_cell(ui, target_col, row.target_text.as_str());
-                            let prob_text = row
-                                .probability
-                                .map(|value| format!("{:.2}%", value * 100.0))
-                                .unwrap_or_default();
-                            Self::markov_draw_cell(ui, prob_col, prob_text);
-                            ui.end_row();
-                        });
-                });
+                egui::Grid::new(("markov_state_graph_row", idx))
+                    .num_columns(3)
+                    .show(ui, |ui| {
+                        let state_text = row
+                            .source_index
+                            .map(|state_idx| format!("S{}", state_idx + 1))
+                            .unwrap_or_default();
+                        Self::markov_draw_cell(ui, state_col, state_text);
+                        Self::markov_draw_cell(ui, target_col, row.target_text.as_str());
+                        let prob_text = row
+                            .probability
+                            .map(|value| format!("{:.2}%", value * 100.0))
+                            .unwrap_or_default();
+                        Self::markov_draw_cell(ui, prob_col, prob_text);
+                        ui.end_row();
+                    });
             },
         );
     }
