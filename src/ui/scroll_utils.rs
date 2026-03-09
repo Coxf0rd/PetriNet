@@ -73,38 +73,38 @@ pub fn show_virtualized_rows(
     max_height: f32,
     row_height: f32,
     total_rows: usize,
-    row_ui: impl FnMut(&mut Ui, usize),
+    mut row_ui: impl FnMut(&mut Ui, usize),
 ) {
-    show_virtualized_rows_with_fill(
-        ui,
-        id_source,
-        max_height,
-        row_height,
-        total_rows,
-        |idx| {
-            if idx % 2 == 1 {
-                Color32::from_rgb(235, 245, 255)
-            } else {
-                Color32::TRANSPARENT
+    egui::ScrollArea::vertical()
+        .id_source(id_source)
+        .max_height(max_height)
+        // Prevent horizontal shrink so that the scroll area fills the
+        // available width.  Without this, the scroll area may only be as
+        // wide as its contents, leaving unused space on the right.
+        .auto_shrink([false, false])
+        .scroll_bar_visibility(ScrollBarVisibility::VisibleWhenNeeded)
+        .show_rows(ui, row_height, total_rows, |ui, range| {
+            for idx in range {
+                let fill = if idx % 2 == 1 {
+                    Color32::from_rgb(235, 245, 255)
+                } else {
+                    Color32::TRANSPARENT
+                };
+                Frame::none().fill(fill).show(ui, |ui| {
+                    row_ui(ui, idx);
+                });
             }
-        },
-        row_ui,
-    );
+        });
 }
 
-
-/// Virtualize a list of rows with customizable row background fill.
-///
-/// This variant mirrors `show_virtualized_rows`, but lets the caller decide
-/// the fill color for each rendered row. It is useful for tables whose row
-/// grouping should not follow a simple odd/even pattern.
+/// Virtualize rows while allowing callers to choose the per-row fill color.
 pub fn show_virtualized_rows_with_fill(
     ui: &mut Ui,
     id_source: impl std::hash::Hash,
     max_height: f32,
     row_height: f32,
     total_rows: usize,
-    mut row_fill: impl FnMut(usize) -> Color32,
+    mut fill_for_row: impl FnMut(usize) -> Color32,
     mut row_ui: impl FnMut(&mut Ui, usize),
 ) {
     egui::ScrollArea::vertical()
@@ -114,8 +114,7 @@ pub fn show_virtualized_rows_with_fill(
         .scroll_bar_visibility(ScrollBarVisibility::VisibleWhenNeeded)
         .show_rows(ui, row_height, total_rows, |ui, range| {
             for idx in range {
-                let fill = row_fill(idx);
-                Frame::none().fill(fill).show(ui, |ui| {
+                Frame::none().fill(fill_for_row(idx)).show(ui, |ui| {
                     row_ui(ui, idx);
                 });
             }
@@ -154,5 +153,14 @@ mod tests {
         let _list: fn(&mut Ui, Id, f32, fn(&mut Ui)) -> () = show_list_with_scroll;
         let _virt: fn(&mut Ui, Id, f32, f32, usize, fn(&mut Ui, usize)) -> () =
             show_virtualized_rows;
+        let _virt_fill: fn(
+            &mut Ui,
+            Id,
+            f32,
+            f32,
+            usize,
+            fn(usize) -> Color32,
+            fn(&mut Ui, usize),
+        ) -> () = show_virtualized_rows_with_fill;
     }
 }
