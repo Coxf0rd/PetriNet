@@ -1,8 +1,8 @@
 use super::*;
-use egui::{Color32, RichText};
 use crate::ui::property_selection::{show_collapsible_property_section, PropertySectionConfig};
 use crate::ui::property_window::{show_property_window, PropertyWindowConfig};
 use crate::ui::scroll_utils;
+use egui::{Color32, WidgetText};
 
 impl PetriApp {
     pub(in crate::ui::app) fn draw_markov_window(&mut self, ctx: &egui::Context) {
@@ -44,10 +44,7 @@ impl PetriApp {
                     });
 
                     if !simulation_ready {
-                        ui.colored_label(
-                            Color32::from_rgb(190, 40, 40),
-                            simulation_hint.as_ref(),
-                        );
+                        ui.colored_label(Color32::from_rgb(190, 40, 40), simulation_hint.as_ref());
                     }
                 });
 
@@ -71,7 +68,6 @@ impl PetriApp {
                 } else {
                     ui.label(self.tr("Постройте модель", "Build the model"));
                 }
-
             },
         );
 
@@ -112,11 +108,6 @@ impl PetriApp {
 
         ui.separator();
 
-        // Replace the ad-hoc CollapsingHeader calls with the unified property
-        // section helper.  Each section is identified by a unique ID so that
-        // collapsed/expanded state persists across redraws.  We ignore the
-        // optional return value because the contents are rendered for side
-        // effects only.
         let _ = show_collapsible_property_section(
             ui,
             PropertySectionConfig::new("markov_stationary_section")
@@ -165,98 +156,73 @@ impl PetriApp {
             ui.label(self.tr("Состояний не найдено", "No states found"));
             return;
         }
-        let max_height = Self::markov_section_height(ui, 320.0, 140.0);
-        let state_col = 76.0;
-        let prob_col = 84.0;
 
-        scroll_utils::show_list_with_scroll(
+        let (state_col, marking_col, prob_col) = Self::markov_stationary_column_widths();
+        egui::Grid::new("markov_stationary_header")
+            .striped(true)
+            .show(ui, |ui| {
+                Self::markov_draw_cell(ui, state_col, self.tr("Состояние", "State"));
+                Self::markov_draw_cell(ui, marking_col, self.tr("Маркировка", "Marking"));
+                Self::markov_draw_cell(ui, prob_col, self.tr("Вероятность", "Probability"));
+                ui.end_row();
+            });
+
+        let row_h = ui.text_style_height(&egui::TextStyle::Body) + 4.0;
+        let max_height = Self::markov_section_height(ui, 320.0, 140.0);
+
+        scroll_utils::show_virtualized_rows(
             ui,
             "markov_stationary_distribution",
             max_height,
-            |ui: &mut egui::Ui| {
-                for (idx, value) in stationary.iter().copied().enumerate() {
-                    let row_available = ui.available_width();
-                    let marking_width = Self::markov_marking_column_width(row_available);
-                    ui.horizontal(|ui: &mut egui::Ui| {
-                        ui.add_sized([state_col, 0.0], egui::Label::new(format!("S{}", idx + 1)));
-                        ui.allocate_ui(Vec2::new(marking_width, 0.0), |ui: &mut egui::Ui| {
-                            self.draw_state_marking_table(ui, &chain.states[idx][..], idx);
-                        });
-                        ui.add_sized([prob_col, 0.0], egui::Label::new(format!("{:.6}", value)));
-                    });
-                    ui.add_space(6.0);
-                }
+            row_h,
+            stationary.len(),
+            |ui: &mut egui::Ui, row_idx: usize| {
+                ui.horizontal(|ui| {
+                    Self::markov_draw_cell(ui, state_col, format!("S{}", row_idx + 1));
+                    Self::markov_draw_cell(
+                        ui,
+                        marking_col,
+                        self.markov_marking_summary(&chain.states[row_idx]),
+                    );
+                    Self::markov_draw_cell(ui, prob_col, format!("{:.6}", stationary[row_idx]));
+                });
             },
         );
     }
 
     fn draw_markov_state_graph(&self, ui: &mut egui::Ui, chain: &MarkovChain) {
-        // Compute the available width and derive the transitions column width for the
-        // header.  This width will be recomputed for each row to adapt to the
-        // scroll area's width.
-        let header_available = ui.available_width();
-        let header_transitions_width = Self::markov_transitions_column_width(header_available);
+        if chain.transitions.is_empty() {
+            ui.label(self.tr("Переходов не найдено", "No transitions detected"));
+            return;
+        }
 
-        let state_col = 76.0;
-        ui.horizontal(|ui| {
-            ui.add_sized(
-                [state_col, 0.0],
-                egui::Label::new(RichText::new(self.tr("Состояние", "State")).strong()),
-            );
-            ui.allocate_ui(Vec2::new(header_transitions_width, 0.0), |ui| {
-                ui.label(RichText::new(self.tr("Переходы", "Transitions")).strong());
+        let (state_col, transitions_col) = Self::markov_state_graph_column_widths();
+        egui::Grid::new("markov_state_graph_header")
+            .striped(true)
+            .show(ui, |ui| {
+                Self::markov_draw_cell(ui, state_col, self.tr("Состояние", "State"));
+                Self::markov_draw_cell(ui, transitions_col, self.tr("Переходы", "Transitions"));
+                ui.end_row();
             });
-        });
 
+        let row_h = ui.text_style_height(&egui::TextStyle::Body) + 4.0;
         let max_height = Self::markov_section_height(ui, 280.0, 140.0);
 
-        // Use a scroll area with a visible scroll bar when needed.  Within the
-        // scroll area, recompute the transitions column width based on the
-        // current available width to ensure alignment with the header.
-        scroll_utils::show_list_with_scroll(
+        scroll_utils::show_virtualized_rows(
             ui,
             "markov_state_graph",
             max_height,
-            |ui: &mut egui::Ui| {
-                if chain.transitions.is_empty() {
-                    ui.label(self.tr("Переходов не найдено", "No transitions detected"));
-                    return;
-                }
-
-                for (idx, edges) in chain.transitions.iter().enumerate() {
-                    // Determine the width for the transitions column based on the row's width.
-                    let row_available = ui.available_width();
-                    let transitions_width = Self::markov_transitions_column_width(row_available);
-                    ui.horizontal(|ui: &mut egui::Ui| {
-                        ui.add_sized([state_col, 0.0], egui::Label::new(format!("S{}", idx + 1)));
-                        ui.allocate_ui(Vec2::new(transitions_width, 0.0), |ui: &mut egui::Ui| {
-                            if edges.is_empty() {
-                                ui.label(self.tr("Переходов нет", "No transitions"));
-                            } else {
-                                let total_rate: f64 = edges.iter().map(|(_, rate)| *rate).sum();
-                                ui.vertical(|ui: &mut egui::Ui| {
-                                    for (dest, rate) in edges {
-                                        let prob = if total_rate > 0.0 {
-                                            (rate / total_rate).clamp(0.0, 1.0)
-                                        } else {
-                                            0.0
-                                        };
-                                        ui.add_sized(
-                                            [transitions_width, 0.0],
-                                            egui::Label::new(format!(
-                                                "→ S{} ({:.2})",
-                                                dest + 1,
-                                                prob
-                                            ))
-                                            .wrap(),
-                                        );
-                                    }
-                                });
-                            }
-                        });
-                    });
-                    ui.add_space(6.0);
-                }
+            row_h,
+            chain.transitions.len(),
+            |ui: &mut egui::Ui, row_idx: usize| {
+                ui.horizontal(|ui| {
+                    Self::markov_draw_cell(ui, state_col, format!("S{}", row_idx + 1));
+                    Self::markov_draw_cell(
+                        ui,
+                        transitions_col,
+                        self.markov_transition_summary(chain, row_idx),
+                    );
+                });
             },
         );
     }
@@ -284,12 +250,8 @@ impl PetriApp {
         }
 
         let expectation = Self::markov_expected_tokens(chain, self.net.places.len());
-
         let max_height = Self::markov_section_height(ui, 280.0, 140.0);
 
-        // Use a scroll area with a visible scroll bar when needed for the place
-        // highlight distribution.  We compute widths inside each row to adapt
-        // to the current available width of the scroll area.
         scroll_utils::show_list_with_scroll(
             ui,
             "markov_place_distribution",
@@ -303,11 +265,7 @@ impl PetriApp {
                             format!("P{} ({})", place.id, place.name)
                         };
 
-                        ui.label(format!(
-                            "{}: {}",
-                            self.tr("Позиция", "Place"),
-                            place_label,
-                        ));
+                        ui.label(format!("{}: {}", self.tr("Позиция", "Place"), place_label,));
 
                         if let Some(expected) = expectation
                             .as_ref()
@@ -326,23 +284,16 @@ impl PetriApp {
                             ui.horizontal(|ui: &mut egui::Ui| {
                                 ui.add_sized(
                                     [140.0, 0.0],
-                                    egui::Label::new(
-                                        RichText::new(self.tr("Число маркеров", "Token count")).strong(),
-                                    ),
+                                    egui::Label::new(self.tr("Число маркеров", "Token count")),
                                 );
                                 ui.add_sized(
                                     [84.0, 0.0],
-                                    egui::Label::new(
-                                        RichText::new(self.tr("Вероятность", "Probability")).strong(),
-                                    ),
+                                    egui::Label::new(self.tr("Вероятность", "Probability")),
                                 );
                             });
                             for (count, prob) in distribution.iter() {
                                 ui.horizontal(|ui: &mut egui::Ui| {
-                                    ui.add_sized(
-                                        [140.0, 0.0],
-                                        egui::Label::new(count.to_string()),
-                                    );
+                                    ui.add_sized([140.0, 0.0], egui::Label::new(count.to_string()));
                                     ui.add_sized(
                                         [84.0, 0.0],
                                         egui::Label::new(format!("{:.2}%", prob * 100.0)),
@@ -368,47 +319,56 @@ impl PetriApp {
         );
     }
 
-    fn draw_state_marking_table(&self, ui: &mut egui::Ui, marking: &[u32], state_idx: usize) {
-        const COLUMNS: usize = 2;
-
-        if marking.is_empty() {
-            ui.label("—");
-            return;
+    fn markov_marking_summary(&self, marking: &[u32]) -> String {
+        let mut parts = Vec::new();
+        for (idx, &tokens) in marking.iter().enumerate() {
+            if tokens > 0 {
+                parts.push(format!(
+                    "{} = {}",
+                    self.markov_place_display_name(idx),
+                    tokens
+                ));
+            }
         }
 
-        let rows = (marking.len() + COLUMNS - 1) / COLUMNS;
-        let place_header = self.tr("Позиция", "Place");
-        let tokens_header = self.tr("Маркеры", "Tokens");
+        if parts.is_empty() {
+            self.tr("все 0", "all 0").into_owned()
+        } else {
+            parts.join(", ")
+        }
+    }
 
-        egui::Grid::new(format!(
-            "state_marking_summary_{}_{}",
-            state_idx,
-            marking.len()
-        ))
-        .striped(true)
-        .spacing([6.0, 2.0])
-        .min_col_width(48.0)
-        .show(ui, |ui| {
-            for _ in 0..COLUMNS {
-                ui.label(RichText::new(place_header.as_ref()).strong());
-                ui.label(RichText::new(tokens_header.as_ref()).strong());
-            }
-            ui.end_row();
+    fn markov_transition_summary(&self, chain: &MarkovChain, row_idx: usize) -> String {
+        let edges = &chain.transitions[row_idx];
+        if edges.is_empty() {
+            return self.tr("Переходов нет", "No transitions").into_owned();
+        }
 
-            for row in 0..rows {
-                for col in 0..COLUMNS {
-                    let idx = row + col * rows;
-                    if idx < marking.len() {
-                        ui.label(self.markov_place_display_name(idx));
-                        ui.label(marking[idx].to_string());
-                    } else {
-                        ui.label(" ");
-                        ui.label(" ");
-                    }
-                }
-                ui.end_row();
-            }
-        });
+        let total_rate: f64 = edges.iter().map(|(_, rate)| *rate).sum();
+        edges
+            .iter()
+            .map(|(dest, rate)| {
+                let prob = if total_rate > 0.0 {
+                    (rate / total_rate).clamp(0.0, 1.0)
+                } else {
+                    0.0
+                };
+                format!("S{} ({:.2})", dest + 1, prob)
+            })
+            .collect::<Vec<_>>()
+            .join(", ")
+    }
+
+    fn markov_stationary_column_widths() -> (f32, f32, f32) {
+        (76.0, 520.0, 96.0)
+    }
+
+    fn markov_state_graph_column_widths() -> (f32, f32) {
+        (76.0, 540.0)
+    }
+
+    fn markov_draw_cell(ui: &mut egui::Ui, width: f32, text: impl Into<WidgetText>) {
+        ui.add_sized([width, 0.0], egui::Label::new(text));
     }
 
     fn markov_place_display_name(&self, place_idx: usize) -> String {
@@ -423,19 +383,5 @@ impl PetriApp {
                 }
             })
             .unwrap_or_else(|| format!("P{}", place_idx + 1))
-    }
-
-    fn markov_marking_column_width(available: f32) -> f32 {
-        const MIN_WIDTH: f32 = 120.0;
-        let max_width = (available * 0.7).max(MIN_WIDTH);
-        let width = (available * 0.55).clamp(MIN_WIDTH, max_width);
-        width.min(available)
-    }
-
-    fn markov_transitions_column_width(available: f32) -> f32 {
-        const MIN_WIDTH: f32 = 180.0;
-        let max_width = (available * 0.65).max(MIN_WIDTH);
-        let width = (available * 0.6).clamp(MIN_WIDTH, max_width);
-        width.min(available)
     }
 }
