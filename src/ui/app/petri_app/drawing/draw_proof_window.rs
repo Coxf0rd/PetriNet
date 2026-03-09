@@ -93,9 +93,20 @@ impl PetriApp {
                         egui::Grid::new("proof_grid_header")
                             .striped(true)
                             .show(ui, |ui| {
-                                ui.add_sized([step_w, 0.0], egui::Label::new(self.tr("Шаг", "Step")));
-                                ui.add_sized([time_w, 0.0], egui::Label::new(self.tr("Время", "Time")));
-                                ui.add_sized([transition_w, 0.0], egui::Label::new(self.tr("Сработал переход", "Fired transition")));
+                                ui.add_sized(
+                                    [step_w, 0.0],
+                                    egui::Label::new(self.tr("Шаг", "Step")),
+                                );
+                                ui.add_sized(
+                                    [time_w, 0.0],
+                                    egui::Label::new(self.tr("Время", "Time")),
+                                );
+                                ui.add_sized(
+                                    [transition_w, 0.0],
+                                    egui::Label::new(
+                                        self.tr("Сработал переход", "Fired transition"),
+                                    ),
+                                );
                                 ui.label(self.tr("Маркировка", "Marking"));
                                 ui.end_row();
                             });
@@ -122,8 +133,14 @@ impl PetriApp {
                                     .show(ui, |ui| {
                                         for row_idx in range {
                                             let entry = &result.logs[visible_steps[row_idx]];
-                                            ui.add_sized([step_w, 0.0], egui::Label::new(row_idx.to_string()));
-                                            ui.add_sized([time_w, 0.0], egui::Label::new(format!("{:.3}", entry.time)));
+                                            ui.add_sized(
+                                                [step_w, 0.0],
+                                                egui::Label::new(row_idx.to_string()),
+                                            );
+                                            ui.add_sized(
+                                                [time_w, 0.0],
+                                                egui::Label::new(format!("{:.3}", entry.time)),
+                                            );
                                             ui.add_sized(
                                                 [transition_w, 0.0],
                                                 egui::Label::new(

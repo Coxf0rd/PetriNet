@@ -174,11 +174,17 @@ impl PetriApp {
         let state_col = 76.0;
         let prob_col = 84.0;
         ui.horizontal(|ui| {
-            ui.add_sized([state_col, 0.0], egui::Label::new(RichText::new(self.tr("Состояние", "State")).strong()));
+            ui.add_sized(
+                [state_col, 0.0],
+                egui::Label::new(RichText::new(self.tr("Состояние", "State")).strong()),
+            );
             ui.allocate_ui(Vec2::new(header_marking_width, 0.0), |ui| {
                 ui.label(RichText::new(self.tr("Маркировка", "Marking")).strong());
             });
-            ui.add_sized([prob_col, 0.0], egui::Label::new(RichText::new("π").strong()));
+            ui.add_sized(
+                [prob_col, 0.0],
+                egui::Label::new(RichText::new("π").strong()),
+            );
         });
 
         // Determine a dynamic maximum height for the scroll area.  Use the
@@ -231,7 +237,10 @@ impl PetriApp {
 
         let state_col = 76.0;
         ui.horizontal(|ui| {
-            ui.add_sized([state_col, 0.0], egui::Label::new(RichText::new(self.tr("Состояние", "State")).strong()));
+            ui.add_sized(
+                [state_col, 0.0],
+                egui::Label::new(RichText::new(self.tr("Состояние", "State")).strong()),
+            );
             ui.allocate_ui(Vec2::new(header_transitions_width, 0.0), |ui| {
                 ui.label(RichText::new(self.tr("Переходы", "Transitions")).strong());
             });
@@ -365,12 +374,18 @@ impl PetriApp {
                         if !distribution.is_empty() {
                             for (count, prob) in distribution.iter() {
                                 ui.horizontal(|ui: &mut egui::Ui| {
-                                    ui.add_sized([140.0, 0.0], egui::Label::new(format!(
-                                        "{} {}",
-                                        count,
-                                        self.tr("маркеров", "tokens")
-                                    )));
-                                    ui.add_sized([84.0, 0.0], egui::Label::new(format!("{:.2}%", prob * 100.0)));
+                                    ui.add_sized(
+                                        [140.0, 0.0],
+                                        egui::Label::new(format!(
+                                            "{} {}",
+                                            count,
+                                            self.tr("маркеров", "tokens")
+                                        )),
+                                    );
+                                    ui.add_sized(
+                                        [84.0, 0.0],
+                                        egui::Label::new(format!("{:.2}%", prob * 100.0)),
+                                    );
                                 });
                             }
                         } else if stationary.is_some() {

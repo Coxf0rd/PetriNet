@@ -152,12 +152,31 @@ impl PetriApp {
                                 .map(|i| format!("T{}", i + 1))
                                 .unwrap_or_else(|| "-".to_string())
                         ));
-                        // Render the marking grid using virtualized rows.  Use the scroll
-                        // utilities to hide the scroll bar while constraining the height.
+
+                        egui::Grid::new("debug_marking_header").num_columns(3).show(
+                            ui,
+                            |ui: &mut egui::Ui| {
+                                ui.add_sized(
+                                    [130.0, 0.0],
+                                    egui::Label::new(t("Позиция", "Position")),
+                                );
+                                ui.add_sized([90.0, 0.0], egui::Label::new(t("Маркеры", "Tokens")));
+                                ui.add_sized(
+                                    [120.0, 0.0],
+                                    egui::Label::new(t("Изменение", "Delta")),
+                                );
+                                ui.end_row();
+                            },
+                        );
+
                         let row_h = ui.text_style_height(&egui::TextStyle::Body) + 4.0;
                         let row_count = entry.marking.len();
-                        // Virtualized rows require explicit type annotations on the closure
-                        // parameters so that the Rust compiler can infer the types.
+                        let prev_entry = if log_idx > 0 {
+                            result.logs.get(log_idx - 1)
+                        } else {
+                            None
+                        };
+
                         scroll_utils::show_virtualized_rows(
                             ui,
                             "debug_marking_grid",
@@ -166,10 +185,40 @@ impl PetriApp {
                             row_count,
                             |ui: &mut egui::Ui, idx: usize| {
                                 egui::Grid::new("debug_marking_grid_rows")
+                                    .num_columns(3)
                                     .striped(true)
                                     .show(ui, |ui: &mut egui::Ui| {
-                                        ui.add_sized([72.0, 0.0], egui::Label::new(format!("P{}", idx + 1)));
-                                        ui.add_sized([84.0, 0.0], egui::Label::new(entry.marking[idx].to_string()));
+                                        let current = entry.marking[idx];
+                                        let previous = prev_entry
+                                            .and_then(|e| e.marking.get(idx))
+                                            .copied()
+                                            .unwrap_or(current);
+                                        let delta = current as i32 - previous as i32;
+
+                                        ui.add_sized(
+                                            [130.0, 0.0],
+                                            egui::Label::new(format!("P{}", idx + 1)),
+                                        );
+                                        ui.add_sized(
+                                            [90.0, 0.0],
+                                            egui::Label::new(current.to_string()),
+                                        );
+
+                                        let color = if delta > 0 {
+                                            egui::Color32::GREEN
+                                        } else if delta < 0 {
+                                            egui::Color32::RED
+                                        } else {
+                                            ui.visuals().text_color()
+                                        };
+
+                                        ui.add_sized(
+                                            [120.0, 0.0],
+                                            egui::Label::new(
+                                                egui::RichText::new(delta.to_string()).color(color),
+                                            ),
+                                        );
+
                                         ui.end_row();
                                     });
                             },
