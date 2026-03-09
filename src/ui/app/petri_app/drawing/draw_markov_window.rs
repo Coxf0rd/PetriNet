@@ -70,10 +70,19 @@ impl PetriApp {
                     }
 
                     if self.markov_model_enabled {
-                        self.calculate_markov_model();
+                        self.markov_model_pending_compute = true;
+                        self.markov_model = None;
                     } else {
+                        self.markov_model_pending_compute = false;
                         self.markov_place_arcs.clear();
                     }
+                }
+
+                if simulation_ready
+                    && self.markov_model_enabled
+                    && (self.markov_model_pending_compute || self.markov_model.is_none())
+                {
+                    self.calculate_markov_model();
                 }
 
                 ui.separator();
@@ -179,12 +188,35 @@ impl PetriApp {
                 explored_states,
                 limit
             ),
-            StationaryStatus::TimedNetUnsupported => self
-                .tr(
-                    "Стационарное распределение не вычислено: сеть использует задержки или стохастику, для этого нужна расширенная timed-Markov модель",
-                    "Stationary distribution unavailable: timed or stochastic net requires an extended timed Markov model",
+            StationaryStatus::TimedNetUnsupported {
+                delayed_places,
+                stochastic_places,
+            } => {
+                let mut details = Vec::new();
+                if *delayed_places > 0 {
+                    details.push(format!(
+                        "{}: {}",
+                        self.tr("позиций с задержкой", "delayed places"),
+                        delayed_places
+                    ));
+                }
+                if *stochastic_places > 0 {
+                    details.push(format!(
+                        "{}: {}",
+                        self.tr("позиций со стохастикой", "stochastic places"),
+                        stochastic_places
+                    ));
+                }
+                format!(
+                    "{}{}{}",
+                    self.tr(
+                        "Стационарное распределение для сети с задержками/стохастикой сейчас не рассчитывается",
+                        "Stationary distribution is currently unavailable for timed or stochastic nets",
+                    ),
+                    if details.is_empty() { "" } else { ": " },
+                    details.join(", ")
                 )
-                .into_owned(),
+            }
             StationaryStatus::SolverDidNotConverge => self
                 .tr(
                     "Стационарное распределение не вычислено: численный решатель не сошёлся",

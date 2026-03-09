@@ -16,6 +16,7 @@ impl PetriApp {
         self.pending_netstar_export_path = None;
         self.netstar_export_validation = None;
         self.markov_model = None;
+        self.markov_model_pending_compute = false;
         self.markov_limit_reached = false;
         self.markov_annotations.clear();
         self.markov_place_arcs.clear();

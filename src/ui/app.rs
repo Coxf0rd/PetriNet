@@ -409,6 +409,7 @@ pub struct PetriApp {
     show_markov_window: bool,
     markov_model_enabled: bool,
     markov_model: Option<MarkovChain>,
+    markov_model_pending_compute: bool,
     markov_limit_reached: bool,
     markov_annotations: HashMap<u64, String>,
     markov_place_arcs: Vec<MarkovPlaceArc>,

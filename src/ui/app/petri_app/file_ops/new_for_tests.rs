@@ -77,6 +77,7 @@ impl PetriApp {
             show_markov_window: false,
             markov_model_enabled: false,
             markov_model: None,
+            markov_model_pending_compute: false,
             markov_limit_reached: false,
             markov_annotations: HashMap::new(),
             markov_place_arcs: Vec::new(),

@@ -92,7 +92,6 @@ impl PetriApp {
                             "Requires an active simulation",
                         ));
                     if response.clicked() {
-                        self.calculate_markov_model();
                         self.show_markov_window = true;
                     }
                 });

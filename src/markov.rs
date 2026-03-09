@@ -26,7 +26,10 @@ pub struct MarkovChain {
 pub enum StationaryStatus {
     Computed,
     LimitReached { explored_states: usize, limit: usize },
-    TimedNetUnsupported,
+    TimedNetUnsupported {
+        delayed_places: usize,
+        stochastic_places: usize,
+    },
     SolverDidNotConverge,
     NoDynamicTransitions,
 }
@@ -55,9 +58,23 @@ pub fn build_markov_chain(net: &PetriNet, max_states: Option<usize>) -> MarkovCh
     let fixed_limit = max_states;
     let mut adaptive_limit = fixed_limit.unwrap_or(DEFAULT_MIN_MAX_STATES);
     let specs = build_transition_specs(net);
-    let can_compute_stationary = !net_has_timed_behavior(net);
+    let timed_counts = timed_behavior_counts(net);
+    let can_compute_stationary = timed_counts.is_none();
 
     let initial_marking = net.tables.m0.clone();
+    if let Some((delayed_places, stochastic_places)) = timed_counts {
+        return MarkovChain {
+            states: vec![initial_marking],
+            transitions: vec![Vec::new()],
+            stationary: None,
+            limit_reached: false,
+            state_limit: adaptive_limit,
+            stationary_status: StationaryStatus::TimedNetUnsupported {
+                delayed_places,
+                stochastic_places,
+            },
+        };
+    }
     let mut states = Vec::new();
     let mut transitions = Vec::new();
     let mut seen = HashMap::new();
@@ -123,7 +140,7 @@ pub fn build_markov_chain(net: &PetriNet, max_states: Option<usize>) -> MarkovCh
     }
 
     let (stationary, stationary_status) = if !can_compute_stationary {
-        (None, StationaryStatus::TimedNetUnsupported)
+        (None, StationaryStatus::TimedNetUnsupported { delayed_places: 0, stochastic_places: 0 })
     } else if limit_reached {
         (
             None,
@@ -220,12 +237,18 @@ fn estimate_graph_bytes(
         .saturating_add(queue_bytes)
 }
 
-fn net_has_timed_behavior(net: &PetriNet) -> bool {
-    net.tables.mz.iter().any(|&delay| delay > 0.0)
-        || net
-            .places
-            .iter()
-            .any(|place| place.stochastic != StochasticDistribution::None)
+fn timed_behavior_counts(net: &PetriNet) -> Option<(usize, usize)> {
+    let delayed_places = net.tables.mz.iter().filter(|&&delay| delay > 0.0).count();
+    let stochastic_places = net
+        .places
+        .iter()
+        .filter(|place| place.stochastic != StochasticDistribution::None)
+        .count();
+    if delayed_places > 0 || stochastic_places > 0 {
+        Some((delayed_places, stochastic_places))
+    } else {
+        None
+    }
 }
 
 fn build_transition_specs(net: &PetriNet) -> Vec<TransitionSpec> {
