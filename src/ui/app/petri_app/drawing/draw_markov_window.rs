@@ -165,57 +165,27 @@ impl PetriApp {
             ui.label(self.tr("Состояний не найдено", "No states found"));
             return;
         }
-        // Calculate the available width for the header before rendering any rows.
-        // This ensures that both the header and the rows share the same width.
-        let header_available = ui.available_width();
-        let header_marking_width = Self::markov_marking_column_width(header_available);
-
-        // Draw the header row of the stationary distribution table.
+        let max_height = Self::markov_section_height(ui, 320.0, 140.0);
         let state_col = 76.0;
         let prob_col = 84.0;
-        ui.horizontal(|ui| {
-            ui.add_sized(
-                [state_col, 0.0],
-                egui::Label::new(RichText::new(self.tr("Состояние", "State")).strong()),
-            );
-            ui.allocate_ui(Vec2::new(header_marking_width, 0.0), |ui| {
-                ui.label(RichText::new(self.tr("Маркировка", "Marking")).strong());
-            });
-            ui.add_sized(
-                [prob_col, 0.0],
-                egui::Label::new(RichText::new("π").strong()),
-            );
-        });
 
-        let max_height = Self::markov_section_height(ui, 320.0, 140.0);
-
-        // Row height is based on the body text style plus some padding.
-        let row_h = ui.text_style_height(&egui::TextStyle::Body) + 4.0;
-        let row_count = stationary.len();
-
-        // Virtualize the stationary distribution rows.  For each row, compute
-        // the marking column width based on the row's available width.  This
-        // ensures that the row contents align with the header even when the
-        // scroll area's width changes due to scroll bars or margins.
-        scroll_utils::show_virtualized_rows(
+        scroll_utils::show_list_with_scroll(
             ui,
             "markov_stationary_distribution",
             max_height,
-            row_h,
-            row_count,
-            |ui: &mut egui::Ui, idx: usize| {
-                let value = stationary[idx];
-                // Determine current row width and compute marking column width.
-                let row_available = ui.available_width();
-                let marking_width = Self::markov_marking_column_width(row_available);
-                ui.horizontal(|ui: &mut egui::Ui| {
-                    ui.add_sized([state_col, 0.0], egui::Label::new(format!("S{}", idx + 1)));
-                    ui.allocate_ui(Vec2::new(marking_width, 0.0), |ui: &mut egui::Ui| {
-                        self.draw_state_marking_table(ui, &chain.states[idx][..], idx);
+            |ui: &mut egui::Ui| {
+                for (idx, value) in stationary.iter().copied().enumerate() {
+                    let row_available = ui.available_width();
+                    let marking_width = Self::markov_marking_column_width(row_available);
+                    ui.horizontal(|ui: &mut egui::Ui| {
+                        ui.add_sized([state_col, 0.0], egui::Label::new(format!("S{}", idx + 1)));
+                        ui.allocate_ui(Vec2::new(marking_width, 0.0), |ui: &mut egui::Ui| {
+                            self.draw_state_marking_table(ui, &chain.states[idx][..], idx);
+                        });
+                        ui.add_sized([prob_col, 0.0], egui::Label::new(format!("{:.6}", value)));
                     });
-                    ui.add_sized([prob_col, 0.0], egui::Label::new(format!("{:.6}", value)));
-                });
-                ui.add_space(6.0);
+                    ui.add_space(6.0);
+                }
             },
         );
     }
@@ -330,14 +300,13 @@ impl PetriApp {
                         let place_label = if place.name.is_empty() {
                             format!("P{}", place.id)
                         } else {
-                            place.name.clone()
+                            format!("P{} ({})", place.id, place.name)
                         };
 
                         ui.label(format!(
-                            "{}: {} (P{})",
+                            "{}: {}",
                             self.tr("Позиция", "Place"),
                             place_label,
-                            place.id
                         ));
 
                         if let Some(expected) = expectation
@@ -450,7 +419,7 @@ impl PetriApp {
                 if place.name.is_empty() {
                     format!("P{}", place.id)
                 } else {
-                    format!("{} (P{})", place.name, place.id)
+                    format!("P{} ({})", place.id, place.name)
                 }
             })
             .unwrap_or_else(|| format!("P{}", place_idx + 1))
