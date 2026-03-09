@@ -105,11 +105,22 @@ impl PetriApp {
                     self.tr("Режим: примерный", "Mode: approximate")
                 }
             };
+            let states_label = match chain.computation_mode {
+                MarkovComputationMode::Exact => self.tr("Состояний", "States"),
+                MarkovComputationMode::Approximate => self.tr("Состояний в логе", "States in log"),
+            };
+            let transitions_label = match chain.computation_mode {
+                MarkovComputationMode::Exact => self.tr("Переходов", "Transitions"),
+                MarkovComputationMode::Approximate => self.tr(
+                    "Наблюдённых переходов в логе",
+                    "Observed transitions in log",
+                ),
+            };
             ui.label(mode_text.as_ref());
             ui.separator();
             ui.label(format!(
                 "{}: {}{}",
-                self.tr("Состояний", "States"),
+                states_label,
                 chain.state_count(),
                 if chain.limit_reached {
                     format!(" ({})", self.tr("лимит", "limit reached"))
@@ -120,18 +131,11 @@ impl PetriApp {
 
             ui.label(format!(
                 "{}: {}",
-                self.tr("Переходов", "Transitions"),
-                chain.transition_count_after_merge
+                transitions_label, chain.transition_count_after_merge
             ));
         });
 
         ui.horizontal_wrapped(|ui| {
-            ui.label(format!(
-                "{}: {}",
-                self.tr("Переходов до схлопывания", "Transitions before merge"),
-                chain.transition_count_before_merge
-            ));
-            ui.separator();
             let stop_reason = match &chain.build_stop_reason {
                 BuildStopReason::ExhaustedStateSpace { explored_states } => format!(
                     "{}: {}",
@@ -167,6 +171,19 @@ impl PetriApp {
                 ),
             };
             ui.label(stop_reason);
+            if chain.computation_mode == MarkovComputationMode::Approximate {
+                if let Some(sim_result) = self.sim_result.as_deref() {
+                    ui.separator();
+                    ui.label(format!(
+                        "{}: {}",
+                        self.tr(
+                            "Срабатываний переходов симулятора",
+                            "Simulation fired transitions",
+                        ),
+                        sim_result.fired_count
+                    ));
+                }
+            }
         });
         ui.separator();
 
