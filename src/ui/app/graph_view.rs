@@ -736,7 +736,7 @@ impl PetriApp {
                 Stroke::new(
                     if is_selected { 3.0 } else { 1.5 },
                     if is_selected {
-                        Color32::from_rgb(255, 140, 0)
+                        Color32::from_rgb(80, 120, 255)
                     } else {
                         Color32::from_gray(90)
                     },
@@ -1146,7 +1146,7 @@ impl PetriApp {
                 Stroke::new(
                     if is_selected { 3.0 } else { 2.0 },
                     if is_selected {
-                        Color32::from_rgb(255, 140, 0)
+                        Color32::from_rgb(80, 120, 255)
                     } else {
                         tr_color
                     },
