@@ -159,10 +159,12 @@ impl PetriApp {
                                 self.canvas.selected_transition = Some(tr.id);
 
                                 if response.clicked() {
-                                    let screen_center = ctx.available_rect().center();
+                                    let screen_rect = ctx.available_rect();
+                                    let target_x = screen_rect.left() + screen_rect.width() * 0.3;
+                                    let target_y = screen_rect.center().y;
                                     self.canvas.pan = egui::vec2(
-                                        screen_center.x - tr.pos[0] * self.canvas.zoom,
-                                        screen_center.y - tr.pos[1] * self.canvas.zoom,
+                                        target_x - tr.pos[0] * self.canvas.zoom,
+                                        target_y - tr.pos[1] * self.canvas.zoom,
                                     );
                                 }
                             }
@@ -204,52 +206,56 @@ impl PetriApp {
                                 };
                                 let delta: i32 = current as i32 - prev as i32;
 
-                                egui::Grid::new(format!("debug_marking_grid_rows_{idx}"))
-                                    .num_columns(3)
-                                    .striped(true)
-                                    .spacing([20.0, 4.0])
-                                    .show(ui, |ui: &mut egui::Ui| {
-                                        let place_label = format!("P{}", idx + 1);
-                                        let response = ui.add_sized(
+                                let place_label = format!("P{}", idx + 1);
+                                let delta_text = if delta > 0 {
+                                    format!("+{}", delta)
+                                } else {
+                                    delta.to_string()
+                                };
+
+                                let color = if delta > 0 {
+                                    egui::Color32::GREEN
+                                } else if delta < 0 {
+                                    egui::Color32::RED
+                                } else {
+                                    ui.visuals().text_color()
+                                };
+
+                                let row_response = ui
+                                    .horizontal(|ui| {
+                                        let place_resp = ui.add_sized(
                                             [120.0, 0.0],
                                             egui::SelectableLabel::new(false, place_label),
                                         );
-
-                                        if response.clicked() {
-                                            if let Some(place) = self.net.places.get(idx) {
-                                                self.canvas.selected_place = Some(place.id);
-                                                let screen_center = ctx.available_rect().center();
-                                                self.canvas.pan = egui::vec2(
-                                                    screen_center.x
-                                                        - place.pos[0] * self.canvas.zoom,
-                                                    screen_center.y
-                                                        - place.pos[1] * self.canvas.zoom,
-                                                );
-                                            }
-                                        }
 
                                         ui.add_sized(
                                             [80.0, 0.0],
                                             egui::Label::new(current.to_string()),
                                         );
 
-                                        let color = if delta > 0 {
-                                            egui::Color32::GREEN
-                                        } else if delta < 0 {
-                                            egui::Color32::RED
-                                        } else {
-                                            ui.visuals().text_color()
-                                        };
-
                                         ui.add_sized(
                                             [100.0, 0.0],
                                             egui::Label::new(
-                                                egui::RichText::new(delta.to_string()).color(color),
+                                                egui::RichText::new(delta_text).color(color),
                                             ),
                                         );
 
-                                        ui.end_row();
-                                    });
+                                        place_resp
+                                    })
+                                    .inner;
+
+                                if row_response.clicked() {
+                                    if let Some(place) = self.net.places.get(idx) {
+                                        self.canvas.selected_place = Some(place.id);
+                                        let screen_rect = ctx.available_rect();
+                                        let target_x = screen_rect.left() + screen_rect.width() * 0.3;
+                                        let target_y = screen_rect.center().y;
+                                        self.canvas.pan = egui::vec2(
+                                            target_x - place.pos[0] * self.canvas.zoom,
+                                            target_y - place.pos[1] * self.canvas.zoom,
+                                        );
+                                    }
+                                }
                             },
                         );
                     }

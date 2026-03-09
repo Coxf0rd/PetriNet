@@ -632,7 +632,7 @@ impl PetriApp {
                 place_token_colors.iter().cloned().collect::<Vec<_>>();
             events.push(DebugAnimationEvent {
                 transition_idx,
-                step_idx,
+                step_idx: step_idx + 1,
                 duration,
                 entry_color,
                 exit_color,
