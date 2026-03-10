@@ -41,6 +41,7 @@ impl PetriApp {
                     self.debug_place_colors.clear();
                     self.invalidate_markov_model();
                     self.markov_arc_view_mode = MarkovArcViewMode::AggregatedWeighted;
+                    self.markov_arc_min_weight_percent = Self::MARKOV_ARC_MIN_PERCENT;
                     self.markov_model_enabled = false;
                     self.show_markov_window = false;
                     self.sim_run_serial = 0;

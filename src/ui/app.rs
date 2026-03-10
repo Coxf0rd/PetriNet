@@ -423,6 +423,7 @@ pub struct PetriApp {
     markov_annotations: HashMap<u64, String>,
     markov_place_arcs: Vec<MarkovPlaceArc>,
     markov_arc_view_mode: MarkovArcViewMode,
+    markov_arc_min_weight_percent: f64,
     selected_markov_arc: Option<usize>,
     markov_stationary_row_offsets: Vec<usize>,
     markov_state_graph_row_offsets: Vec<usize>,
@@ -458,6 +459,8 @@ impl PetriApp {
     const MAX_PLOT_POINTS: usize = 2_000;
     const DEBUG_ANIMATION_MIN_DURATION: f64 = 0.1;
     const DEBUG_ANIMATION_MAX_DURATION: f64 = 1.5;
+    const MARKOV_ARC_MIN_PERCENT: f64 = 0.01;
+    const MARKOV_ARC_MAX_PERCENT: f64 = 100.0;
 
     pub(in crate::ui::app) fn refresh_debug_animation_state(&mut self) {
         if let Some(result) = self.sim_result.as_ref() {

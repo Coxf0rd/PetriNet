@@ -1599,9 +1599,14 @@ impl PetriApp {
         if self.markov_place_arcs.is_empty() {
             return;
         }
+        let min_visible_probability =
+            (self.markov_arc_min_weight_percent / 100.0).max(f64::EPSILON);
         let color = Color32::from_rgb(50, 130, 200);
         let stroke_width = 1.5 * self.canvas.zoom.clamp(0.6, 1.4);
         for arc in &self.markov_place_arcs {
+            if arc.probability < min_visible_probability {
+                continue;
+            }
             let from_idx = match self.place_idx_by_id(arc.from_place_id) {
                 Some(idx) => idx,
                 None => continue,
