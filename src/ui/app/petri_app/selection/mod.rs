@@ -1,7 +1,6 @@
 ﻿use super::*;
 
 mod clear_selection;
-mod collect_selected_arc_ids;
 mod collect_selected_frame_ids;
 mod collect_selected_place_ids;
 mod collect_selected_text_ids;
