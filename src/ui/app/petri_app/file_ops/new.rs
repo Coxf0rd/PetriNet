@@ -84,6 +84,7 @@ impl PetriApp {
                 markov_limit_reached: false,
                 markov_annotations: HashMap::new(),
                 markov_place_arcs: Vec::new(),
+                markov_arc_view_mode: MarkovArcViewMode::AggregatedWeighted,
                 selected_markov_arc: None,
                 markov_stationary_row_offsets: Vec::new(),
                 markov_state_graph_row_offsets: Vec::new(),

@@ -59,25 +59,50 @@ impl PetriApp {
     }
 
     fn build_markov_place_arcs(&self, chain: &MarkovChain) -> Vec<MarkovPlaceArc> {
+        let result = match self.markov_arc_view_mode {
+            MarkovArcViewMode::AggregatedWeighted => {
+                self.build_markov_place_arcs_aggregated_weighted(chain)
+            }
+            MarkovArcViewMode::ObservedAll => self.build_markov_place_arcs_observed_all(chain),
+        };
+
+        if result.is_empty() {
+            self.fallback_markov_place_arcs()
+        } else {
+            result
+        }
+    }
+
+    fn build_markov_place_arcs_aggregated_weighted(
+        &self,
+        chain: &MarkovChain,
+    ) -> Vec<MarkovPlaceArc> {
         let mut arcs = HashMap::new();
         let state_weights = Self::chain_state_weights(chain);
         for (state_idx, edges) in chain.transitions.iter().enumerate() {
             let state_prob = *state_weights.get(state_idx).unwrap_or(&0.0);
-            if state_prob <= 0.0 {
-                continue;
-            }
+            // Keep connectivity even when the estimated stationary weight is zero
+            // (common for transient states in approximate logs).
+            let state_weight = if state_prob > 0.0 { state_prob } else { 1.0 };
             let src_marking = &chain.states[state_idx];
             for &(dest_idx, rate) in edges {
                 if rate <= 0.0 {
                     continue;
                 }
                 let dest_marking = &chain.states[dest_idx];
-                let weight = state_prob * rate;
+                let weight = state_weight * rate;
                 let (consumed, produced) = Self::markov_places_delta(src_marking, dest_marking);
-                if consumed.is_empty() {
-                    continue;
-                }
-                let from_places = consumed
+                let from_candidates = if consumed.is_empty() {
+                    let changed = Self::markov_changed_places(src_marking, dest_marking);
+                    if changed.is_empty() {
+                        Self::markov_marked_places(src_marking)
+                    } else {
+                        changed
+                    }
+                } else {
+                    consumed
+                };
+                let from_places = from_candidates
                     .into_iter()
                     .filter(|&idx| self.net.places[idx].show_markov_model)
                     .collect::<Vec<_>>();
@@ -102,6 +127,53 @@ impl PetriApp {
                 }
             }
         }
+        Self::finalize_markov_place_arcs(arcs)
+    }
+
+    fn build_markov_place_arcs_observed_all(&self, chain: &MarkovChain) -> Vec<MarkovPlaceArc> {
+        let mut arcs = HashMap::new();
+        for (state_idx, edges) in chain.transitions.iter().enumerate() {
+            let src_marking = &chain.states[state_idx];
+            for &(dest_idx, rate) in edges {
+                if rate <= 0.0 {
+                    continue;
+                }
+                let dest_marking = &chain.states[dest_idx];
+                let (consumed, produced) = Self::markov_places_delta(src_marking, dest_marking);
+                let from_candidates = if consumed.is_empty() {
+                    Self::markov_changed_places(src_marking, dest_marking)
+                } else {
+                    consumed
+                };
+                let from_places = from_candidates
+                    .into_iter()
+                    .filter(|&idx| self.net.places[idx].show_markov_model)
+                    .collect::<Vec<_>>();
+                if from_places.is_empty() {
+                    continue;
+                }
+                let pair_count = from_places.len() * produced.len().max(1);
+                let contribution = rate / pair_count as f64;
+                for from_idx in from_places {
+                    if produced.is_empty() {
+                        let key = (self.net.places[from_idx].id, None);
+                        *arcs.entry(key).or_insert(0.0) += contribution;
+                    } else {
+                        for &to_idx in &produced {
+                            let key = (
+                                self.net.places[from_idx].id,
+                                Some(self.net.places[to_idx].id),
+                            );
+                            *arcs.entry(key).or_insert(0.0) += contribution;
+                        }
+                    }
+                }
+            }
+        }
+        Self::finalize_markov_place_arcs(arcs)
+    }
+
+    fn finalize_markov_place_arcs(arcs: HashMap<(u64, Option<u64>), f64>) -> Vec<MarkovPlaceArc> {
         let mut result = arcs
             .into_iter()
             .map(|((from, to), probability)| MarkovPlaceArc {
@@ -121,9 +193,6 @@ impl PetriApp {
                 .partial_cmp(&a.probability)
                 .unwrap_or(Ordering::Equal)
         });
-        if result.is_empty() {
-            result = self.fallback_markov_place_arcs();
-        }
         result
     }
 
@@ -211,5 +280,25 @@ impl PetriApp {
             }
         }
         (consumed, produced)
+    }
+
+    fn markov_changed_places(src: &[u32], dest: &[u32]) -> Vec<usize> {
+        let mut changed = Vec::new();
+        for (idx, (&before, &after)) in src.iter().zip(dest.iter()).enumerate() {
+            if before != after {
+                changed.push(idx);
+            }
+        }
+        changed
+    }
+
+    fn markov_marked_places(marking: &[u32]) -> Vec<usize> {
+        let mut marked = Vec::new();
+        for (idx, tokens) in marking.iter().copied().enumerate() {
+            if tokens > 0 {
+                marked.push(idx);
+            }
+        }
+        marked
     }
 }

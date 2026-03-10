@@ -24,6 +24,7 @@ impl PetriApp {
             |ui| {
                 let simulation_ready = self.sim_result.is_some();
                 let mut toggle_changed = false;
+                let mut arc_mode_changed = false;
                 let markov_checkbox_label = self.tr(
                     "показывать дуги марковской модели в рабочей области",
                     "Show Markov model arcs in workspace",
@@ -51,10 +52,33 @@ impl PetriApp {
                     }
                 });
 
+                ui.add_enabled_ui(simulation_ready, |ui| {
+                    ui.horizontal_wrapped(|ui| {
+                        ui.label(self.tr("Режим дуг в рабочей области:", "Arc mode in workspace:"));
+                        arc_mode_changed |= ui
+                            .selectable_value(
+                                &mut self.markov_arc_view_mode,
+                                MarkovArcViewMode::AggregatedWeighted,
+                                "Aggregated",
+                            )
+                            .changed();
+                        arc_mode_changed |= ui
+                            .selectable_value(
+                                &mut self.markov_arc_view_mode,
+                                MarkovArcViewMode::ObservedAll,
+                                "All observed",
+                            )
+                            .changed();
+                    });
+                });
+
                 if toggle_changed {
                     for place in &mut self.net.places {
                         place.show_markov_model = self.markov_model_enabled;
                     }
+                    self.refresh_markov_place_arcs();
+                }
+                if arc_mode_changed {
                     self.refresh_markov_place_arcs();
                 }
 
