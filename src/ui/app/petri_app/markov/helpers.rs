@@ -59,12 +59,7 @@ impl PetriApp {
     }
 
     fn build_markov_place_arcs(&self, chain: &MarkovChain) -> Vec<MarkovPlaceArc> {
-        let result = match self.markov_arc_view_mode {
-            MarkovArcViewMode::AggregatedWeighted => {
-                self.build_markov_place_arcs_aggregated_weighted(chain)
-            }
-            MarkovArcViewMode::ObservedAll => self.build_markov_place_arcs_observed_all(chain),
-        };
+        let result = self.build_markov_place_arcs_aggregated_weighted(chain);
 
         if result.is_empty() {
             self.fallback_markov_place_arcs()
@@ -111,49 +106,6 @@ impl PetriApp {
                 }
                 let pair_count = from_places.len() * produced.len().max(1);
                 let contribution = weight / pair_count as f64;
-                for from_idx in from_places {
-                    if produced.is_empty() {
-                        let key = (self.net.places[from_idx].id, None);
-                        *arcs.entry(key).or_insert(0.0) += contribution;
-                    } else {
-                        for &to_idx in &produced {
-                            let key = (
-                                self.net.places[from_idx].id,
-                                Some(self.net.places[to_idx].id),
-                            );
-                            *arcs.entry(key).or_insert(0.0) += contribution;
-                        }
-                    }
-                }
-            }
-        }
-        Self::finalize_markov_place_arcs(arcs)
-    }
-
-    fn build_markov_place_arcs_observed_all(&self, chain: &MarkovChain) -> Vec<MarkovPlaceArc> {
-        let mut arcs = HashMap::new();
-        for (state_idx, edges) in chain.transitions.iter().enumerate() {
-            let src_marking = &chain.states[state_idx];
-            for &(dest_idx, rate) in edges {
-                if rate <= 0.0 {
-                    continue;
-                }
-                let dest_marking = &chain.states[dest_idx];
-                let (consumed, produced) = Self::markov_places_delta(src_marking, dest_marking);
-                let from_candidates = if consumed.is_empty() {
-                    Self::markov_changed_places(src_marking, dest_marking)
-                } else {
-                    consumed
-                };
-                let from_places = from_candidates
-                    .into_iter()
-                    .filter(|&idx| self.net.places[idx].show_markov_model)
-                    .collect::<Vec<_>>();
-                if from_places.is_empty() {
-                    continue;
-                }
-                let pair_count = from_places.len() * produced.len().max(1);
-                let contribution = rate / pair_count as f64;
                 for from_idx in from_places {
                     if produced.is_empty() {
                         let key = (self.net.places[from_idx].id, None);

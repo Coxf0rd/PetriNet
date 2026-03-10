@@ -46,12 +46,6 @@ enum ArcDisplayMode {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum MarkovArcViewMode {
-    AggregatedWeighted,
-    ObservedAll,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum PlaceStatsSeries {
     Total,
     Input,
@@ -422,7 +416,6 @@ pub struct PetriApp {
     markov_limit_reached: bool,
     markov_annotations: HashMap<u64, String>,
     markov_place_arcs: Vec<MarkovPlaceArc>,
-    markov_arc_view_mode: MarkovArcViewMode,
     markov_arc_min_weight_percent: f64,
     selected_markov_arc: Option<usize>,
     markov_stationary_row_offsets: Vec<usize>,

@@ -32,7 +32,6 @@ impl PetriApp {
         self.markov_limit_reached = false;
         self.markov_annotations.clear();
         self.markov_place_arcs.clear();
-        self.markov_arc_view_mode = MarkovArcViewMode::AggregatedWeighted;
         self.markov_arc_min_weight_percent = Self::MARKOV_ARC_MIN_PERCENT;
         self.selected_markov_arc = None;
         self.show_markov_window = false;
