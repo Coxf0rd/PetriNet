@@ -1595,18 +1595,38 @@ impl PetriApp {
         }
     }
 
-    fn draw_markov_place_arcs(&self, rect: Rect, painter: &egui::Painter, ui: &egui::Ui) {
+    fn draw_markov_place_arcs(&mut self, rect: Rect, painter: &egui::Painter, ui: &egui::Ui) {
         if self.markov_place_arcs.is_empty() {
             return;
         }
         let min_visible_probability =
             (self.markov_arc_min_weight_percent / 100.0).max(f64::EPSILON);
-        let color = Color32::from_rgb(50, 130, 200);
+        let base_color = Color32::from_rgb(50, 130, 200);
+        let selected_color = Color32::from_rgb(240, 140, 20);
+        let click_pos = ui.ctx().input(|i| {
+            if i.pointer.primary_clicked() {
+                i.pointer.interact_pos()
+            } else {
+                None
+            }
+        });
+        let mut hit_best: Option<(usize, f32)> = None;
         let stroke_width = 1.5 * self.canvas.zoom.clamp(0.6, 1.4);
-        for arc in &self.markov_place_arcs {
+        for (arc_idx, arc) in self.markov_place_arcs.iter().enumerate() {
             if arc.probability < min_visible_probability {
                 continue;
             }
+            let is_selected = self.selected_markov_arc == Some(arc_idx);
+            let color = if is_selected {
+                selected_color
+            } else {
+                base_color
+            };
+            let arc_stroke_width = if is_selected {
+                stroke_width * 1.8
+            } else {
+                stroke_width
+            };
             let from_idx = match self.place_idx_by_id(arc.from_place_id) {
                 Some(idx) => idx,
                 None => continue,
@@ -1631,32 +1651,64 @@ impl PetriApp {
                     Self::markov_curve_control(start, end, from_idx, to_idx, self.canvas.zoom);
                 painter.add(epaint::QuadraticBezierShape {
                     points: [start, control, end],
-                    stroke: Stroke::new(stroke_width, color).into(),
+                    stroke: Stroke::new(arc_stroke_width, color).into(),
                     fill: Color32::TRANSPARENT.into(),
                     closed: false,
                 });
                 let tangent = Self::normalized_or_zero(end - control);
-                self.draw_markov_arrow_head(painter, end, tangent, stroke_width, color);
-                Some((start, end, tangent))
+                self.draw_markov_arrow_head(painter, end, tangent, arc_stroke_width, color);
+                if let Some(pointer) = click_pos {
+                    let dist = Self::markov_distance_to_quadratic(pointer, start, control, end);
+                    let threshold = 10.0 * self.canvas.zoom.clamp(0.7, 1.8);
+                    if dist <= threshold {
+                        match hit_best {
+                            Some((_, best_dist)) if dist >= best_dist => {}
+                            _ => hit_best = Some((arc_idx, dist)),
+                        }
+                    }
+                }
+                let label_center = Self::markov_quadratic_point(start, control, end, 0.5);
+                let label_tangent = Self::markov_quadratic_tangent(start, control, end, 0.5);
+                Some((label_center, label_tangent))
             } else {
                 let dir = Vec2::Y;
                 let start = from_center + dir * from_radius;
                 let end = start + dir * (28.0 * self.canvas.zoom);
-                painter.line_segment([start, end], Stroke::new(stroke_width, color));
-                self.draw_markov_arrow_head(painter, end, dir, stroke_width, color);
-                Some((start, end, dir))
+                painter.line_segment([start, end], Stroke::new(arc_stroke_width, color));
+                self.draw_markov_arrow_head(painter, end, dir, arc_stroke_width, color);
+                if let Some(pointer) = click_pos {
+                    let dist = Self::markov_distance_to_segment(pointer, start, end);
+                    let threshold = 10.0 * self.canvas.zoom.clamp(0.7, 1.8);
+                    if dist <= threshold {
+                        match hit_best {
+                            Some((_, best_dist)) if dist >= best_dist => {}
+                            _ => hit_best = Some((arc_idx, dist)),
+                        }
+                    }
+                }
+                let label_center = Pos2::new((start.x + end.x) * 0.5, (start.y + end.y) * 0.5);
+                Some((label_center, dir))
             };
-            if let Some((start, end, dir)) = arrow {
-                let mid = Pos2::new((start.x + end.x) * 0.5, (start.y + end.y) * 0.5);
+            if let Some((label_center, tangent)) = arrow {
+                let dir = Self::normalized_or_zero(tangent);
                 let label_offset = Vec2::new(-dir.y, dir.x) * (6.0 * self.canvas.zoom);
                 painter.text(
-                    mid + label_offset,
+                    label_center + label_offset,
                     egui::Align2::CENTER_CENTER,
                     format!("{:.1}%", (arc.probability * 100.0).clamp(0.0, 999.9)),
                     egui::TextStyle::Small.resolve(ui.style()),
-                    Color32::from_rgb(30, 30, 30),
+                    if is_selected {
+                        selected_color
+                    } else {
+                        Color32::from_rgb(30, 30, 30)
+                    },
                 );
             }
+        }
+        if let Some((idx, _)) = hit_best {
+            self.selected_markov_arc = Some(idx);
+        } else if click_pos.is_some() {
+            self.selected_markov_arc = None;
         }
     }
 
@@ -1697,5 +1749,45 @@ impl PetriApp {
         } else {
             delta.normalized()
         }
+    }
+
+    fn markov_quadratic_point(start: Pos2, control: Pos2, end: Pos2, t: f32) -> Pos2 {
+        let u = 1.0 - t;
+        let x = u * u * start.x + 2.0 * u * t * control.x + t * t * end.x;
+        let y = u * u * start.y + 2.0 * u * t * control.y + t * t * end.y;
+        Pos2::new(x, y)
+    }
+
+    fn markov_quadratic_tangent(start: Pos2, control: Pos2, end: Pos2, t: f32) -> Vec2 {
+        let a = (control - start) * (2.0 * (1.0 - t));
+        let b = (end - control) * (2.0 * t);
+        a + b
+    }
+
+    fn markov_distance_to_segment(point: Pos2, seg_start: Pos2, seg_end: Pos2) -> f32 {
+        let ab = seg_end - seg_start;
+        let ab_len_sq = ab.length_sq();
+        if ab_len_sq <= f32::EPSILON {
+            return (point - seg_start).length();
+        }
+        let t = ((point - seg_start).dot(ab) / ab_len_sq).clamp(0.0, 1.0);
+        let projection = seg_start + ab * t;
+        (point - projection).length()
+    }
+
+    fn markov_distance_to_quadratic(point: Pos2, start: Pos2, control: Pos2, end: Pos2) -> f32 {
+        let mut min_dist = f32::MAX;
+        let mut prev = start;
+        let samples = 24usize;
+        for i in 1..=samples {
+            let t = i as f32 / samples as f32;
+            let curr = Self::markov_quadratic_point(start, control, end, t);
+            let dist = Self::markov_distance_to_segment(point, prev, curr);
+            if dist < min_dist {
+                min_dist = dist;
+            }
+            prev = curr;
+        }
+        min_dist
     }
 }

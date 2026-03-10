@@ -1,6 +1,6 @@
 ﻿[package]
 name = "petri_net_legacy_editor"
-version = "0.7.174"
+version = "0.7.175"
 edition = "2021"
 license = "MIT"
 build = "build.rs"
