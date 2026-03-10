@@ -183,6 +183,7 @@ pub struct Place {
     pub input_number: u32,
     pub input_description: String,
     pub stochastic: StochasticDistribution,
+    pub stochastic_seed: u64,
     pub stats: PlaceStatisticsSelection,
     pub markov_highlight: bool,
     pub markov_placement: MarkovPlacement,

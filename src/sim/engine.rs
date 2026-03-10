@@ -489,63 +489,81 @@ fn sample_place_delay(
     base_delay: f64,
     rng: &mut SmallRng,
 ) -> f64 {
+    fn sample_distribution<R: Rng + ?Sized>(
+        dist: &StochasticDistribution,
+        base_delay: f64,
+        rng: &mut R,
+    ) -> f64 {
+        match dist {
+            StochasticDistribution::None => base_delay,
+            StochasticDistribution::Uniform { min, max } => {
+                let lo = min.min(*max);
+                let hi = min.max(*max);
+                if (hi - lo).abs() < f64::EPSILON {
+                    lo
+                } else {
+                    rng.gen_range(lo..=hi)
+                }
+            }
+            StochasticDistribution::Normal { mean, std_dev } => {
+                let sigma = std_dev.max(0.0);
+                if sigma <= f64::EPSILON {
+                    *mean
+                } else {
+                    let u1 = (1.0 - rng.gen::<f64>()).clamp(1e-12, 1.0);
+                    let u2 = rng.gen::<f64>();
+                    let z = (-2.0 * u1.ln()).sqrt() * (2.0 * std::f64::consts::PI * u2).cos();
+                    mean + sigma * z
+                }
+            }
+            StochasticDistribution::Exponential { lambda } => {
+                let l = lambda.max(1e-9);
+                let u = (1.0 - rng.gen::<f64>()).clamp(1e-12, 1.0);
+                -u.ln() / l
+            }
+            StochasticDistribution::Gamma { shape, scale } => {
+                let k = shape.max(1e-9);
+                let theta = scale.max(1e-9);
+                if let Ok(dist) = Gamma::new(k, theta) {
+                    dist.sample(rng)
+                } else {
+                    base_delay
+                }
+            }
+            StochasticDistribution::Poisson { lambda } => {
+                let l = lambda.max(0.0);
+                if l <= f64::EPSILON {
+                    0.0
+                } else {
+                    let limit = (-l).exp();
+                    let mut k = 0_u32;
+                    let mut p = 1.0_f64;
+                    loop {
+                        k = k.saturating_add(1);
+                        p *= rng.gen::<f64>();
+                        if p <= limit {
+                            break;
+                        }
+                    }
+                    (k.saturating_sub(1)) as f64
+                }
+            }
+        }
+    }
+
     let Some(place) = net.places.get(place_index) else {
         return base_delay.max(0.0);
     };
-    let value = match place.stochastic {
-        StochasticDistribution::None => base_delay,
-        StochasticDistribution::Uniform { min, max } => {
-            let lo = min.min(max);
-            let hi = min.max(max);
-            if (hi - lo).abs() < f64::EPSILON {
-                lo
-            } else {
-                rng.gen_range(lo..=hi)
-            }
-        }
-        StochasticDistribution::Normal { mean, std_dev } => {
-            let sigma = std_dev.max(0.0);
-            if sigma <= f64::EPSILON {
-                mean
-            } else {
-                let u1 = (1.0 - rng.gen::<f64>()).clamp(1e-12, 1.0);
-                let u2 = rng.gen::<f64>();
-                let z = (-2.0 * u1.ln()).sqrt() * (2.0 * std::f64::consts::PI * u2).cos();
-                mean + sigma * z
-            }
-        }
-        StochasticDistribution::Exponential { lambda } => {
-            let l = lambda.max(1e-9);
-            let u = (1.0 - rng.gen::<f64>()).clamp(1e-12, 1.0);
-            -u.ln() / l
-        }
-        StochasticDistribution::Gamma { shape, scale } => {
-            let k = shape.max(1e-9);
-            let theta = scale.max(1e-9);
-            if let Ok(dist) = Gamma::new(k, theta) {
-                dist.sample(rng)
-            } else {
-                base_delay
-            }
-        }
-        StochasticDistribution::Poisson { lambda } => {
-            let l = lambda.max(0.0);
-            if l <= f64::EPSILON {
-                0.0
-            } else {
-                let limit = (-l).exp();
-                let mut k = 0_u32;
-                let mut p = 1.0_f64;
-                loop {
-                    k = k.saturating_add(1);
-                    p *= rng.gen::<f64>();
-                    if p <= limit {
-                        break;
-                    }
-                }
-                (k.saturating_sub(1)) as f64
-            }
-        }
+    let value = if place.stochastic_seed == 0 {
+        sample_distribution(&place.stochastic, base_delay, rng)
+    } else {
+        // Per-place stochastic seed for reproducible local random stream.
+        let mixed_seed = place
+            .stochastic_seed
+            .wrapping_add((place_index as u64).wrapping_mul(0x9E37_79B9_7F4A_7C15))
+            ^ rng.gen::<u64>();
+        let mut local_rng = SmallRng::seed_from_u64(mixed_seed);
+        sample_distribution(&place.stochastic, base_delay, &mut local_rng)
     };
     if value.is_finite() {
         value.max(0.0)

@@ -372,6 +372,23 @@ impl PetriApp {
                         corrected_inputs |= sanitize_f64(lambda, 0.0001, 10_000.0);
                     }
                 }
+                if !matches!(
+                    self.net.places[place_idx].stochastic,
+                    StochasticDistribution::None
+                ) {
+                    ui.horizontal(|ui: &mut egui::Ui| {
+                        ui.label(t("seed", "seed"));
+                        let mut stochastic_seed = self.net.places[place_idx].stochastic_seed;
+                        corrected_inputs |= sanitize_u64(&mut stochastic_seed, 0, u64::MAX);
+                        ui.add(
+                            egui::DragValue::new(&mut stochastic_seed)
+                                .range(0..=u64::MAX)
+                                .speed(1),
+                        );
+                        corrected_inputs |= sanitize_u64(&mut stochastic_seed, 0, u64::MAX);
+                        self.net.places[place_idx].stochastic_seed = stochastic_seed;
+                    });
+                }
                 validation_hint(
                     ui,
                     corrected_inputs,
