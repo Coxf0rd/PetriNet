@@ -1,7 +1,7 @@
 use super::*;
 use crate::markov::{build_markov_chain_approximate, BuildStopReason, MarkovComputationMode};
 
-const EXACT_MARKOV_MAX_STATES: usize = 250_000;
+const EXACT_MARKOV_MAX_STATES: usize = 500_000;
 const APPROX_MARKOV_MAX_STATES: usize = 250_000;
 
 impl PetriApp {
