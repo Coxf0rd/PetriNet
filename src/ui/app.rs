@@ -32,7 +32,6 @@ use crate::ui::property_window::{show_property_window, PropertyWindowConfig};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum LayoutMode {
-    Cascade,
     TileHorizontal,
     TileVertical,
     Minimized,
@@ -399,7 +398,6 @@ pub struct PetriApp {
     place_stats_series: PlaceStatsSeries,
     place_stats_zoom_x: f32,
     place_stats_pan_x: f32,
-    place_stats_show_grid: bool,
     arc_display_mode: ArcDisplayMode,
     arc_display_color: NodeColor,
     show_netstar_export_validation: bool,
@@ -449,7 +447,6 @@ impl PetriApp {
     const CLIPBOARD_PREFIX: &'static str = "PETRINET_COPY_V1:";
     const FRAME_MIN_SIDE: f32 = 10.0;
     const FRAME_RESIZE_HANDLE_PX: f32 = 10.0;
-    const MAX_PLOT_POINTS: usize = 2_000;
     const DEBUG_ANIMATION_MIN_DURATION: f64 = 0.1;
     const DEBUG_ANIMATION_MAX_DURATION: f64 = 1.5;
     const MARKOV_ARC_MIN_PERCENT: f64 = 0.01;

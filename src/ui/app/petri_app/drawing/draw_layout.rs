@@ -17,14 +17,6 @@ impl PetriApp {
         }
 
         egui::CentralPanel::default().show(ctx, |ui| match self.layout_mode {
-            LayoutMode::Cascade => {
-                if self.show_graph_view {
-                    self.draw_graph_view(ui);
-                }
-                if self.show_table_view {
-                    self.draw_table_workspace(ui);
-                }
-            }
             LayoutMode::TileHorizontal => {
                 if !self.show_table_view {
                     if self.show_graph_view {

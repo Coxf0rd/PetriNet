@@ -67,7 +67,6 @@ impl PetriApp {
                 place_stats_series: PlaceStatsSeries::Total,
                 place_stats_zoom_x: 1.0,
                 place_stats_pan_x: 1.0,
-                place_stats_show_grid: true,
                 arc_display_mode: ArcDisplayMode::All,
                 arc_display_color: NodeColor::Default,
                 show_netstar_export_validation: false,
