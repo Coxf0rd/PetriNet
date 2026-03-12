@@ -12,9 +12,14 @@ impl PetriApp {
         let (rect, response) = ui.allocate_exact_size(desired, Sense::click_and_drag());
         let painter = ui.painter_at(rect);
 
-        let zoom_delta = ui.ctx().input(|i| i.zoom_delta());
+        let (zoom_delta, scroll_delta) =
+            ui.ctx().input(|i| (i.zoom_delta(), i.smooth_scroll_delta));
         if (zoom_delta - 1.0).abs() > f32::EPSILON {
             self.canvas.zoom = (self.canvas.zoom * zoom_delta).clamp(0.2, 3.0);
+        } else if response.hovered()
+            && (scroll_delta.x.abs() > f32::EPSILON || scroll_delta.y.abs() > f32::EPSILON)
+        {
+            self.canvas.pan -= scroll_delta;
         }
 
         if response.dragged_by(egui::PointerButton::Middle) {
