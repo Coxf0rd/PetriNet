@@ -19,7 +19,7 @@ impl PetriApp {
         } else if response.hovered()
             && (scroll_delta.x.abs() > f32::EPSILON || scroll_delta.y.abs() > f32::EPSILON)
         {
-            self.canvas.pan -= scroll_delta;
+            self.canvas.pan += scroll_delta;
         }
 
         if response.dragged_by(egui::PointerButton::Middle) {
